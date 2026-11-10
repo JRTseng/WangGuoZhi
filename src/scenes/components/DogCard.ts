@@ -12,6 +12,8 @@ export class DogCard extends Phaser.GameObjects.Container {
   readonly dog: DogData;
   readonly power: number;
   readonly rect: Rect;
+  private readonly frame: Phaser.GameObjects.Graphics;
+  private readonly badge: Phaser.GameObjects.Text;
 
   constructor(scene: Phaser.Scene, dog: DogData, rect: Rect, onSelect: (dog: DogData) => void) {
     super(scene, rect.x, rect.y);
@@ -23,9 +25,8 @@ export class DogCard extends Phaser.GameObjects.Container {
 
     const bg = scene.add.graphics();
     bg.fillStyle(COLORS.card, 1);
-    bg.lineStyle(2, COLORS.cardBorder, 1);
     bg.fillRoundedRect(0, 0, w, h, 14);
-    bg.strokeRoundedRect(0, 0, w, h, 14);
+    this.frame = scene.add.graphics();
 
     // 頭像：圓形頭 + 兩個三角耳，用顏色區分
     const r = Math.min(30, h / 2 - 10);
@@ -91,7 +92,20 @@ export class DogCard extends Phaser.GameObjects.Container {
     });
     powerText.setOrigin(1, 0.5);
 
-    this.add([bg, head, name, sub, lv, powerLabel, powerText]);
+    // 狀態標籤（出征中／已選），預設隱藏
+    this.badge = scene.add.text(w - 16, 8, '', {
+      fontFamily: FONT_FAMILY,
+      fontSize: '13px',
+      fontStyle: 'bold',
+      color: '#ffffff',
+      backgroundColor: '#8a6f55',
+      padding: { x: 6, y: 2 },
+    });
+    this.badge.setOrigin(1, 0);
+    this.badge.setVisible(false);
+
+    this.add([bg, this.frame, head, name, sub, lv, powerLabel, powerText, this.badge]);
+    this.setStatus({});
     this.setSize(w, h);
     // Container 的 hitArea 以左上角為原點
     this.setInteractive(new Phaser.Geom.Rectangle(0, 0, w, h), Phaser.Geom.Rectangle.Contains);
@@ -99,5 +113,25 @@ export class DogCard extends Phaser.GameObjects.Container {
     this.on('pointerup', () => onSelect(dog));
 
     scene.add.existing(this);
+  }
+
+  /**
+   * 顯示狀態：出征中（變淡 + 標籤）、已選（粗框 + 標籤）。
+   * 只改外觀，不擋點擊；能不能選由呼叫端依 src/logic/ 判斷。
+   */
+  setStatus({ busy = false, selected = false }: { busy?: boolean; selected?: boolean }): this {
+    const { width: w, height: h } = this.rect;
+    this.frame.clear();
+    this.frame.lineStyle(selected ? 4 : 2, selected ? COLORS.button : COLORS.cardBorder, 1);
+    this.frame.strokeRoundedRect(0, 0, w, h, 14);
+    this.setAlpha(busy ? 0.5 : 1);
+    if (busy) {
+      this.badge.setText('出征中').setBackgroundColor('#8a6f55').setVisible(true);
+    } else if (selected) {
+      this.badge.setText('✓ 已選').setBackgroundColor('#b5651d').setVisible(true);
+    } else {
+      this.badge.setVisible(false);
+    }
+    return this;
   }
 }
