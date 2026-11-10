@@ -13,6 +13,8 @@ interface WgzDebugState {
     id: string;
     name: string;
     power: number;
+    /** 出征中 */
+    busy?: boolean;
     x: number;
     y: number;
     width: number;
@@ -20,7 +22,39 @@ interface WgzDebugState {
   }[];
   /** 目前開啟資訊面板的角色 id，沒開為 null */
   panel?: string | null;
-  expeditionButton?: { label: string; x: number; y: number; width: number; height: number };
+  expeditionButton?: {
+    label: string;
+    enabled?: boolean;
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  };
+  /** 主畫面顯示中的出征，沒有為 null */
+  expedition?: {
+    id: string;
+    stageId: string;
+    dogIds: string[];
+    remainingMs: number;
+    complete: boolean;
+  } | null;
+  /** 收成結果面板顯示的獎勵，沒開為 null */
+  result?: { food: number; bones: number } | null;
+  backButton?: WgzRect;
+  /** 出征面板（ExpeditionScene） */
+  expeditionPanel?: {
+    step: 'stage' | 'team';
+    stages: ({ id: string; name: string } & WgzRect)[];
+    teamCards: ({ id: string; busy: boolean; selected: boolean } & WgzRect)[];
+    confirmButton: ({ label: string; enabled: boolean } & WgzRect) | null;
+  };
+}
+
+interface WgzRect {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
 }
 
 interface Window {

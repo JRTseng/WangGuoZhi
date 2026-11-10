@@ -17,7 +17,8 @@ test('主畫面顯示資源列、5 隻角色與出征按鈕', async ({ page }) =
   const state = await page.evaluate(() => window.__WGZ__);
   expect(state?.resources).toEqual({ food: 1200, bones: 50 });
   expect(state?.cards?.map((c) => c.name)).toEqual(['大耳', '黑旋', '長鬚', '小算', '阿白']);
-  expect(state?.expeditionButton?.label).toBe('出征（即將開放）');
+  expect(state?.expeditionButton?.label).toBe('出征');
+  expect(state?.expeditionButton?.enabled).toBe(true);
 
   // 390 x 844 下卡片不重疊、不超出畫面，也不壓到出征按鈕
   const cards = state!.cards!;

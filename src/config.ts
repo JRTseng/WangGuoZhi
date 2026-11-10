@@ -15,5 +15,7 @@ export const COLORS = {
   barText: '#fff6e8',
   button: 0xb5651d,
   buttonDisabled: 0xb9a48c,
+  /** 收成按鈕 */
+  harvest: 0x4f8a3c,
   overlay: 0x000000,
 } as const;
