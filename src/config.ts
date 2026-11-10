@@ -11,6 +11,8 @@ export const COLORS = {
   inkHex: 0x3b2a1a,
   card: 0xfffaf2,
   cardBorder: 0xd8c3a5,
+  /** 出征選角時被選中的卡片底色 */
+  cardSelected: 0xffe2c2,
   bar: 0x6b4a2e,
   barText: '#fff6e8',
   button: 0xb5651d,

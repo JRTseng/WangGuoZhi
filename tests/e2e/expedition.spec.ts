@@ -103,3 +103,47 @@ test('出征面板可返回主畫面', async ({ page }) => {
   await tap(page, s.backButton!);
   await page.waitForFunction(() => window.__WGZ__?.scene === 'MainScene');
 });
+
+test('卡片與按鈕整塊都點得到（四個角落）', async ({ page }) => {
+  await page.goto('/');
+  await page.waitForFunction(() => window.__WGZ__?.scene === 'MainScene');
+
+  // 出征按鈕右下角
+  const btn = (await wgz(page)).expeditionButton!;
+  await tap(page, { x: btn.x + btn.width - 30, y: btn.y + btn.height - 14, width: 0, height: 0 });
+  await page.waitForFunction(() => window.__WGZ__?.expeditionPanel?.step === 'stage');
+
+  // 關卡卡片右下角
+  const stage = (await wgz(page)).expeditionPanel!.stages[0];
+  await tap(page, {
+    x: stage.x + stage.width - 20,
+    y: stage.y + stage.height - 12,
+    width: 0,
+    height: 0,
+  });
+  await page.waitForFunction(() => window.__WGZ__?.expeditionPanel?.step === 'team');
+
+  // 前 3 張狗卡分別點不同角落：選到 → 再點取消 → 再點選回來
+  const cards = (await wgz(page)).expeditionPanel!.teamCards;
+  const spots: [number, number][] = [
+    [0.9, 0.85],
+    [0.1, 0.85],
+    [0.9, 0.15],
+  ];
+  const selected = (id: string) =>
+    page.evaluate(
+      (id) => window.__WGZ__?.expeditionPanel?.teamCards.find((x) => x.id === id)?.selected,
+      id,
+    );
+  for (const [i, [fx, fy]] of spots.entries()) {
+    const c = cards[i];
+    const p = { x: c.x + c.width * fx, y: c.y + c.height * fy, width: 0, height: 0 };
+    await tap(page, p);
+    expect(await selected(c.id), `第 ${i + 1} 張點 (${fx}, ${fy})`).toBe(true);
+    await tap(page, p);
+    expect(await selected(c.id)).toBe(false);
+    await tap(page, p);
+    expect(await selected(c.id)).toBe(true);
+  }
+  expect((await wgz(page)).expeditionPanel!.confirmButton!.enabled).toBe(true);
+});

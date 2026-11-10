@@ -11,6 +11,7 @@ import { minuteMsFromSearch } from '../logic/timeScale';
 import { getState, setState } from '../state/store';
 import { Button } from './components/Button';
 import { DogCard } from './components/DogCard';
+import { makeTapArea } from './components/hitArea';
 
 const BAR_HEIGHT = 64;
 const BACK: Rect = { x: 8, y: 8, width: 96, height: 48 };
@@ -152,12 +153,7 @@ export class ExpeditionScene extends Phaser.Scene {
       ),
       this.text(18, 86, `獎勵 ${rewardText(stage.reward)}`, 17, COLORS.ink),
     ]);
-    c.setSize(r.width, r.height);
-    c.setInteractive(
-      new Phaser.Geom.Rectangle(0, 0, r.width, r.height),
-      Phaser.Geom.Rectangle.Contains,
-    );
-    c.input!.cursor = 'pointer';
+    makeTapArea(c, r.width, r.height);
     c.on('pointerup', () => {
       this.stage = stage;
       this.step = 'team';
@@ -186,12 +182,13 @@ export class ExpeditionScene extends Phaser.Scene {
 
     const listTop = BAR_HEIGHT + 56;
     const rects = layoutList(DOGS.length, {
-      area: { x: 16, y: listTop, width: GAME_WIDTH - 32, height: CONFIRM.y - 48 - listTop },
+      area: { x: 16, y: listTop, width: GAME_WIDTH - 32, height: CONFIRM.y - 76 - listTop },
       gap: 10,
       maxCardHeight: 100,
     });
     const cards = DOGS.map((dog, i) => {
       const card = new DogCard(this, dog, rects[i], () => this.toggleDog(dog.id));
+      card.setSelectable(true);
       card.setStatus({ busy: busy.has(dog.id), selected: this.selected.includes(dog.id) });
       this.layer.add(card);
       return card;
@@ -201,12 +198,25 @@ export class ExpeditionScene extends Phaser.Scene {
       const d = DOGS.find((x) => x.id === id)!;
       return sum + calcPower(d.baseAttack, d.baseDefense, d.level);
     }, 0);
+    const names = this.selected.map((id) => DOGS.find((d) => d.id === id)!.name);
     this.layer.add(
       this.text(
         GAME_WIDTH / 2,
-        CONFIRM.y - 24,
+        CONFIRM.y - 52,
+        names.length
+          ? `已選 ${names.length}/${TEAM_SIZE}：${names.join('、')}`
+          : `點卡片選 ${TEAM_SIZE} 隻，再點一次取消`,
+        18,
+        names.length ? '#b5651d' : COLORS.inkSoft,
+        true,
+      ).setOrigin(0.5),
+    );
+    this.layer.add(
+      this.text(
+        GAME_WIDTH / 2,
+        CONFIRM.y - 22,
         `隊伍戰力 ${teamPower}／建議 ${stage.recommendedPower}`,
-        17,
+        15,
         teamPower >= stage.recommendedPower ? '#4f8a3c' : COLORS.inkSoft,
         true,
       ).setOrigin(0.5),
