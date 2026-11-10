@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test';
 
 test('開機畫面顯示標題與版本號', async ({ page }) => {
-  await page.goto('/');
+  await page.goto('/?stay=boot');
   await page.waitForFunction(() => window.__WGZ__?.scene === 'BootScene');
 
   const version = await page.evaluate(() => window.__WGZ__?.version);
