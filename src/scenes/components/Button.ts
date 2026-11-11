@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { COLORS, FONT_FAMILY } from '../../config';
 import type { Rect } from '../../logic/layout';
+import { makeTapArea } from './hitArea';
 
 /**
  * 圓角大按鈕（手機單手好按）。可改文字、啟用／停用、顏色。
@@ -26,11 +27,7 @@ export class Button extends Phaser.GameObjects.Container {
       })
       .setOrigin(0.5);
     this.add([this.bg, this.label]);
-    this.setSize(rect.width, rect.height);
-    this.setInteractive(
-      new Phaser.Geom.Rectangle(0, 0, rect.width, rect.height),
-      Phaser.Geom.Rectangle.Contains,
-    );
+    makeTapArea(this, rect.width, rect.height);
     this.on('pointerup', () => {
       if (this.enabled) onTap();
     });

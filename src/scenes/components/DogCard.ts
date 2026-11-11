@@ -3,6 +3,7 @@ import { COLORS, FONT_FAMILY } from '../../config';
 import type { DogData } from '../../data/dogs';
 import type { Rect } from '../../logic/layout';
 import { calcPower } from '../../logic/power';
+import { makeTapArea } from './hitArea';
 
 /**
  * 角色卡片：幾何佔位頭像 + 名字、犬種、等級、戰力。
@@ -12,8 +13,15 @@ export class DogCard extends Phaser.GameObjects.Container {
   readonly dog: DogData;
   readonly power: number;
   readonly rect: Rect;
+  private readonly bg: Phaser.GameObjects.Graphics;
   private readonly frame: Phaser.GameObjects.Graphics;
   private readonly badge: Phaser.GameObjects.Text;
+  private readonly check: Phaser.GameObjects.Graphics;
+  private readonly powerLabel: Phaser.GameObjects.Text;
+  private readonly powerText: Phaser.GameObjects.Text;
+  private readonly sub: Phaser.GameObjects.Text;
+  /** 選角模式：右側顯示勾選圈，戰力往左移 */
+  private selectable = false;
 
   constructor(scene: Phaser.Scene, dog: DogData, rect: Rect, onSelect: (dog: DogData) => void) {
     super(scene, rect.x, rect.y);
@@ -24,8 +32,7 @@ export class DogCard extends Phaser.GameObjects.Container {
     const { width: w, height: h } = rect;
 
     const bg = scene.add.graphics();
-    bg.fillStyle(COLORS.card, 1);
-    bg.fillRoundedRect(0, 0, w, h, 14);
+    this.bg = bg;
     this.frame = scene.add.graphics();
 
     // 頭像：圓形頭 + 兩個三角耳，用顏色區分
@@ -64,11 +71,11 @@ export class DogCard extends Phaser.GameObjects.Container {
       color: COLORS.ink,
     });
     name.setOrigin(0, 0.5);
-    const sub = scene.add.text(tx, h / 2 + 4, `${dog.breed}・${dog.role}`, {
+    const sub = (this.sub = scene.add.text(tx, h / 2 + 4, `${dog.breed}・${dog.role}`, {
       fontFamily: FONT_FAMILY,
       fontSize: '14px',
       color: COLORS.inkSoft,
-    });
+    }));
     sub.setOrigin(0, 0.5);
     const lv = scene.add.text(tx, h / 2 + 26, `Lv.${dog.level}`, {
       fontFamily: FONT_FAMILY,
@@ -78,19 +85,20 @@ export class DogCard extends Phaser.GameObjects.Container {
     });
     lv.setOrigin(0, 0.5);
 
-    const powerLabel = scene.add.text(w - 16, h / 2 - 12, '戰力', {
+    const powerLabel = (this.powerLabel = scene.add.text(w - 16, h / 2 - 12, '戰力', {
       fontFamily: FONT_FAMILY,
       fontSize: '13px',
       color: COLORS.inkSoft,
-    });
+    }));
     powerLabel.setOrigin(1, 0.5);
-    const powerText = scene.add.text(w - 16, h / 2 + 12, String(this.power), {
+    const powerText = (this.powerText = scene.add.text(w - 16, h / 2 + 12, String(this.power), {
       fontFamily: FONT_FAMILY,
       fontSize: '26px',
       fontStyle: 'bold',
       color: '#b5651d',
-    });
+    }));
     powerText.setOrigin(1, 0.5);
+    this.check = scene.add.graphics();
 
     // 狀態標籤（出征中／已選），預設隱藏
     this.badge = scene.add.text(w - 16, 8, '', {
@@ -104,30 +112,64 @@ export class DogCard extends Phaser.GameObjects.Container {
     this.badge.setOrigin(1, 0);
     this.badge.setVisible(false);
 
-    this.add([bg, this.frame, head, name, sub, lv, powerLabel, powerText, this.badge]);
+    this.add([bg, this.frame, head, name, sub, lv, powerLabel, powerText, this.check, this.badge]);
     this.setStatus({});
-    this.setSize(w, h);
-    // Container 的 hitArea 以左上角為原點
-    this.setInteractive(new Phaser.Geom.Rectangle(0, 0, w, h), Phaser.Geom.Rectangle.Contains);
-    this.input!.cursor = 'pointer';
+    makeTapArea(this, w, h);
     this.on('pointerup', () => onSelect(dog));
 
     scene.add.existing(this);
   }
 
+  /** 開關選角模式：右側出現勾選圈，戰力往左讓位 */
+  setSelectable(selectable: boolean): this {
+    this.selectable = selectable;
+    const x = this.rect.width - (selectable ? 64 : 16);
+    this.powerLabel.setX(x);
+    this.powerText.setX(x);
+    // 選角模式寬度較窄，副標只留犬種，避免壓到戰力
+    this.sub.setText(selectable ? this.dog.breed : `${this.dog.breed}・${this.dog.role}`);
+    return this;
+  }
+
   /**
-   * 顯示狀態：出征中（變淡 + 標籤）、已選（粗框 + 標籤）。
+   * 顯示狀態：
+   * - 出征中：變淡 + 「出征中」標籤
+   * - 已選：底色變橘、粗橘框、右側實心勾勾（選角模式）或「✓ 已選」標籤
    * 只改外觀，不擋點擊；能不能選由呼叫端依 src/logic/ 判斷。
    */
   setStatus({ busy = false, selected = false }: { busy?: boolean; selected?: boolean }): this {
     const { width: w, height: h } = this.rect;
+    this.bg.clear();
+    this.bg.fillStyle(selected ? COLORS.cardSelected : COLORS.card, 1);
+    this.bg.fillRoundedRect(0, 0, w, h, 14);
     this.frame.clear();
-    this.frame.lineStyle(selected ? 4 : 2, selected ? COLORS.button : COLORS.cardBorder, 1);
+    this.frame.lineStyle(selected ? 5 : 2, selected ? COLORS.button : COLORS.cardBorder, 1);
     this.frame.strokeRoundedRect(0, 0, w, h, 14);
     this.setAlpha(busy ? 0.5 : 1);
+
+    this.check.clear();
+    if (this.selectable && !busy) {
+      const cx = w - 30;
+      const cy = h / 2;
+      const r = 16;
+      if (selected) {
+        this.check.fillStyle(COLORS.button, 1);
+        this.check.fillCircle(cx, cy, r);
+        this.check.lineStyle(4, 0xffffff, 1);
+        this.check.beginPath();
+        this.check.moveTo(cx - 8, cy);
+        this.check.lineTo(cx - 2, cy + 6);
+        this.check.lineTo(cx + 8, cy - 6);
+        this.check.strokePath();
+      } else {
+        this.check.lineStyle(3, COLORS.cardBorder, 1);
+        this.check.strokeCircle(cx, cy, r);
+      }
+    }
+
     if (busy) {
       this.badge.setText('出征中').setBackgroundColor('#8a6f55').setVisible(true);
-    } else if (selected) {
+    } else if (selected && !this.selectable) {
       this.badge.setText('✓ 已選').setBackgroundColor('#b5651d').setVisible(true);
     } else {
       this.badge.setVisible(false);
