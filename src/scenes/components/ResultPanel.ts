@@ -1,21 +1,30 @@
 import Phaser from 'phaser';
-import { COLORS, FONT_FAMILY, GAME_HEIGHT, GAME_WIDTH } from '../../config';
+import { COLORS, FONT_FAMILY } from '../../config';
 import { RESOURCE_LABELS, type Resources } from '../../data/resources';
 import { formatAmount } from '../../logic/format';
+import { viewOf } from '../ui';
 
 /** 收成結果面板：半透明遮罩 + 中央卡片，點任何地方關閉。 */
 export class ResultPanel extends Phaser.GameObjects.Container {
-  constructor(scene: Phaser.Scene, stageName: string, reward: Resources, onClose: () => void) {
+  constructor(
+    scene: Phaser.Scene,
+    stageName: string,
+    reward: Resources,
+    onClose: () => void,
+    /** 額外訊息（例如解鎖下一關、新背景） */
+    extra: string[] = [],
+  ) {
     super(scene, 0, 0);
+    const { w: GAME_WIDTH, h: GAME_HEIGHT } = viewOf(scene);
 
     const shade = scene.add.rectangle(0, 0, GAME_WIDTH, GAME_HEIGHT, COLORS.overlay, 0.45);
     shade.setOrigin(0, 0);
     shade.setInteractive();
     shade.on('pointerup', onClose);
 
-    const pw = GAME_WIDTH - 48;
-    const ph = 240;
-    const px = 24;
+    const pw = Math.min(GAME_WIDTH - 48, 360);
+    const ph = Math.min(GAME_HEIGHT - 24, 240 + extra.length * 26);
+    const px = (GAME_WIDTH - pw) / 2;
     const py = (GAME_HEIGHT - ph) / 2;
     const box = scene.add.graphics();
     box.fillStyle(COLORS.card, 1);
@@ -36,7 +45,7 @@ export class ResultPanel extends Phaser.GameObjects.Container {
 
     const keys = Object.keys(RESOURCE_LABELS) as (keyof Resources)[];
     const items = [
-      text(py + 44, '收成！', 32, '#4f8a3c', true),
+      text(py + 40, '收成！', 32, '#4f8a3c', true),
       text(py + 90, `${stageName} 平安歸來`, 18, COLORS.inkSoft),
       ...keys.map((k, i) =>
         text(
@@ -47,7 +56,8 @@ export class ResultPanel extends Phaser.GameObjects.Container {
           true,
         ),
       ),
-      text(py + ph - 26, '點一下關閉', 14, COLORS.inkSoft),
+      ...extra.map((e, i) => text(py + 132 + keys.length * 30 + i * 26, e, 15, '#b5651d', true)),
+      text(py + ph - 22, '點一下關閉', 14, COLORS.inkSoft),
     ];
 
     this.add([shade, box, ...items]);

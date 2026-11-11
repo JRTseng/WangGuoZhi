@@ -128,6 +128,8 @@ export class DogCard extends Phaser.GameObjects.Container {
     this.powerText.setX(x);
     // 選角模式寬度較窄，副標只留犬種，避免壓到戰力
     this.sub.setText(selectable ? this.dog.breed : `${this.dog.breed}・${this.dog.role}`);
+    // 卡片太窄（橫式三欄）時不顯示犬種，避免壓到戰力
+    this.sub.setVisible(!selectable || this.rect.width >= 300);
     return this;
   }
 

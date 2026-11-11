@@ -11,5 +11,5 @@ test('開機畫面顯示標題與版本號', async ({ page }) => {
   const box = await page.locator('canvas').boundingBox();
   expect(box?.width).toBeCloseTo(390, 0);
 
-  await page.screenshot({ path: 'artifacts/screenshots/boot.png' });
+  await page.screenshot({ path: 'artifacts/screenshots/portrait/boot.png' });
 });

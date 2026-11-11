@@ -2,13 +2,20 @@ import { DOGS } from '../data/dogs';
 import { findStage } from '../data/regions';
 import type { Resources } from '../data/resources';
 import type { Expedition, GameState } from '../state/gameState';
+import { isStageUnlocked } from './progress';
 import { MINUTE_MS } from './timeScale';
 
 /** 一支出征隊伍的固定人數 */
 export const TEAM_SIZE = 3;
 
 export type StartError =
-  'stage-not-found' | 'wrong-team-size' | 'duplicate-dog' | 'dog-not-found' | 'dog-busy';
+  | 'stage-not-found'
+  | 'stage-locked'
+  | 'wrong-team-size'
+  | 'duplicate-dog'
+  | 'dog-not-found'
+  | 'dog-not-owned'
+  | 'dog-busy';
 
 export type CollectError = 'expedition-not-found' | 'not-ready';
 
@@ -19,14 +26,14 @@ export function busyDogIds(state: GameState): Set<string> {
   return new Set(state.expeditions.flatMap((e) => e.dogIds));
 }
 
-/** 閒置（可出征）的狗狗 id，依 DOGS 順序 */
+/** 閒置（可出征）的狗狗 id：擁有且沒在出征，依 DOGS 順序 */
 export function idleDogIds(state: GameState): string[] {
   const busy = busyDogIds(state);
-  return DOGS.map((d) => d.id).filter((id) => !busy.has(id));
+  return DOGS.map((d) => d.id).filter((id) => state.owned.includes(id) && !busy.has(id));
 }
 
 /**
- * 開始出征。檢查：關卡存在、剛好 3 隻、不重複、狗存在、沒有正在出征。
+ * 開始出征。檢查：關卡存在且已解鎖、剛好 3 隻、不重複、狗存在且擁有、沒有正在出征。
  * minuteMs 為「1 分鐘」的毫秒數，測試模式可傳 1000。
  */
 export function startExpedition(
@@ -38,10 +45,14 @@ export function startExpedition(
 ): Result<StartError> {
   const stage = findStage(stageId);
   if (!stage) return { ok: false, error: 'stage-not-found' };
+  if (!isStageUnlocked(state, stageId)) return { ok: false, error: 'stage-locked' };
   if (dogIds.length !== TEAM_SIZE) return { ok: false, error: 'wrong-team-size' };
   if (new Set(dogIds).size !== dogIds.length) return { ok: false, error: 'duplicate-dog' };
   if (!dogIds.every((id) => DOGS.some((d) => d.id === id))) {
     return { ok: false, error: 'dog-not-found' };
+  }
+  if (!dogIds.every((id) => state.owned.includes(id))) {
+    return { ok: false, error: 'dog-not-owned' };
   }
   const busy = busyDogIds(state);
   if (dogIds.some((id) => busy.has(id))) return { ok: false, error: 'dog-busy' };
@@ -94,7 +105,10 @@ export function expeditionReward(exp: Expedition): Resources {
   return stage ? { ...stage.reward } : { food: 0, bones: 0 };
 }
 
-/** 收成：加資源、釋放狗狗、寫一筆歷史。時間未到或找不到則回傳錯誤，狀態不變。 */
+/**
+ * 收成：加資源、釋放狗狗、寫一筆歷史、記為通過該關（解鎖下一關）。
+ * 時間未到或找不到則回傳錯誤，狀態不變。
+ */
 export function collectExpedition(
   state: GameState,
   expeditionId: string,
@@ -114,6 +128,9 @@ export function collectExpedition(
         bones: state.resources.bones + reward.bones,
       },
       expeditions: state.expeditions.filter((e) => e.id !== expeditionId),
+      cleared: state.cleared.includes(exp.stageId)
+        ? state.cleared
+        : [...state.cleared, exp.stageId],
       history: [
         ...state.history,
         {
