@@ -4,6 +4,8 @@ export default defineConfig({
   testDir: 'tests/e2e',
   outputDir: 'artifacts/test-results',
   fullyParallel: true,
+  // 長流程測試（跨好幾個畫面、每步截圖）在 CI 上約 25～30 秒，預設 30 秒太緊
+  timeout: 60_000,
   reporter: process.env.CI ? 'github' : 'list',
   use: {
     baseURL: 'http://localhost:4173',
