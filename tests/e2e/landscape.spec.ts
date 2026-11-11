@@ -87,4 +87,9 @@ test('直放轉橫放：畫面自動重新排版，狀態保留', async ({ page 
   s = await wgz(page);
   expect(s.scene).toBe('TeamScene');
   expect(s.size).toEqual({ width: 390, height: 844 });
+  // 轉回直放後畫布要放大回填滿畫面，不能停在橫放時的小尺寸
+  await page.waitForTimeout(800);
+  const box = await page.locator('canvas').boundingBox();
+  expect(box!.width).toBeCloseTo(390, 0);
+  expect(box!.height).toBeCloseTo(844, 0);
 });

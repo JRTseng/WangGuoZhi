@@ -36,16 +36,30 @@ const game = new Phaser.Game({
 /**
  * 手機轉向：直放用 390 x 844、橫放用 844 x 390。
  * 方向改變時換遊戲尺寸，並用原本的參數重開目前的畫面，讓它照新方向重新排版。
+ *
+ * iPhone Safari 轉向時，resize 事件常在版面還沒轉完就先觸發，
+ * 當下量到的還是舊尺寸，畫布會被縮成舊方向的大小、之後不再更新（看起來變小回不去）。
+ * 所以每次事件後再隔幾個時間點重量一次，並且每次都請 Phaser 依目前容器大小重算縮放。
  */
-function onResize(): void {
+function applyViewport(): void {
   const next = currentOrientation();
-  if (next === orientation) return;
-  orientation = next;
-  const s = gameSizeFor(next);
-  game.scale.setGameSize(s.width, s.height);
-  for (const scene of game.scene.getScenes(true)) {
-    scene.scene.restart(scene.sys.settings.data);
+  if (next !== orientation) {
+    orientation = next;
+    const s = gameSizeFor(next);
+    game.scale.setGameSize(s.width, s.height);
+    for (const scene of game.scene.getScenes(true)) {
+      scene.scene.restart(scene.sys.settings.data);
+    }
   }
+  game.scale.refresh();
+}
+
+let timers: number[] = [];
+function onResize(): void {
+  for (const t of timers) window.clearTimeout(t);
+  applyViewport();
+  timers = [100, 300, 700].map((ms) => window.setTimeout(applyViewport, ms));
 }
 window.addEventListener('resize', onResize);
 window.addEventListener('orientationchange', onResize);
+window.visualViewport?.addEventListener('resize', onResize);
