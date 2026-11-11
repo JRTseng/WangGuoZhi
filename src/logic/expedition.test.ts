@@ -3,6 +3,8 @@ import { createInitialState, type GameState } from '../state/gameState';
 import {
   busyDogIds,
   collectExpedition,
+  expeditionBattle,
+  expeditionReward,
   idleDogIds,
   isComplete,
   progress,
@@ -30,6 +32,16 @@ describe('startExpedition', () => {
     expect(s.nextExpeditionNo).toBe(2);
   });
 
+  it('戰鬥種子在出發時就定下來：可指定，沒指定就由時間與編號算出', () => {
+    const s = createInitialState();
+    const a = startExpedition(s, 'luoyepo-1', TEAM, T0, MINUTE_MS, 777);
+    expect(a.ok && a.state.expeditions[0].seed).toBe(777);
+    const b = started(s);
+    const c = started(s);
+    expect(b.expeditions[0].seed).toBe(c.expeditions[0].seed);
+    expect(started(s, T0 + 1).expeditions[0].seed).not.toBe(b.expeditions[0].seed);
+  });
+
   it('不改動原本的狀態', () => {
     const before = createInitialState();
     const snapshot = JSON.stringify(before);
@@ -51,9 +63,19 @@ describe('startExpedition', () => {
     expect(r).toEqual({ ok: false, error: 'dog-busy' });
   });
 
-  it('隊伍必須剛好 3 隻且不重複、存在', () => {
+  it('隊伍可帶 1 到 5 隻，0 隻或超過 5 隻不行；不重複、要存在', () => {
     const s = createInitialState();
-    expect(startExpedition(s, 'luoyepo-1', ['daer', 'abai'], T0)).toEqual({
+    const all = ['daer', 'heixuan', 'changxu', 'xiaosuan', 'abai'];
+    for (let n = 1; n <= 5; n++) {
+      const r = startExpedition(s, 'luoyepo-1', all.slice(0, n), T0);
+      expect(r.ok && r.state.expeditions[0].dogIds).toEqual(all.slice(0, n));
+    }
+    expect(startExpedition(s, 'luoyepo-1', [], T0)).toEqual({
+      ok: false,
+      error: 'wrong-team-size',
+    });
+    const six = { ...s, owned: [...s.owned, 'tieya'] };
+    expect(startExpedition(six, 'luoyepo-1', [...all, 'tieya'], T0)).toEqual({
       ok: false,
       error: 'wrong-team-size',
     });
@@ -157,6 +179,8 @@ describe('collectExpedition', () => {
         endsAt: T0 + 5 * MINUTE_MS,
         collectedAt: now,
         reward: { food: 120, bones: 5 },
+        win: true,
+        seed: s.expeditions[0].seed,
       },
     ]);
   });
@@ -167,6 +191,48 @@ describe('collectExpedition', () => {
     if (!r.ok) throw new Error(r.error);
     const again = startExpedition(r.state, 'luoyepo-2', TEAM, T0 + 5 * MINUTE_MS);
     expect(again.ok && again.state.expeditions[0].id).toBe('exp-2');
+  });
+
+  it('打輸：只拿 30% 獎勵、不算通過、狗狗一樣回家、歷史記敗', () => {
+    // 阿白一隻（戰力 70）打建議戰力 150 的關卡，一定輸
+    const r0 = startExpedition(createInitialState(), 'luoyepo-1', ['abai'], T0);
+    if (!r0.ok) throw new Error(r0.error);
+    expect(expeditionBattle(r0.state.expeditions[0]).win).toBe(false);
+    const r = collectExpedition(r0.state, 'exp-1', T0 + 5 * MINUTE_MS);
+    if (!r.ok) throw new Error(r.error);
+    expect(r.state.resources).toEqual({ food: 1200 + 36, bones: 50 + 1 });
+    expect(r.state.cleared).toEqual([]);
+    expect(idleDogIds(r.state)).toHaveLength(5);
+    expect(r.state.history[0]).toMatchObject({ win: false, reward: { food: 36, bones: 1 } });
+    // 沒通過，下一關還是鎖著
+    expect(startExpedition(r.state, 'luoyepo-2', TEAM, T0)).toEqual({
+      ok: false,
+      error: 'stage-locked',
+    });
+  });
+
+  it('結果不可重抽：同一筆出征不管算幾次、存檔還原後再算，勝負與紀錄都一樣', () => {
+    // 兩邊實力接近（勝負要看運氣）的關卡，換很多種子都要穩定
+    const base = { ...createInitialState(), cleared: ['luoyepo-1', 'luoyepo-2'] };
+    const outcomes = new Set<boolean>();
+    for (let seed = 1; seed <= 40; seed++) {
+      const r = startExpedition(base, 'luoyepo-3', TEAM, T0, MINUTE_MS, seed);
+      if (!r.ok) throw new Error(r.error);
+      const exp = r.state.expeditions[0];
+      const battle = expeditionBattle(exp);
+      expect(expeditionBattle(exp)).toEqual(battle);
+      const restored = JSON.parse(JSON.stringify(r.state)) as GameState;
+      const done = collectExpedition(restored, exp.id, exp.endsAt);
+      if (!done.ok) throw new Error(done.error);
+      const rec = done.state.history[0];
+      expect(rec.win).toBe(battle.win);
+      expect(rec.reward).toEqual(expeditionReward(exp, battle.win));
+      // 收成後用歷史紀錄也能重播出同一場
+      expect(expeditionBattle(rec)).toEqual(battle);
+      expect(done.state.cleared.includes('luoyepo-3')).toBe(battle.win);
+      outcomes.add(battle.win);
+    }
+    expect(outcomes.size).toBe(2);
   });
 
   it('狀態可 JSON 序列化後還原（給 T006 存檔）', () => {

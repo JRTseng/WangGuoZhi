@@ -7,11 +7,13 @@ describe('組隊編排', () => {
     const s = toggleTeamMember(createInitialState(), 'heixuan');
     expect(s.team).toEqual(['daer', 'changxu']);
   });
-  it('有空位才能加入，滿了沒反應', () => {
-    const full = createInitialState();
-    expect(toggleTeamMember(full, 'abai')).toBe(full);
-    const s = toggleTeamMember(toggleTeamMember(full, 'daer'), 'abai');
-    expect(s.team).toEqual(['heixuan', 'changxu', 'abai']);
+  it('隊伍最多 5 隻，有空位才能加入，滿了沒反應', () => {
+    const start = { ...createInitialState(), owned: [...createInitialState().owned, 'tieya'] };
+    const full = toggleTeamMember(toggleTeamMember(start, 'xiaosuan'), 'abai');
+    expect(full.team).toEqual(['daer', 'heixuan', 'changxu', 'xiaosuan', 'abai']);
+    expect(toggleTeamMember(full, 'tieya')).toBe(full);
+    const s = toggleTeamMember(toggleTeamMember(full, 'daer'), 'tieya');
+    expect(s.team).toEqual(['heixuan', 'changxu', 'xiaosuan', 'abai', 'tieya']);
   });
   it('沒擁有的狗不能加入、不能當主頁角色', () => {
     const s = toggleTeamMember(createInitialState(), 'daer');

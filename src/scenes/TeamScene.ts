@@ -14,7 +14,7 @@ const BAR = 56;
 
 /**
  * 組隊編排：
- * - 上方（橫式在左側）3 個隊伍格，點已放的狗可移出
+ * - 上方（橫式在左側）5 個隊伍格，點已放的狗可移出
  * - 下方列出官方已釋放的全部狗狗；沒擁有的用暗色顯示
  * - 點狗狗開資訊面板：加入／移出隊伍、設為主頁角色
  */
@@ -48,12 +48,15 @@ export class TeamScene extends Phaser.Scene {
     // ---- 隊伍格 ----
     const slotRects: Rect[] = [];
     if (landscape) {
+      const gap = 6;
+      const sh = Math.floor((h - BAR - 34 - 12 - gap * (TEAM_SIZE - 1)) / TEAM_SIZE);
       for (let i = 0; i < TEAM_SIZE; i++)
-        slotRects.push({ x: 16, y: BAR + 34 + i * 90, width: 220, height: 80 });
+        slotRects.push({ x: 16, y: BAR + 34 + i * (sh + gap), width: 220, height: sh });
     } else {
-      const sw = (w - 32 - 20) / TEAM_SIZE;
+      const gap = 8;
+      const sw = (w - 32 - gap * (TEAM_SIZE - 1)) / TEAM_SIZE;
       for (let i = 0; i < TEAM_SIZE; i++)
-        slotRects.push({ x: 16 + i * (sw + 10), y: BAR + 40, width: sw, height: 112 });
+        slotRects.push({ x: 16 + i * (sw + gap), y: BAR + 40, width: sw, height: 112 });
     }
     const titleX = landscape ? 16 : 16;
     this.layer.add(
@@ -132,14 +135,15 @@ export class TeamScene extends Phaser.Scene {
     if (d) {
       const hg = this.add.graphics();
       if (landscape) {
-        drawDogHead(hg, 44, r.height / 2 + 4, 26, d.color, d.accent);
+        const hr = Math.min(26, r.height / 2 - 8);
+        drawDogHead(hg, 44, r.height / 2 + 3, hr, d.color, d.accent);
         c.add([
           hg,
-          addText(this, 84, 18, d.name, 20, COLORS.ink, true),
-          addText(this, 84, 46, `戰力 ${dogPower(d.id)}`, 14, COLORS.inkSoft),
+          addText(this, 84, r.height / 2 - 22, d.name, 19, COLORS.ink, true),
+          addText(this, 84, r.height / 2 + 3, `戰力 ${dogPower(d.id)}`, 14, COLORS.inkSoft),
         ]);
       } else {
-        drawDogHead(hg, r.width / 2, 44, 26, d.color, d.accent);
+        drawDogHead(hg, r.width / 2, 44, Math.min(26, r.width / 2 - 8), d.color, d.accent);
         c.add([hg, addText(this, r.width / 2, 86, d.name, 18, COLORS.ink, true).setOrigin(0.5)]);
       }
       makeTapArea(c, r.width, r.height);
@@ -148,7 +152,7 @@ export class TeamScene extends Phaser.Scene {
         this.render();
       });
     } else {
-      c.add(addText(this, r.width / 2, r.height / 2, '＋ 空位', 16, COLORS.inkSoft).setOrigin(0.5));
+      c.add(addText(this, r.width / 2, r.height / 2, '＋ 空位', 14, COLORS.inkSoft).setOrigin(0.5));
     }
     this.layer.add(c);
   }

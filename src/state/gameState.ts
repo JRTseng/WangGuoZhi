@@ -11,12 +11,14 @@ import { INITIAL_RESOURCES, type Resources } from '../data/resources';
 export interface Expedition {
   id: string;
   stageId: string;
-  /** 隊伍（狗狗 id，3 隻） */
+  /** 隊伍（狗狗 id，1 到 5 隻） */
   dogIds: string[];
   /** 開始時間（毫秒時間戳） */
   startedAt: number;
   /** 預計結束時間（毫秒時間戳） */
   endsAt: number;
+  /** 戰鬥亂數種子：出征開始時就決定，重開頁面、略過與否結果都一樣，不能重抽 */
+  seed: number;
 }
 
 /** 已收成的出征紀錄 */
@@ -27,17 +29,26 @@ export interface ExpeditionRecord {
   startedAt: number;
   endsAt: number;
   collectedAt: number;
+  /** 實際拿到的獎勵（敗北時只有一部分） */
   reward: Resources;
+  /** 這一仗有沒有打贏 */
+  win: boolean;
+  /** 戰鬥亂數種子，可用來重播同一場戰鬥 */
+  seed: number;
 }
 
 export type Quality = 'low' | 'medium' | 'high';
 
-/** 帳號設定（目前只是介面，語音／音樂／推播還沒有實際功能） */
+/** 帳號設定（語音／音樂／推播目前只記住開關，還沒有實際功能） */
 export interface Settings {
   voice: boolean;
   music: boolean;
   push: boolean;
   quality: Quality;
+  /** 略過戰鬥畫面：開啟後收成直接看結算 */
+  skipBattle: boolean;
+  /** 戰鬥播放倍速，下次戰鬥沿用 */
+  battleSpeed: 1 | 2 | 3 | 4;
 }
 
 export interface GameState {
@@ -48,13 +59,13 @@ export interface GameState {
   nextExpeditionNo: number;
   /** 擁有的狗狗 id */
   owned: string[];
-  /** 組隊編排（最多 3 隻），出征選角時預設帶入 */
+  /** 組隊編排（最多 5 隻），出征選角時預設帶入 */
   team: string[];
   /** 主頁上顯示的狗狗 */
   lobbyDogId: string;
   /** 主頁背景 */
   backgroundId: ThemeId;
-  /** 已通過的關卡 id（目前收成即視為通過，T004 之後改成打贏才算） */
+  /** 已通過的關卡 id（打贏才算通過） */
   cleared: string[];
   /** 已看過的劇情 id */
   seenStories: string[];
@@ -76,6 +87,13 @@ export function createInitialState(): GameState {
     cleared: [],
     seenStories: [],
     redeemedCodes: [],
-    settings: { voice: true, music: true, push: false, quality: 'high' },
+    settings: {
+      voice: true,
+      music: true,
+      push: false,
+      quality: 'high',
+      skipBattle: false,
+      battleSpeed: 1,
+    },
   };
 }

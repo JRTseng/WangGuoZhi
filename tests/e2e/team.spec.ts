@@ -13,7 +13,8 @@ test('組隊：全部角色、未擁有變暗、編隊與設定主頁角色', as
     'duantui',
     'shuangyan',
   ]);
-  expect(t.slots.map((s) => s.id)).toEqual(['daer', 'heixuan', 'changxu']);
+  expect(t.slots.map((s) => s.id)).toEqual(['daer', 'heixuan', 'changxu', null, null]);
+  for (const slot of t.slots) expect(slot.x + slot.width).toBeLessThanOrEqual(390);
   for (const d of t.dogs) {
     expect(d.x + d.width).toBeLessThanOrEqual(390);
     expect(d.y + d.height).toBeLessThanOrEqual(844);
@@ -32,7 +33,7 @@ test('組隊：全部角色、未擁有變暗、編隊與設定主頁角色', as
   await tap(page, t.slots[1]);
   await page.waitForFunction(() => window.__WGZ__?.team?.slots[2].id === null);
   t = (await wgz(page)).team!;
-  expect(t.slots.map((s) => s.id)).toEqual(['daer', 'changxu', null]);
+  expect(t.slots.map((s) => s.id)).toEqual(['daer', 'changxu', null, null, null]);
 
   // 阿白：加入隊伍、設為主頁角色
   await tap(page, t.dogs[4]);

@@ -27,3 +27,37 @@ export async function openLobby(page: Page, query = '') {
   await page.goto(`/${query}`);
   await waitScene(page, 'LobbyScene');
 }
+
+/**
+ * 從主頁派隊伍去第 1 章某一關，回到主頁並等到可以收成。
+ * team 沒給就用預設隊伍；有給就把選取調整成剛好這幾隻。
+ */
+export async function sendAndWait(page: Page, nodeIndex = 0, team?: string[]) {
+  await tap(page, (await wgz(page)).lobby!.buttons.expedition);
+  await waitScene(page, 'CampaignScene');
+  await tap(page, (await wgz(page)).map!.nodes[nodeIndex]);
+  await page.waitForFunction(() => !!window.__WGZ__?.map?.stagePanel);
+  await tap(page, (await wgz(page)).map!.stagePanel!.go);
+  await waitScene(page, 'ExpeditionScene');
+  if (team) {
+    for (const card of (await wgz(page)).expeditionPanel!.teamCards) {
+      if (card.selected !== team.includes(card.id)) await tap(page, card);
+    }
+    const picked = (await wgz(page)).expeditionPanel!.teamCards.filter((c) => c.selected);
+    if (
+      picked
+        .map((c) => c.id)
+        .sort()
+        .join() !== [...team].sort().join()
+    ) {
+      throw new Error(`隊伍沒選對：${picked.map((c) => c.id).join()}`);
+    }
+  }
+  await tap(page, (await wgz(page)).expeditionPanel!.confirmButton!);
+  await page.waitForFunction(
+    () => window.__WGZ__?.scene === 'LobbyScene' && !!window.__WGZ__.expedition,
+  );
+  await page.waitForFunction(() => window.__WGZ__?.expedition?.complete === true, null, {
+    timeout: 15_000,
+  });
+}

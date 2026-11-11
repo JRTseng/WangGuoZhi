@@ -2,7 +2,8 @@ import Phaser from 'phaser';
 import { COLORS, FONT_FAMILY } from '../config';
 import { DOGS } from '../data/dogs';
 import { findStage, type StageData } from '../data/regions';
-import { TEAM_SIZE, busyDogIds, startExpedition } from '../logic/expedition';
+import { skillBonusOf, winChance } from '../logic/battle';
+import { TEAM_MIN, TEAM_SIZE, battleDogOf, busyDogIds, startExpedition } from '../logic/expedition';
 import { layoutGrid, layoutList, type Rect } from '../logic/layout';
 import { teamPower } from '../logic/team';
 import { minuteMsFromSearch } from '../logic/timeScale';
@@ -21,7 +22,7 @@ interface ExpeditionData {
 
 /**
  * 出征選隊伍：從地圖點關卡進來。
- * 預設帶入「組隊編排」的隊伍（出征中的除外），可再點卡片調整，選滿 3 隻出發。
+ * 預設帶入「組隊編排」的隊伍（出征中的除外），可再點卡片調整，選 1 到 5 隻出發。
  * 只列出擁有的狗；大按鈕在下方，單手拇指按得到。
  */
 export class ExpeditionScene extends Phaser.Scene {
@@ -74,7 +75,7 @@ export class ExpeditionScene extends Phaser.Scene {
       this.text(
         w / 2,
         BAR_HEIGHT + 22,
-        `${stage.durationMin} 分鐘・建議戰力 ${stage.recommendedPower}・選 ${TEAM_SIZE} 隻`,
+        `${stage.durationMin} 分鐘・建議戰力 ${stage.recommendedPower}・選 ${TEAM_MIN}～${TEAM_SIZE} 隻`,
         17,
         COLORS.ink,
         true,
@@ -103,6 +104,11 @@ export class ExpeditionScene extends Phaser.Scene {
     });
 
     const power = teamPower(this.selected);
+    const chance = winChance(
+      power,
+      stage.recommendedPower,
+      skillBonusOf(this.selected.flatMap((id) => battleDogOf(id) ?? [])),
+    );
     const names = this.selected.map((id) => DOGS.find((d) => d.id === id)!.name);
     const infoX = landscape ? 16 : w / 2;
     const info1 = this.text(
@@ -110,7 +116,7 @@ export class ExpeditionScene extends Phaser.Scene {
       landscape ? confirm.y + 4 : confirm.y - 52,
       names.length
         ? `已選 ${names.length}/${TEAM_SIZE}：${names.join('、')}`
-        : `點卡片選 ${TEAM_SIZE} 隻，再點一次取消`,
+        : `點卡片選 ${TEAM_MIN}～${TEAM_SIZE} 隻，再點一次取消`,
       landscape ? 16 : 18,
       names.length ? '#b5651d' : COLORS.inkSoft,
       true,
@@ -118,14 +124,14 @@ export class ExpeditionScene extends Phaser.Scene {
     const info2 = this.text(
       infoX,
       landscape ? confirm.y + 32 : confirm.y - 22,
-      `隊伍戰力 ${power}／建議 ${stage.recommendedPower}`,
+      `隊伍戰力 ${power}／建議 ${stage.recommendedPower}・勝率約 ${Math.round(chance * 100)}%`,
       15,
-      power >= stage.recommendedPower ? '#4f8a3c' : COLORS.inkSoft,
+      chance >= 0.6 ? '#4f8a3c' : chance > 0 ? COLORS.inkSoft : '#b0413e',
       true,
     ).setOrigin(landscape ? 0 : 0.5, landscape ? 0 : 0.5);
     this.layer.add([info1, info2]);
 
-    const ready = this.selected.length === TEAM_SIZE;
+    const ready = this.selected.length >= TEAM_MIN && this.selected.length <= TEAM_SIZE;
     const label = ready ? '出發！' : `出發（已選 ${this.selected.length}/${TEAM_SIZE}）`;
     const btn = new Button(this, confirm, label, () => this.confirm());
     btn.setEnabled(ready);
@@ -155,7 +161,7 @@ export class ExpeditionScene extends Phaser.Scene {
     } else if (this.selected.length < TEAM_SIZE) {
       this.selected = [...this.selected, id];
     } else {
-      return; // 已滿 3 隻，先取消一隻才能換
+      return; // 已滿，先取消一隻才能換
     }
     this.render();
   }
@@ -168,6 +174,8 @@ export class ExpeditionScene extends Phaser.Scene {
       this.selected,
       Date.now(),
       minuteMsFromSearch(window.location.search),
+      // 這一仗的亂數種子：出發時就定下來，之後不能重抽
+      Math.floor(Math.random() * 0x100000000),
     );
     if (!r.ok) return;
     setState(r.state);

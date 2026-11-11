@@ -45,7 +45,14 @@ test('帳號與設定：開關、畫質、優惠碼', async ({ page }) => {
   await tap(page, (await wgz(page)).lobby!.buttons.account);
   await page.waitForFunction(() => !!window.__WGZ__?.settings);
   let st = (await wgz(page)).settings!;
-  expect(st.values).toEqual({ voice: true, music: true, push: false, quality: 'high' });
+  expect(st.values).toEqual({
+    voice: true,
+    music: true,
+    push: false,
+    quality: 'high',
+    skipBattle: false,
+    battleSpeed: 1,
+  });
   for (const k of [
     'voice',
     'music',

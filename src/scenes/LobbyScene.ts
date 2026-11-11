@@ -5,13 +5,7 @@ import { DOGS, findDog } from '../data/dogs';
 import { REGIONS, findStage } from '../data/regions';
 import { RESOURCE_LABELS, type Resources } from '../data/resources';
 import { STORIES } from '../data/stories';
-import {
-  collectExpedition,
-  expeditionReward,
-  isComplete,
-  progress,
-  remainingMs,
-} from '../logic/expedition';
+import { collectExpedition, isComplete, progress, remainingMs } from '../logic/expedition';
 import { formatAmount, formatCountdown } from '../logic/format';
 import type { Rect } from '../logic/layout';
 import { lobbyLayout, tappableRects, type LobbyLayout } from '../logic/lobbyLayout';
@@ -403,35 +397,42 @@ export class LobbyScene extends Phaser.Scene {
     }
     if (!isComplete(exp, now)) return;
     const before = getState();
-    const reward = expeditionReward(exp);
     const r = collectExpedition(before, exp.id, now);
     if (!r.ok) return;
     setState(r.state);
     this.refresh();
+    // 勝負與獎勵在收成時就算好寫進歷史，戰鬥畫面只是照著播
+    const record = r.state.history[r.state.history.length - 1];
 
     const extra: string[] = [];
-    if (!before.cleared.includes(exp.stageId)) extra.push('通過關卡！下一關已開放');
+    if (!record.win) extra.push('只帶回三成物資，關卡還沒通過');
+    else if (!before.cleared.includes(exp.stageId)) extra.push('通過關卡！下一關已開放');
     const newBgs = unlockedBackgrounds(r.state).filter(
       (b) => !unlockedBackgrounds(before).includes(b),
     );
     for (const b of newBgs)
       extra.push(`獲得主頁背景「${BACKGROUNDS.find((x) => x.id === b)?.name}」`);
+    const storyId = newStoriesAfter(r.state, exp.stageId)[0]?.id;
 
-    const stories = newStoriesAfter(r.state, exp.stageId);
+    if (!before.settings.skipBattle) {
+      this.scene.start('BattleScene', { recordId: record.id, extra, storyId });
+      return;
+    }
+    // 設定開了「略過戰鬥畫面」：直接看結算
     this.result = new ResultPanel(
       this,
       findStage(exp.stageId)?.name ?? '',
-      reward,
+      record.reward,
+      record.win,
       () => {
         this.result?.destroy();
         this.result = null;
         patchDebug({ result: null });
-        if (stories.length)
-          this.scene.start('StoryScene', { mode: 'play', storyId: stories[0].id });
+        if (storyId) this.scene.start('StoryScene', { mode: 'play', storyId });
       },
       extra,
     );
-    patchDebug({ result: { ...reward } });
+    patchDebug({ result: { ...record.reward, win: record.win } });
   }
 
   /** 依目前狀態與時間更新畫面（資源、出征狀態、劇情紅點） */

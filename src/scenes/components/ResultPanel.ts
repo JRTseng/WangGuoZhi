@@ -4,12 +4,16 @@ import { RESOURCE_LABELS, type Resources } from '../../data/resources';
 import { formatAmount } from '../../logic/format';
 import { viewOf } from '../ui';
 
-/** 收成結果面板：半透明遮罩 + 中央卡片，點任何地方關閉。 */
+const WIN_COLOR = { text: '#4f8a3c', border: COLORS.harvest };
+const LOSE_COLOR = { text: '#b0413e', border: 0xb0413e };
+
+/** 收成結算面板：勝／敗大字 + 獎勵。半透明遮罩 + 中央卡片，點任何地方關閉。 */
 export class ResultPanel extends Phaser.GameObjects.Container {
   constructor(
     scene: Phaser.Scene,
     stageName: string,
     reward: Resources,
+    win: boolean,
     onClose: () => void,
     /** 額外訊息（例如解鎖下一關、新背景） */
     extra: string[] = [],
@@ -22,13 +26,14 @@ export class ResultPanel extends Phaser.GameObjects.Container {
     shade.setInteractive();
     shade.on('pointerup', onClose);
 
+    const tone = win ? WIN_COLOR : LOSE_COLOR;
     const pw = Math.min(GAME_WIDTH - 48, 360);
     const ph = Math.min(GAME_HEIGHT - 24, 240 + extra.length * 26);
     const px = (GAME_WIDTH - pw) / 2;
     const py = (GAME_HEIGHT - ph) / 2;
     const box = scene.add.graphics();
     box.fillStyle(COLORS.card, 1);
-    box.lineStyle(3, COLORS.harvest, 1);
+    box.lineStyle(3, tone.border, 1);
     box.fillRoundedRect(px, py, pw, ph, 18);
     box.strokeRoundedRect(px, py, pw, ph, 18);
 
@@ -45,8 +50,8 @@ export class ResultPanel extends Phaser.GameObjects.Container {
 
     const keys = Object.keys(RESOURCE_LABELS) as (keyof Resources)[];
     const items = [
-      text(py + 40, '收成！', 32, '#4f8a3c', true),
-      text(py + 90, `${stageName} 平安歸來`, 18, COLORS.inkSoft),
+      text(py + 42, win ? '勝利！' : '敗北…', 34, tone.text, true),
+      text(py + 90, win ? `${stageName} 大獲全勝` : `${stageName} 沒能打下來`, 18, COLORS.inkSoft),
       ...keys.map((k, i) =>
         text(
           py + 132 + i * 30,
@@ -56,7 +61,9 @@ export class ResultPanel extends Phaser.GameObjects.Container {
           true,
         ),
       ),
-      ...extra.map((e, i) => text(py + 132 + keys.length * 30 + i * 26, e, 15, '#b5651d', true)),
+      ...extra.map((e, i) =>
+        text(py + 132 + keys.length * 30 + i * 26, e, 15, win ? '#b5651d' : tone.text, true),
+      ),
       text(py + ph - 22, '點一下關閉', 14, COLORS.inkSoft),
     ];
 
