@@ -1,5 +1,6 @@
 /**
- * 第一批 5 隻狗狗武將（依 docs/GDD.md）。
+ * 官方已釋放的狗狗武將。前 5 隻依 docs/GDD.md，玩家一開始就擁有（見 STARTER_DOG_IDS）；
+ * 後面幾隻已釋放但玩家尚未擁有，組隊畫面會以暗色顯示（招募 T007 之後才拿得到）。
  * 純資料，不放公式；戰力由 src/logic/power.ts 計算。
  */
 export type DogRole = '隊長／補給' | '前排／突擊' | '前排／守護' | '後排／謀略' | '後排／幸運';
@@ -92,4 +93,57 @@ export const DOGS: readonly DogData[] = [
     level: 1,
     skill: { name: '天降', description: '有機率雙倍掉落' },
   },
+  {
+    id: 'tieya',
+    name: '鐵牙',
+    breed: '德國牧羊犬',
+    personality: '嚴肅、守紀律、刀子嘴豆腐心',
+    role: '前排／守護',
+    color: 0x8a5a2b,
+    accent: 0x2b1d14,
+    baseAttack: 55,
+    baseDefense: 60,
+    level: 1,
+    skill: { name: '鐵壁', description: '隊伍受到的傷害 -15%' },
+  },
+  {
+    id: 'duantui',
+    name: '短腿',
+    breed: '柯基',
+    personality: '熱情、愛現、跑得比誰都快',
+    role: '隊長／補給',
+    color: 0xe39b4f,
+    accent: 0xffffff,
+    baseAttack: 40,
+    baseDefense: 44,
+    level: 1,
+    skill: { name: '急行軍', description: '出征時間 -10%' },
+  },
+  {
+    id: 'shuangyan',
+    name: '霜眼',
+    breed: '哈士奇',
+    personality: '神秘、愛惡作劇、常常唱歌',
+    role: '後排／謀略',
+    color: 0x7d8796,
+    accent: 0xf2f4f7,
+    baseAttack: 52,
+    baseDefense: 38,
+    level: 1,
+    skill: { name: '狼嚎', description: '敵方士氣 -10%' },
+  },
 ];
+
+/** 新玩家一開始就擁有的狗狗 */
+export const STARTER_DOG_IDS: readonly string[] = [
+  'daer',
+  'heixuan',
+  'changxu',
+  'xiaosuan',
+  'abai',
+];
+
+/** 依 id 找狗狗 */
+export function findDog(id: string): DogData | undefined {
+  return DOGS.find((d) => d.id === id);
+}

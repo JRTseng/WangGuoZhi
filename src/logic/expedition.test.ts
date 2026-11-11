@@ -38,7 +38,8 @@ describe('startExpedition', () => {
   });
 
   it('測試模式：分鐘換成秒', () => {
-    const r = startExpedition(createInitialState(), 'luoyepo-3', TEAM, T0, FAST_MINUTE_MS);
+    const s = { ...createInitialState(), cleared: ['luoyepo-1', 'luoyepo-2'] };
+    const r = startExpedition(s, 'luoyepo-3', TEAM, T0, FAST_MINUTE_MS);
     expect(r.ok && r.state.expeditions[0].endsAt).toBe(T0 + 20 * 1000);
   });
 
@@ -46,7 +47,7 @@ describe('startExpedition', () => {
     const s = started();
     expect([...busyDogIds(s)].sort()).toEqual([...TEAM].sort());
     expect(idleDogIds(s)).toEqual(['xiaosuan', 'abai']);
-    const r = startExpedition(s, 'luoyepo-2', ['daer', 'xiaosuan', 'abai'], T0);
+    const r = startExpedition(s, 'luoyepo-1', ['daer', 'xiaosuan', 'abai'], T0);
     expect(r).toEqual({ ok: false, error: 'dog-busy' });
   });
 
@@ -68,6 +69,19 @@ describe('startExpedition', () => {
       ok: false,
       error: 'stage-not-found',
     });
+  });
+
+  it('沒擁有的狗不能出征，未解鎖的關卡不能去', () => {
+    const s = createInitialState();
+    expect(startExpedition(s, 'luoyepo-1', ['daer', 'tieya', 'abai'], T0)).toEqual({
+      ok: false,
+      error: 'dog-not-owned',
+    });
+    expect(startExpedition(s, 'luoyepo-2', TEAM, T0)).toEqual({
+      ok: false,
+      error: 'stage-locked',
+    });
+    expect(idleDogIds(s)).toEqual(['daer', 'heixuan', 'changxu', 'xiaosuan', 'abai']);
   });
 });
 
@@ -125,7 +139,7 @@ describe('collectExpedition', () => {
     expect(r).toEqual({ ok: false, error: 'not-ready' });
   });
 
-  it('收成：加資源、釋放狗狗、記一筆歷史', () => {
+  it('收成：加資源、釋放狗狗、記一筆歷史、記為通過', () => {
     const s = started();
     const now = T0 + 5 * MINUTE_MS + 30_000;
     const r = collectExpedition(s, 'exp-1', now);
@@ -133,6 +147,7 @@ describe('collectExpedition', () => {
     expect(r.state.resources).toEqual({ food: 1200 + 120, bones: 50 + 5 });
     expect(r.state.expeditions).toHaveLength(0);
     expect(idleDogIds(r.state)).toHaveLength(5);
+    expect(r.state.cleared).toEqual(['luoyepo-1']);
     expect(r.state.history).toEqual([
       {
         id: 'exp-1',
@@ -146,7 +161,7 @@ describe('collectExpedition', () => {
     ]);
   });
 
-  it('收成後狗狗可以再出征', () => {
+  it('收成後狗狗可以再出征，下一關也開放了', () => {
     const s = started();
     const r = collectExpedition(s, 'exp-1', T0 + 5 * MINUTE_MS);
     if (!r.ok) throw new Error(r.error);

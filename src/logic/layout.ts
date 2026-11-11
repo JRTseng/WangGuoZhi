@@ -45,3 +45,60 @@ export function rectInside(inner: Rect, outer: Rect): boolean {
     inner.y + inner.height <= outer.y + outer.height
   );
 }
+
+export interface GridLayoutOptions {
+  area: Rect;
+  columns: number;
+  gap: number;
+  /** 格子高度上限 */
+  maxCellHeight: number;
+}
+
+/** 格狀排版：由左到右、由上到下；高度取上限與平分區域較小者，保證不超出區域 */
+export function layoutGrid(count: number, opts: GridLayoutOptions): Rect[] {
+  if (count <= 0) return [];
+  const { area, gap, maxCellHeight } = opts;
+  const cols = Math.max(1, Math.floor(opts.columns));
+  const rows = Math.ceil(count / cols);
+  const w = Math.floor((area.width - gap * (cols - 1)) / cols);
+  const h = Math.max(
+    0,
+    Math.floor(Math.min(maxCellHeight, (area.height - gap * (rows - 1)) / rows)),
+  );
+  return Array.from({ length: count }, (_, i) => ({
+    x: area.x + (i % cols) * (w + gap),
+    y: area.y + Math.floor(i / cols) * (h + gap),
+    width: w,
+    height: h,
+  }));
+}
+
+export interface Point {
+  x: number;
+  y: number;
+}
+
+/**
+ * 出征地圖的關卡節點位置（中心點），走一條彎曲的路。
+ * - 直式：由下往上（拇指先碰到第 1 關），左右交錯
+ * - 橫式：由左往右，上下交錯
+ * 第一個與最後一個節點放在中線上。
+ */
+export function layoutPath(count: number, area: Rect, landscape: boolean): Point[] {
+  if (count <= 0) return [];
+  return Array.from({ length: count }, (_, i) => {
+    const t = count === 1 ? 0.5 : i / (count - 1);
+    const edge = i === 0 || i === count - 1;
+    const swing = edge ? 0 : i % 2 === 1 ? -1 : 1;
+    if (landscape) {
+      return {
+        x: area.x + area.width * t,
+        y: area.y + area.height / 2 + swing * area.height * 0.3,
+      };
+    }
+    return {
+      x: area.x + area.width / 2 + swing * area.width * 0.3,
+      y: area.y + area.height * (1 - t),
+    };
+  });
+}
