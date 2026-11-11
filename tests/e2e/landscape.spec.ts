@@ -34,6 +34,8 @@ test.describe('手機橫放', () => {
     await tap(page, s.lobby!.buttons.team);
     await waitScene(page, 'TeamScene');
     for (const d of (await wgz(page)).team!.dogs) inside(d);
+    for (const slot of (await wgz(page)).team!.slots) inside(slot);
+    expect((await wgz(page)).team!.slots).toHaveLength(5);
     await page.screenshot({ path: 'artifacts/screenshots/landscape/team.png' });
     await tap(page, (await wgz(page)).backButton!);
     await waitScene(page, 'LobbyScene');
@@ -80,7 +82,7 @@ test('直放轉橫放：畫面自動重新排版，狀態保留', async ({ page 
   let s = await wgz(page);
   expect(s.scene).toBe('TeamScene');
   expect(s.size).toEqual({ width: W, height: H });
-  expect(s.team!.slots.map((x) => x.id)).toEqual(['daer', 'heixuan', 'changxu']);
+  expect(s.team!.slots.map((x) => x.id)).toEqual(['daer', 'heixuan', 'changxu', null, null]);
 
   await page.setViewportSize({ width: 390, height: 844 });
   await page.waitForFunction(() => window.__WGZ__?.orientation === 'portrait');

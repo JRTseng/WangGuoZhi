@@ -4,7 +4,7 @@ import { TEAM_SIZE } from './expedition';
 import { calcPower } from './power';
 
 /**
- * 組隊編排：最多 3 隻、只能放擁有的狗。
+ * 組隊編排：最多 5 隻、只能放擁有的狗。
  * 隊伍已滿時再加會沒反應（和出征選角一致，見 BACKLOG 待決定）。
  */
 export function toggleTeamMember(state: GameState, dogId: string): GameState {

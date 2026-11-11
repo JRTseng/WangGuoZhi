@@ -13,10 +13,11 @@ export const FORUM_URL = 'https://github.com/JRTseng/WangGuoZhi/issues';
 
 const QUALITY_LABEL: Record<Quality, string> = { low: '低', medium: '中', high: '高' };
 
-type Key = 'voice' | 'music' | 'push' | Quality | 'site' | 'forum' | 'redeem' | 'close';
+type ToggleKey = 'voice' | 'music' | 'push' | 'skipBattle';
+type Key = ToggleKey | Quality | 'site' | 'forum' | 'redeem' | 'close';
 
 /**
- * 左上角「帳號與設定」面板：語音、音樂、推播開關，畫質，官方連結、討論區、優惠碼。
+ * 左上角「帳號與設定」面板：語音、音樂、推播、略過戰鬥畫面開關，畫質，官方連結、討論區、優惠碼。
  * 語音／音樂／推播目前只記住開關，還沒有實際功能。畫質會影響主頁的飄落特效。
  * 直式單欄、橫式左右兩欄。
  */
@@ -50,7 +51,7 @@ export class SettingsPanel {
     const { landscape } = viewOf(this.scene);
     const { layer, box } = openModal(
       this.scene,
-      landscape ? { width: 640, height: 366 } : { width: 358, height: 590 },
+      landscape ? { width: 640, height: 366 } : { width: 358, height: 640 },
       () => this.onClose(),
     );
     this.layer = layer;
@@ -76,10 +77,11 @@ export class SettingsPanel {
     let y = box.y + 72;
     const rowH = landscape ? 42 : 50;
 
-    const toggles: ['voice' | 'music' | 'push', string][] = [
+    const toggles: [ToggleKey, string][] = [
       ['voice', '語音'],
       ['music', '音樂'],
       ['push', '推播通知'],
+      ['skipBattle', '略過戰鬥畫面'],
     ];
     for (const [key, label] of toggles) {
       this.toggleRow(leftX, y, colW, rowH, label, key, s);
@@ -198,7 +200,7 @@ export class SettingsPanel {
     w: number,
     h: number,
     label: string,
-    key: 'voice' | 'music' | 'push',
+    key: ToggleKey,
     s: Settings,
   ): void {
     const on = s[key];

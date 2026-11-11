@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test';
 import { openLobby, tap, waitScene, wgz } from './helpers';
 
-test('出征地圖 → 選隊伍 → 倒數 → 收成 → 劇情 → 下一關開放（測試模式）', async ({ page }) => {
+test('出征地圖 → 選隊伍 → 倒數 → 收成 → 戰鬥 → 劇情 → 下一關開放（測試模式）', async ({ page }) => {
   // 完整流程含 5 秒倒數與多次換畫面，給比預設 30 秒寬的時間
   test.setTimeout(60_000);
   await openLobby(page, '?fast=1');
@@ -41,7 +41,11 @@ test('出征地圖 → 選隊伍 → 倒數 → 收成 → 劇情 → 下一關�
     'changxu',
   ]);
   expect(e.confirmButton).toMatchObject({ label: '出發！', enabled: true });
-  // 滿 3 隻時點第 4 隻沒反應
+  // 隊伍最多 5 隻：可以再加第 4 隻，再點一次取消
+  await tap(page, e.teamCards[3]);
+  e = (await wgz(page)).expeditionPanel!;
+  expect(e.teamCards[3].selected).toBe(true);
+  expect(e.confirmButton).toMatchObject({ label: '出發！', enabled: true });
   await tap(page, e.teamCards[3]);
   e = (await wgz(page)).expeditionPanel!;
   expect(e.teamCards[3].selected).toBe(false);
@@ -65,13 +69,17 @@ test('出征地圖 → 選隊伍 → 倒數 → 收成 → 劇情 → 下一關�
   s = await wgz(page);
   expect(s.status).toMatchObject({ label: '收成！ 坡腳小徑', enabled: true });
   await tap(page, s.status!);
+  // 預設會進戰鬥畫面，播完顯示結算（測試模式下約 1 秒播完）
+  await waitScene(page, 'BattleScene');
   await page.waitForFunction(() => !!window.__WGZ__?.result);
   s = await wgz(page);
-  expect(s.result).toEqual({ food: 120, bones: 5 });
-  expect(s.resources).toEqual({ food: 1320, bones: 55 });
+  expect(s.battle).toMatchObject({ stageId: 'luoyepo-1', win: true, phase: 'result' });
+  expect(s.battle!.skipped).toBe(false);
+  expect(s.battle!.index).toBe(s.battle!.total);
+  expect(s.result).toEqual({ food: 120, bones: 5, win: true });
   await page.screenshot({ path: 'artifacts/screenshots/portrait/harvest.png' });
 
-  // 6. 關掉結果 → 第一次過關的劇情自動播放
+  // 6. 關掉結算 → 第一次過關的劇情自動播放
   await tap(page, { x: 0, y: 800, width: 390, height: 20 });
   await waitScene(page, 'StoryScene');
   let story = (await wgz(page)).story!;
@@ -80,6 +88,7 @@ test('出征地圖 → 選隊伍 → 倒數 → 收成 → 劇情 → 下一關�
   await page.screenshot({ path: 'artifacts/screenshots/portrait/story.png' });
   for (let i = 0; i < story.total; i++) await tap(page, { x: 100, y: 300, width: 0, height: 0 });
   await waitScene(page, 'LobbyScene');
+  expect((await wgz(page)).resources).toEqual({ food: 1320, bones: 55 });
 
   // 7. 地圖上第 1 關打勾、第 2 關開放
   await tap(page, (await wgz(page)).lobby!.buttons.expedition);

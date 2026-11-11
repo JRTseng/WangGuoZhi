@@ -46,11 +46,38 @@ interface WgzDebugState {
     remainingMs: number;
     complete: boolean;
   } | null;
-  /** 收成結果面板顯示的獎勵，沒開為 null */
-  result?: { food: number; bones: number } | null;
+  /** 收成結算面板顯示的獎勵與勝負，沒開為 null */
+  result?: { food: number; bones: number; win: boolean } | null;
+  /** 戰鬥畫面（BattleScene） */
+  battle?: {
+    stageId: string;
+    win: boolean;
+    /** playing：播放中；result：已顯示結算 */
+    phase: 'playing' | 'result';
+    /** 目前倍速 1～4 */
+    speed: number;
+    /** 每一次出手播多久（毫秒，已含倍速） */
+    stepMs: number;
+    /** 已播完幾次出手／總共幾次 */
+    index: number;
+    total: number;
+    round: number;
+    skipped: boolean;
+    skipButton: WgzRect;
+    speedButton: WgzRect;
+    team: { id: string; hp: number; maxHp: number; x: number; y: number; r: number }[];
+    enemies: { id: string; hp: number; maxHp: number; x: number; y: number; r: number }[];
+  };
   /** 帳號與設定面板，沒開為 undefined */
   settings?: {
-    values: { voice: boolean; music: boolean; push: boolean; quality: string };
+    values: {
+      voice: boolean;
+      music: boolean;
+      push: boolean;
+      quality: string;
+      skipBattle: boolean;
+      battleSpeed: number;
+    };
     rects: Record<string, WgzRect>;
     input: WgzRect;
     message: string;
