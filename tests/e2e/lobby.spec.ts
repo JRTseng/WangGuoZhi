@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test';
 import { openLobby, tap, wgz } from './helpers';
 
-test('主頁：左上帳號、右上資源、右側劇情／組隊／出征，狗狗會換動作', async ({ page }) => {
+test('主頁：左上帳號、左側選單、右上資源與小圖示、下方大卡片，狗狗會換動作', async ({ page }) => {
   await openLobby(page);
   const s = await wgz(page);
   expect(s.orientation).toBe('portrait');
@@ -9,15 +9,27 @@ test('主頁：左上帳號、右上資源、右側劇情／組隊／出征，�
   expect(s.lobby!.dogId).toBe('daer');
   expect(s.lobby!.background).toBe('slope');
 
-  const { account, story, team, expedition } = s.lobby!.buttons;
-  expect(account.x).toBeLessThan(40);
-  expect(account.y).toBeLessThan(40);
-  for (const b of [story, team, expedition]) {
-    expect(b.x).toBeGreaterThan(390 / 2);
-    expect(b.x + b.width).toBeLessThanOrEqual(390);
+  const b = s.lobby!.buttons;
+  expect(b.account.x).toBeLessThan(40);
+  expect(b.account.y).toBeLessThan(40);
+  // 左側選單由上而下：武將、任務、倉庫、背景
+  const menu = [b.team, b.quest, b.bag, b.background];
+  for (const r of menu) expect(r.x + r.width).toBeLessThan(390 / 2);
+  for (let i = 1; i < menu.length; i++) expect(menu[i].y).toBeGreaterThan(menu[i - 1].y);
+  // 右上：召募／商城／獎勵／信箱
+  for (const r of [b.recruit, b.shop, b.reward, b.mail]) {
+    expect(r.x + r.width).toBeLessThanOrEqual(390);
+    expect(r.y).toBeLessThan(200);
   }
-  expect(team.y).toBeGreaterThan(story.y);
-  expect(expedition.y).toBeGreaterThan(team.y);
+  // 下方：劇情與小卡在上、出征大卡在最下面（拇指好按）
+  expect(b.story.y).toBeGreaterThan(844 / 2);
+  expect(b.expedition.y).toBeGreaterThan(b.story.y);
+  expect(s.status!.y).toBeGreaterThan(b.expedition.y);
+
+  // 還沒做的功能點了顯示「即將開放」，不會換畫面
+  await tap(page, b.quest);
+  await page.waitForTimeout(200);
+  expect((await wgz(page)).scene).toBe('LobbyScene');
   expect(s.status!.label).toContain('待命');
 
   // 狗狗每幾秒換一個動作

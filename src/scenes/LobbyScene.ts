@@ -2,8 +2,9 @@ import Phaser from 'phaser';
 import { COLORS } from '../config';
 import { BACKGROUNDS } from '../data/backgrounds';
 import { DOGS, findDog } from '../data/dogs';
-import { findStage } from '../data/regions';
+import { REGIONS, findStage } from '../data/regions';
 import { RESOURCE_LABELS, type Resources } from '../data/resources';
+import { STORIES } from '../data/stories';
 import {
   collectExpedition,
   expeditionReward,
@@ -13,83 +14,43 @@ import {
 } from '../logic/expedition';
 import { formatAmount, formatCountdown } from '../logic/format';
 import type { Rect } from '../logic/layout';
-import { newStoriesAfter, nextBackground, unlockedBackgrounds } from '../logic/progress';
+import { lobbyLayout, tappableRects, type LobbyLayout } from '../logic/lobbyLayout';
+import {
+  currentChapterIndex,
+  isStoryUnlocked,
+  newStoriesAfter,
+  nextBackground,
+  stageNodeState,
+  unlockedBackgrounds,
+} from '../logic/progress';
+import { teamPower } from '../logic/team';
 import type { Expedition } from '../state/gameState';
 import { getState, setState } from '../state/store';
 import { Button } from './components/Button';
 import { drawDogHead } from './components/dogArt';
 import { DogSprite } from './components/DogSprite';
 import { makeTapArea } from './components/hitArea';
+import { drawLobbyIcon, drawPanel, drawPaw } from './components/lobbyIcons';
+import { LOBBY, LobbyCard, MenuItem, RoundShortcut } from './components/LobbyWidgets';
 import { ResultPanel } from './components/ResultPanel';
 import { Scenery } from './components/Scenery';
 import { SettingsPanel } from './components/SettingsPanel';
-import { SideButton } from './components/SideButton';
 import { addText, patchDebug, resetDebug, viewOf } from './ui';
 
 /** 主頁狗狗換動作的間隔 */
 const ACTION_MS = 3000;
 /** 畫面刷新間隔（只刷新顯示，計時以時間戳為準） */
 const REFRESH_MS = 250;
-
-interface LobbyLayout {
-  account: Rect;
-  resources: Rect[];
-  dog: { x: number; y: number; scale: number };
-  story: Rect;
-  team: Rect;
-  expedition: Rect;
-  background: Rect;
-  status: Rect;
-}
-
-/** 直式／橫式的主頁版面 */
-function lobbyLayout(w: number, h: number, landscape: boolean): LobbyLayout {
-  if (landscape) {
-    const bs = 86;
-    const bx = w - bs - 16;
-    return {
-      account: { x: 12, y: 10, width: 176, height: 56 },
-      resources: [
-        { x: w - 340, y: 14, width: 158, height: 32 },
-        { x: w - 172, y: 14, width: 158, height: 32 },
-      ],
-      dog: { x: w * 0.5, y: h - 52, scale: 1.2 },
-      story: { x: bx, y: 62, width: bs, height: bs },
-      team: { x: bx, y: 62 + bs + 10, width: bs, height: bs },
-      expedition: {
-        x: bx - 6,
-        y: 62 + (bs + 10) * 2,
-        width: bs + 6,
-        height: h - 62 - (bs + 10) * 2 - 12,
-      },
-      background: { x: 16, y: h - 128, width: 64, height: 56 },
-      status: { x: 16, y: h - 64, width: 272, height: 52 },
-    };
-  }
-  const bs = 84;
-  const bx = w - bs - 14;
-  return {
-    account: { x: 12, y: 12, width: 176, height: 56 },
-    resources: [
-      { x: w - 170, y: 14, width: 158, height: 30 },
-      { x: w - 170, y: 50, width: 158, height: 30 },
-    ],
-    dog: { x: w * 0.4, y: h * 0.8, scale: 1.45 },
-    story: { x: bx, y: h * 0.3, width: bs, height: bs },
-    team: { x: bx, y: h * 0.3 + bs + 14, width: bs, height: bs },
-    expedition: { x: bx - 8, y: h * 0.3 + (bs + 14) * 2, width: bs + 8, height: bs + 24 },
-    background: { x: 14, y: h * 0.3, width: 64, height: 56 },
-    status: { x: 16, y: h - 84, width: w - 32, height: 64 },
-  };
-}
+/** 還沒做的功能 */
+const COMING_SOON = '即將開放';
 
 /**
- * 主頁面（放置型遊戲大廳）：
- * - 會動的背景（依進度／活動取得，可切換）
- * - 前景是玩家選的狗狗，會輪流換動作；點牠會開心跳一下
- * - 左上：帳號與設定；右上：資源
- * - 右側：劇情、組隊、出征
- * - 下方：出征狀態與收成
+ * 主頁面（放置型遊戲大廳，版面參考常見放置手遊）：
+ * - 會動的背景（依進度／活動取得，可切換），中間是玩家選的狗狗，會輪流換動作
+ * - 左上：頭像、城主等級、總戰力（點了開帳號與設定）
+ * - 左側：功能選單（武將／任務／倉庫／背景）
+ * - 右上：資源列、信箱，下方一排召募／商城／獎勵
+ * - 右側（直式為下方）：出征大卡（含出征倒數與收成）、劇情章節卡、活動與訓練小卡
  */
 export class LobbyScene extends Phaser.Scene {
   private layout!: LobbyLayout;
@@ -100,7 +61,8 @@ export class LobbyScene extends Phaser.Scene {
   private resourceTexts: Partial<Record<keyof Resources, Phaser.GameObjects.Text>> = {};
   private settings: SettingsPanel | null = null;
   private result: ResultPanel | null = null;
-  private storyButton!: SideButton;
+  private storyCard!: LobbyCard;
+  private expeditionCard!: LobbyCard;
   private toast: Phaser.GameObjects.Text | null = null;
 
   constructor() {
@@ -120,21 +82,19 @@ export class LobbyScene extends Phaser.Scene {
     this.drawDog();
     this.drawAccount();
     this.drawResources();
-    this.drawSideButtons();
+    this.drawShortcuts();
+    this.drawMenu();
+    this.drawCards();
     this.drawStatus();
 
+    const buttons: Partial<Record<string, Rect>> = { ...tappableRects(this.layout) };
+    delete buttons.status;
     patchDebug({
       lobby: {
         dogId: getState().lobbyDogId,
         dogAction: this.dog.action,
         background: getState().backgroundId,
-        buttons: {
-          account: this.layout.account,
-          story: this.layout.story,
-          team: this.layout.team,
-          expedition: this.layout.expedition,
-          background: this.layout.background,
-        },
+        buttons: buttons as NonNullable<WgzDebugState['lobby']>['buttons'],
       },
       result: null,
     });
@@ -154,7 +114,7 @@ export class LobbyScene extends Phaser.Scene {
       { x: 0, y: 0, width: w, height: h },
       st.backgroundId,
       st.settings.quality,
-      landscape ? 0.6 : 0.62,
+      landscape ? 0.6 : 0.5,
     );
     this.scenery.setDepth(-10);
   }
@@ -169,13 +129,13 @@ export class LobbyScene extends Phaser.Scene {
     this.dog.startCycle(ACTION_MS);
 
     // 名牌
-    addText(this, x, y + 10, `${d.name}\u3000Lv.${d.level}`, 17, '#ffffff', true)
+    addText(this, x, y + 8, `${d.name}\u3000Lv.${d.level}`, 16, '#ffffff', true)
       .setOrigin(0.5, 0)
       .setStroke(COLORS.ink, 4);
 
     // 點狗狗：開心跳一下
     const hit = this.add
-      .zone(x - 90 * scale, y - 150 * scale, 180 * scale, 160 * scale)
+      .zone(x - 90 * scale, y - 150 * scale, 180 * scale, 150 * scale)
       .setOrigin(0, 0);
     hit.setInteractive({ cursor: 'pointer' }).on('pointerup', () => {
       this.dog.play('hop');
@@ -198,67 +158,182 @@ export class LobbyScene extends Phaser.Scene {
     });
   }
 
+  /** 左上：大頭像（金框）+ 城主等級 + 總戰力 */
   private drawAccount(): void {
     const r = this.layout.account;
+    const st = getState();
     const c = this.add.container(r.x, r.y);
     const g = this.add.graphics();
-    g.fillStyle(0x3b2a1a, 0.72);
-    g.fillRoundedRect(0, 0, r.width, r.height, 28);
-    const d = findDog(getState().lobbyDogId) ?? DOGS[0];
+    const R = r.height / 2 - 3;
+    const cx = R + 3;
+    const cy = r.height / 2;
+    // 文字底條（從頭像右側延伸出去，右端淡出）
+    drawPanel(g, cx, 8, r.width - cx, r.height - 16, 14, LOBBY.panel, 0.85);
+    drawPaw(g, r.width - 36, r.height - 22, 5, LOBBY.gold, 0.45);
+    // 頭像
+    const d = findDog(st.lobbyDogId) ?? DOGS[0];
     g.fillStyle(0xfff6e8, 1);
-    g.fillCircle(28, r.height / 2, 24);
-    drawDogHead(g, 28, r.height / 2 + 3, 15, d.color, d.accent);
+    g.fillCircle(cx, cy, R);
+    drawDogHead(g, cx, cy + 4, R * 0.62, d.color, d.accent);
+    g.lineStyle(4, LOBBY.gold, 1);
+    g.strokeCircle(cx, cy, R);
+    g.lineStyle(1.5, 0x8a5a1a, 1);
+    g.strokeCircle(cx, cy, R + 2);
+    const tx = cx + R + 10;
     c.add([
       g,
-      addText(this, 60, 10, '城主\u3000Lv.1', 16, COLORS.barText, true),
-      addText(this, 60, 32, '⚙ 帳號與設定', 13, '#f2d9b8'),
+      addText(this, tx, 12, 'Lv.1', 17, LOBBY.goldText, true),
+      addText(this, tx + 44, 13, '城主', 15, LOBBY.text, true),
+      addText(this, tx, 36, `總戰力 ${formatAmount(teamPower(st.team))}`, 15, LOBBY.text, true),
+      // 設定小齒輪
+      addText(this, r.width - 8, r.height - 10, '⚙', 15, LOBBY.goldText).setOrigin(1, 1),
     ]);
     makeTapArea(c, r.width, r.height);
     c.on('pointerup', () => this.openSettings());
   }
 
+  /** 右上資源列（各帶「＋」）與信箱 */
   private drawResources(): void {
     const keys = Object.keys(RESOURCE_LABELS) as (keyof Resources)[];
     keys.forEach((key, i) => {
       const r = this.layout.resources[i];
       const g = this.add.graphics();
-      g.fillStyle(0x3b2a1a, 0.72);
-      g.fillRoundedRect(r.x, r.y, r.width, r.height, r.height / 2);
-      const ix = r.x + 18;
+      drawPanel(g, r.x, r.y, r.width, r.height, r.height / 2, LOBBY.panel, 0.85);
+      g.fillStyle(LOBBY.gold, 1);
+      g.fillCircle(r.x + r.width - 15, r.y + r.height / 2, r.height / 2 - 6);
+      const ix = r.x + 16;
       const iy = r.y + r.height / 2;
       if (key === 'food') {
         g.fillStyle(0xf2c14e, 1);
-        g.fillEllipse(ix, iy, 13, 20);
+        g.fillEllipse(ix, iy, 12, 18);
       } else {
-        g.fillStyle(0xf5f0e6, 1);
-        g.fillCircle(ix, iy, 10);
-        g.lineStyle(2, 0xc9b79c, 1);
-        g.strokeCircle(ix, iy, 10);
+        drawLobbyIcon(g, 'train', ix, iy, 9, 0xf5f0e6);
       }
-      this.resourceTexts[key] = addText(this, r.x + 34, iy, '', 15, COLORS.barText, true)
+      this.resourceTexts[key] = addText(this, r.x + 30, iy, '', 14, LOBBY.text, true)
         .setOrigin(0, 0.5)
         .setName(`resource-${key}`);
+      // ＋：之後接商城
+      const plus = addText(this, r.x + r.width - 15, iy, '+', 16, '#5a3a1c', true).setOrigin(0.5);
+      plus
+        .setInteractive({ cursor: 'pointer' })
+        .on('pointerup', () => this.showToast(`商城${COMING_SOON}`));
     });
+
+    new RoundShortcut(this, this.layout.mail, '信箱', 'mail', 0x6b4a2e, () =>
+      this.showToast(`信箱${COMING_SOON}`),
+    );
   }
 
-  private drawSideButtons(): void {
+  /** 右上第二列：召募／商城／獎勵 */
+  private drawShortcuts(): void {
+    const S = this.layout.shortcuts;
+    new RoundShortcut(this, S.recruit, '召募', 'recruit', 0xa83a2b, () =>
+      this.showToast(`召募${COMING_SOON}（抽卡 T007）`),
+    ).setDot(true);
+    new RoundShortcut(this, S.shop, '商城', 'shop', 0x3f7fa8, () =>
+      this.showToast(`商城${COMING_SOON}`),
+    );
+    new RoundShortcut(this, S.reward, '獎勵', 'reward', 0x4f8a3c, () =>
+      this.showToast(`獎勵中心${COMING_SOON}`),
+    );
+  }
+
+  /** 左側功能選單 */
+  private drawMenu(): void {
+    const M = this.layout.menu;
+    const compact = this.layout.menuCompact;
+    new MenuItem(this, M.team, '武將', 'team', compact, () => this.scene.start('TeamScene'));
+    new MenuItem(
+      this,
+      M.quest,
+      '任務',
+      'quest',
+      compact,
+      () => this.showToast(`任務${COMING_SOON}（T011）`),
+      compact ? undefined : COMING_SOON,
+    );
+    new MenuItem(
+      this,
+      M.bag,
+      '倉庫',
+      'bag',
+      compact,
+      () => this.showToast(`倉庫${COMING_SOON}`),
+      compact ? undefined : COMING_SOON,
+    );
+    new MenuItem(this, M.background, '背景', 'background', compact, () => this.switchBackground());
+  }
+
+  /** 右側大卡片 */
+  private drawCards(): void {
     const L = this.layout;
-    this.storyButton = new SideButton(this, L.story, '劇情', 'story', 0x7a5ea8, () =>
-      this.scene.start('StoryScene', { mode: 'list' }),
+    const st = getState();
+    const leader = findDog(st.team[0] ?? st.lobbyDogId) ?? DOGS[0];
+    this.expeditionCard = new LobbyCard(
+      this,
+      L.expedition,
+      {
+        title: '出征',
+        icon: 'battle',
+        color: 0xb5452b,
+        subtitle: '',
+        frame: L.expeditionCard,
+        decorate: (g, w, h) => {
+          // 右側淡淡的隊長頭像
+          g.fillStyle(0xffffff, 0.12);
+          g.fillCircle(w - h * 0.34, h * 0.36, h * 0.3);
+          drawDogHead(g, w - h * 0.34, h * 0.39, h * 0.19, leader.color, leader.accent);
+        },
+      },
+      () => this.scene.start('CampaignScene'),
     );
-    new SideButton(this, L.team, '組隊', 'team', 0x3f7fa8, () => this.scene.start('TeamScene'));
-    new SideButton(this, L.expedition, '出征', 'battle', 0xc0392b, () =>
-      this.scene.start('CampaignScene'),
+
+    const unlocked = STORIES.filter((s) => isStoryUnlocked(st, s)).length;
+    this.storyCard = new LobbyCard(
+      this,
+      L.story,
+      {
+        title: '劇情',
+        icon: 'story',
+        color: 0x6a4f98,
+        subtitle: `第 ${REGIONS[currentChapterIndex(st)].chapter} 章 ${REGIONS[currentChapterIndex(st)].name}`,
+        corner: `${unlocked} / ${STORIES.length}`,
+        decorate: (g, w, h) => {
+          g.fillStyle(0xffffff, 0.1);
+          g.fillTriangle(w * 0.45, h, w * 0.75, h * 0.25, w, h);
+          g.fillTriangle(w * 0.62, h, w * 0.88, h * 0.4, w, h * 0.7);
+        },
+      },
+      () => this.scene.start('StoryScene', { mode: 'list' }),
     );
-    new SideButton(this, L.background, '背景', 'background', 0x4f8a3c, () =>
-      this.switchBackground(),
+
+    const faint =
+      (icon: 'event' | 'train') => (g: Phaser.GameObjects.Graphics, w: number, h: number) => {
+        const ic = this.add.graphics();
+        g.fillStyle(0xffffff, 0.1);
+        g.fillCircle(w * 0.72, h * 0.58, Math.min(w, h) * 0.34);
+        ic.destroy();
+        drawLobbyIcon(g, icon, w * 0.72, h * 0.58, Math.min(w, h) * 0.2, 0xfff6e8);
+      };
+    new LobbyCard(
+      this,
+      L.miniCards.event,
+      { title: '活動', icon: 'event', color: 0xc7832b, tag: COMING_SOON, decorate: faint('event') },
+      () => this.showToast(`活動${COMING_SOON}`),
+    );
+    new LobbyCard(
+      this,
+      L.miniCards.train,
+      { title: '訓練', icon: 'train', color: 0x2f7a74, tag: COMING_SOON, decorate: faint('train') },
+      () => this.showToast(`訓練${COMING_SOON}（升級 T005）`),
     );
   }
 
+  /** 出征卡底部的狀態條（倒數／收成）與進度條 */
   private drawStatus(): void {
     const r = this.layout.status;
     this.progressBar = this.add.graphics();
-    this.statusButton = new Button(this, r, '', () => this.onStatus(), 18);
+    this.statusButton = new Button(this, r, '', () => this.onStatus(), 15);
   }
 
   // ---- 互動 ----
@@ -369,7 +444,10 @@ export class LobbyScene extends Phaser.Scene {
       const t = this.resourceTexts[key]!;
       if (t.text !== text) t.setText(text);
     }
-    this.storyButton.setDot(!state.seenStories.includes('prologue'));
+    this.storyCard.setDot(
+      STORIES.some((x) => isStoryUnlocked(state, x) && !state.seenStories.includes(x.id)),
+    );
+    this.expeditionCard.setSubtitle(this.nextStageLabel());
 
     const r = this.layout.status;
     const exp = this.focusExpedition(now);
@@ -390,10 +468,10 @@ export class LobbyScene extends Phaser.Scene {
       }
       const p = progress(exp, now);
       this.progressBar.fillStyle(COLORS.cardBorder, 1);
-      this.progressBar.fillRoundedRect(r.x, r.y - 10, r.width, 6, 3);
+      this.progressBar.fillRoundedRect(r.x, r.y - 7, r.width, 4, 2);
       if (p > 0) {
-        this.progressBar.fillStyle(p >= 1 ? COLORS.harvest : COLORS.button, 1);
-        this.progressBar.fillRoundedRect(r.x, r.y - 10, Math.max(6, r.width * p), 6, 3);
+        this.progressBar.fillStyle(p >= 1 ? COLORS.harvest : LOBBY.gold, 1);
+        this.progressBar.fillRoundedRect(r.x, r.y - 7, Math.max(4, r.width * p), 4, 2);
       }
     }
 
@@ -410,5 +488,13 @@ export class LobbyScene extends Phaser.Scene {
           }
         : null,
     });
+  }
+
+  /** 出征卡副標：目前章節與下一個可打的關卡 */
+  private nextStageLabel(): string {
+    const st = getState();
+    const region = REGIONS[currentChapterIndex(st)];
+    const next = region.stages.find((x) => stageNodeState(st, x.id) === 'open');
+    return `第 ${region.chapter} 章・${next ? `下一關 ${next.name}` : `${region.name}已全破`}`;
   }
 }

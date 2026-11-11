@@ -19,7 +19,22 @@ interface WgzDebugState {
     dogId: string;
     dogAction: string;
     background: string;
-    buttons: Record<'account' | 'story' | 'team' | 'expedition' | 'background', WgzRect>;
+    buttons: Record<
+      | 'account'
+      | 'mail'
+      | 'recruit'
+      | 'shop'
+      | 'reward'
+      | 'team'
+      | 'quest'
+      | 'bag'
+      | 'background'
+      | 'expedition'
+      | 'story'
+      | 'event'
+      | 'train',
+      WgzRect
+    >;
   };
   /** 主頁下方的出征狀態按鈕 */
   status?: { label: string; enabled: boolean } & WgzRect;
