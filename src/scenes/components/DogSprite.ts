@@ -25,7 +25,7 @@ export class DogSprite extends Phaser.GameObjects.Container {
   private readonly zzz: Phaser.GameObjects.Text;
   private readonly shadow: Phaser.GameObjects.Ellipse;
   private tweensRunning: Phaser.Tweens.Tween[] = [];
-  private cycle: Phaser.Time.TimerEvent | null = null;
+  private cycle: (() => void) | null = null;
   private current: DogAction = 'idle';
   private index = 0;
   onActionChange: ((a: DogAction) => void) | null = null;
@@ -96,14 +96,16 @@ export class DogSprite extends Phaser.GameObjects.Container {
   /** 每隔 intervalMs 換下一個動作 */
   startCycle(intervalMs: number): this {
     this.play(DOG_ACTIONS[0]);
-    this.cycle = this.scene.time.addEvent({
-      delay: intervalMs,
-      loop: true,
-      callback: () => {
-        this.index = (this.index + 1) % DOG_ACTIONS.length;
-        this.play(DOG_ACTIONS[this.index]);
-      },
-    });
+    // 用實際時間判斷，不用 Phaser 計時器：手機卡頓或掉幀時遊戲時間會變慢，動作會停太久
+    let last = Date.now();
+    this.cycle = () => {
+      const now = Date.now();
+      if (now - last < intervalMs) return;
+      last = now;
+      this.index = (this.index + 1) % DOG_ACTIONS.length;
+      this.play(DOG_ACTIONS[this.index]);
+    };
+    this.scene.events.on(Phaser.Scenes.Events.UPDATE, this.cycle);
     return this;
   }
 
@@ -197,7 +199,8 @@ export class DogSprite extends Phaser.GameObjects.Container {
   }
 
   override destroy(fromScene?: boolean): void {
-    this.cycle?.remove();
+    if (this.cycle) this.scene?.events.off(Phaser.Scenes.Events.UPDATE, this.cycle);
+    this.cycle = null;
     for (const tw of this.tweensRunning) tw.stop();
     super.destroy(fromScene);
   }

@@ -2,6 +2,8 @@ import { expect, test } from '@playwright/test';
 import { openLobby, tap, waitScene, wgz } from './helpers';
 
 test('出征地圖 → 選隊伍 → 倒數 → 收成 → 劇情 → 下一關開放（測試模式）', async ({ page }) => {
+  // 完整流程含 5 秒倒數與多次換畫面，給比預設 30 秒寬的時間
+  test.setTimeout(60_000);
   await openLobby(page, '?fast=1');
   await tap(page, (await wgz(page)).lobby!.buttons.expedition);
   await waitScene(page, 'CampaignScene');
