@@ -141,3 +141,149 @@ test.describe('手機橫放', () => {
     }
   });
 });
+
+/** 從主頁進訓練場 */
+async function openTraining(page: Page) {
+  await openLobby(page, '?fast=1');
+  await tap(page, (await wgz(page)).lobby!.buttons.train);
+  await waitScene(page, 'TrainingScene');
+}
+
+const row = async (page: Page, id: string) =>
+  (await wgz(page)).training!.rows.find((r) => r.id === id)!;
+
+/** 按 n 次某隻狗的特訓按鈕，每次等畫面上的次數更新 */
+async function drillTap(page: Page, id: string, stat: 'attack' | 'defense', n: number) {
+  for (let i = 0; i < n; i++) {
+    const before = await row(page, id);
+    await tap(page, before.drill[stat]);
+    await page.waitForFunction(
+      ([dogId, s, count]) =>
+        window.__WGZ__?.training?.rows.find((r) => r.id === dogId)?.drill[s as 'attack' | 'defense']
+          .count ===
+        (count as number) + 1,
+      [id, stat, before.drill[stat].count] as const,
+    );
+  }
+}
+
+test('特訓：花糧草加攻防，練滿與糧草不足時不能按', async ({ page }) => {
+  await openTraining(page);
+  let t = (await wgz(page)).training!;
+  expect(t.food).toBe(1200);
+  for (const r of t.rows) {
+    for (const b of [r.drill.attack, r.drill.defense]) {
+      expect(b).toMatchObject({ count: 0, cost: 10, enabled: true });
+      expect(b.x).toBeGreaterThanOrEqual(r.x);
+      expect(b.x + b.width).toBeLessThanOrEqual(r.x + r.width);
+      expect(b.y + b.height).toBeLessThanOrEqual(r.y + r.height);
+      expect(b.height).toBeGreaterThanOrEqual(40);
+    }
+  }
+  const order = t.rows.map((r) => r.id);
+  const daer0 = await row(page, 'daer');
+
+  // 攻擊特訓 3 次：10 + 20 + 30
+  await drillTap(page, 'daer', 'attack', 3);
+  let daer = await row(page, 'daer');
+  expect(daer.attack).toBe(daer0.attack + 3);
+  expect(daer.defense).toBe(daer0.defense);
+  expect(daer.power).toBe(daer0.power + 3);
+  expect(daer.level).toBe(daer0.level);
+  expect(daer.drill.attack).toMatchObject({ count: 3, cost: 40, enabled: true });
+  expect(daer.drill.defense).toMatchObject({ count: 0, cost: 10 });
+  expect((await wgz(page)).training!.food).toBe(1140);
+  await page.waitForTimeout(900);
+  await page.screenshot({ path: 'artifacts/screenshots/portrait/drill.png' });
+
+  // 大耳攻防都練滿：共 1100
+  await drillTap(page, 'daer', 'attack', 7);
+  await drillTap(page, 'daer', 'defense', 10);
+  daer = await row(page, 'daer');
+  expect(daer.attack).toBe(daer0.attack + 10);
+  expect(daer.defense).toBe(daer0.defense + 10);
+  expect(daer.drill.attack).toMatchObject({ count: 10, cost: 0, enabled: false });
+  expect(daer.drill.defense).toMatchObject({ count: 10, cost: 0, enabled: false });
+  expect((await wgz(page)).training!.food).toBe(100);
+  // 滿了再按沒有反應
+  await tap(page, daer.drill.attack);
+  await page.waitForTimeout(150);
+  expect((await wgz(page)).training!.food).toBe(100);
+  expect((await row(page, 'daer')).attack).toBe(daer0.attack + 10);
+
+  // 剩下的 100 給阿白練 4 次攻擊（10+20+30+40），糧草歸零後全部不能按
+  await drillTap(page, 'abai', 'attack', 4);
+  t = (await wgz(page)).training!;
+  expect(t.food).toBe(0);
+  for (const r of t.rows) {
+    expect(r.drill.attack.enabled).toBe(false);
+    expect(r.drill.defense.enabled).toBe(false);
+  }
+  const abai = await row(page, 'abai');
+  expect(abai.drill.attack).toMatchObject({ count: 4, cost: 50 });
+  await tap(page, abai.drill.attack);
+  await page.waitForTimeout(150);
+  expect((await row(page, 'abai')).drill.attack.count).toBe(4);
+  // 特訓後順序不變
+  expect(t.rows.map((r) => r.id)).toEqual(order);
+  await page.waitForTimeout(900);
+  await page.screenshot({ path: 'artifacts/screenshots/portrait/drill-maxed-no-food.png' });
+
+  // 離開再回來還在；組隊畫面的戰力也一致
+  await tap(page, (await wgz(page)).backButton!);
+  await waitScene(page, 'LobbyScene');
+  await tap(page, (await wgz(page)).lobby!.buttons.team);
+  await waitScene(page, 'TeamScene');
+  await tap(
+    page,
+    (await wgz(page)).team!.dogs.find((d) => d.id === 'daer')!,
+  );
+  await page.waitForFunction(() => window.__WGZ__?.team?.panel === 'daer');
+  expect((await wgz(page)).team!.panelStats!.power).toBe(daer0.power + 20);
+});
+
+test.describe('手機橫放：特訓', () => {
+  const W = 844;
+  const H = 390;
+  test.use({ viewport: { width: W, height: H } });
+
+  test('橫式特訓，捲動後按鈕位置也對', async ({ page }) => {
+    await openTraining(page);
+    let t = (await wgz(page)).training!;
+    for (const r of t.rows) {
+      expect(r.drill.attack.x).toBeGreaterThanOrEqual(r.x);
+      expect(r.drill.defense.x + r.drill.defense.width).toBeLessThanOrEqual(r.x + r.width);
+    }
+    await drillTap(page, t.rows[0].id, 'attack', 2);
+    await drillTap(page, t.rows[1].id, 'defense', 1);
+    await page.waitForTimeout(900);
+    await page.screenshot({ path: 'artifacts/screenshots/landscape/drill.png' });
+
+    // 捲到底，按最後一隻
+    expect(t.scrollMax).toBeGreaterThan(0);
+    await page.mouse.move(W / 2, H / 2);
+    await page.mouse.wheel(0, 600);
+    await page.waitForFunction(
+      () => window.__WGZ__?.training?.scrollY === window.__WGZ__?.training?.scrollMax,
+    );
+    t = (await wgz(page)).training!;
+    const last = t.rows[t.rows.length - 1];
+    expect(last.drill.attack.y).toBeGreaterThanOrEqual(t.list.y);
+    expect(last.drill.attack.y + last.drill.attack.height).toBeLessThanOrEqual(
+      t.list.y + t.list.height,
+    );
+    await drillTap(page, last.id, 'attack', 1);
+    expect((await row(page, last.id)).attack).toBe(last.attack + 1);
+    expect((await wgz(page)).training!.food).toBe(1200 - 10 - 20 - 10 - 10);
+    // 拖曳捲動不會誤觸特訓
+    const box = (await page.locator('canvas').boundingBox())!;
+    const b = (await row(page, last.id)).drill.defense;
+    const sx = box.width / W;
+    await page.mouse.move(box.x + (b.x + b.width / 2) * sx, box.y + (b.y + b.height / 2) * sx);
+    await page.mouse.down();
+    await page.mouse.move(box.x + (b.x + b.width / 2) * sx, box.y + (b.y + 80) * sx, { steps: 4 });
+    await page.mouse.up();
+    await page.waitForTimeout(150);
+    expect((await row(page, last.id)).drill.defense.count).toBe(0);
+  });
+});

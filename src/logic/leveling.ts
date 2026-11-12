@@ -125,6 +125,7 @@ export function levelUp(
   const defense: StatGain = { fixed: fixed.defense, bonus: rollBonus(drift.defense, rng) };
   return {
     progress: {
+      ...p,
       level,
       exp: p.exp,
       growthAttack: p.growthAttack + attack.fixed + attack.bonus,
@@ -194,7 +195,7 @@ export function progressOf(state: HasDogs, dog: DogData): DogProgress {
   return state.dogs[dog.id] ?? initialProgress(dog);
 }
 
-/** 一隻狗目前的數字：攻防 = 基礎值 + 成長值，戰力由攻防算出 */
+/** 一隻狗目前的數字：攻防 = 基礎值 + 升級成長 + 特訓加成，戰力由攻防算出 */
 export interface DogStats {
   level: number;
   exp: number;
@@ -205,14 +206,19 @@ export interface DogStats {
   power: number;
   growthAttack: number;
   growthDefense: number;
+  /** 訓練場特訓的次數（每次 +1，已算進攻防） */
+  drillAttack: number;
+  drillDefense: number;
   /** 隨機加成累積和平均的差距（正的代表運氣好） */
   luck: number;
 }
 
 export function dogStats(state: HasDogs, dog: DogData): DogStats {
   const p = progressOf(state, dog);
-  const attack = dog.baseAttack + p.growthAttack;
-  const defense = dog.baseDefense + p.growthDefense;
+  const drillAttack = p.drillAttack ?? 0;
+  const drillDefense = p.drillDefense ?? 0;
+  const attack = dog.baseAttack + p.growthAttack + drillAttack;
+  const defense = dog.baseDefense + p.growthDefense + drillDefense;
   const drift = bonusDrift(p);
   return {
     level: p.level,
@@ -223,6 +229,8 @@ export function dogStats(state: HasDogs, dog: DogData): DogStats {
     power: calcPower(attack, defense),
     growthAttack: p.growthAttack,
     growthDefense: p.growthDefense,
+    drillAttack,
+    drillDefense,
     luck: drift.attack + drift.defense,
   };
 }

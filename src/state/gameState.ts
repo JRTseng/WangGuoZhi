@@ -25,6 +25,9 @@ export interface DogProgress {
   bonusDefense: number;
   /** 抽過幾次隨機加成 */
   rolls: number;
+  /** 訓練場特訓的次數（T020），每次該屬性永久 +1；沒有這個欄位當成 0 */
+  drillAttack?: number;
+  drillDefense?: number;
 }
 
 /** 進行中的出征 */
