@@ -422,7 +422,7 @@ export class DogPicker {
     }
 
     const badges: [string, string][] = [];
-    if (s.busy) badges.push(['出征中', '#8a6f55']);
+    if (s.busy) badges.push(['寄宿中', '#8a6f55']);
     else if (s.selected) badges.push([expedition ? '✓ 已選' : '隊伍', '#b5651d']);
     if (!s.owned) badges.push(['🔒', '#4a3e33']);
     if (!expedition && isLobby) {
@@ -440,7 +440,7 @@ export class DogPicker {
           .setPadding(5, 2, 5, 2),
       );
     });
-    // 出征選狗：出征中的不能選，整張變淡
+    // 出征選狗：寄宿中的不能選，整張變淡
     if (expedition && s.busy) c.setAlpha(0.55);
 
     makeTapArea(c, r.width, r.height);

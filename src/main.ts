@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { COLORS } from './config';
 import { gameSizeFor, orientationFor, type Orientation } from './logic/orientation';
 import { BattleScene } from './scenes/BattleScene';
+import { BoardingScene } from './scenes/BoardingScene';
 import { BootScene } from './scenes/BootScene';
 import { CampaignScene } from './scenes/CampaignScene';
 import { ExpeditionScene } from './scenes/ExpeditionScene';
@@ -37,6 +38,7 @@ const game = new Phaser.Game({
     LobbyScene,
     TeamScene,
     TrainingScene,
+    BoardingScene,
     CampaignScene,
     ExpeditionScene,
     BattleScene,

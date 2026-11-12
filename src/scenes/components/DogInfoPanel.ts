@@ -14,6 +14,8 @@ export interface DogInfoOptions {
   owned: boolean;
   inTeam: boolean;
   teamFull: boolean;
+  /** 在訓練場寄宿中（T021）：要先接回來才能加入隊伍 */
+  boarding?: boolean;
   isLobby: boolean;
   onToggleTeam: () => void;
   onSetLobby: () => void;
@@ -99,8 +101,9 @@ export class DogInfoPanel {
     const by = box.y + box.height - 64;
     if (o.owned) {
       const bw = (box.width - 48 - 12) / 2;
-      const teamLabel = o.inTeam ? '移出隊伍' : o.teamFull ? '隊伍已滿' : '加入隊伍';
-      const teamColor = o.inTeam ? 0x8a6f55 : o.teamFull ? COLORS.buttonDisabled : COLORS.button;
+      const blocked = o.boarding ? '寄宿中' : o.teamFull ? '隊伍已滿' : null;
+      const teamLabel = o.inTeam ? '移出隊伍' : (blocked ?? '加入隊伍');
+      const teamColor = o.inTeam ? 0x8a6f55 : blocked ? COLORS.buttonDisabled : COLORS.button;
       this.buttons.team = this.button(
         scene,
         { x: left, y: by, width: bw, height: 48 },

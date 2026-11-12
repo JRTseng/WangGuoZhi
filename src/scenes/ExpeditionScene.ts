@@ -278,7 +278,7 @@ export class ExpeditionScene extends Phaser.Scene {
   }
 
   private toggleDog(id: string): void {
-    if (busyDogIds(getState()).has(id)) return; // 出征中的不能選
+    if (busyDogIds(getState()).has(id)) return; // 寄宿中的不能選
     if (this.selected.includes(id)) {
       this.selected = this.selected.filter((x) => x !== id);
     } else if (this.selected.length < TEAM_SIZE) {

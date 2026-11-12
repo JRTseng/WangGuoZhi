@@ -77,6 +77,8 @@ interface WgzDebugState {
     | null;
   /** 訓練場（TrainingScene） */
   training?: {
+    /** 右上角進板凳寄宿的按鈕（T021）：幾隻在寄宿／幾個位子 */
+    boardingButton: { count: number; slots: number } & WgzRect;
     list: WgzRect;
     scrollY: number;
     scrollMax: number;
@@ -84,6 +86,8 @@ interface WgzDebugState {
     food: number;
     rows: ({
       id: string;
+      /** 是不是在寄宿（T021） */
+      boarding: boolean;
       level: number;
       exp: number;
       expNeed: number;
@@ -96,6 +100,28 @@ interface WgzDebugState {
         defense: { count: number; cost: number; enabled: boolean } & WgzRect;
       };
     } & WgzRect)[];
+  };
+  /** 板凳寄宿畫面（T021） */
+  boarding?: {
+    /** 已開放幾個寄宿位 */
+    open: number;
+    /** 每小時大約拿多少經驗 */
+    perHour: number;
+    slots: ({
+      state: 'dog' | 'empty' | 'locked';
+      id?: string;
+      /** 這次寄宿累積的經驗與升了幾級 */
+      exp?: number;
+      levels?: number;
+      level?: number;
+      /** 「接回」按鈕 */
+      button?: WgzRect;
+    } & WgzRect)[];
+    list: WgzRect;
+    scrollY: number;
+    scrollMax: number;
+    /** 還沒寄宿的狗：不能放的原因（可以放為 null）與「寄宿」按鈕 */
+    rows: ({ id: string; level: number; block: string | null; button: WgzRect } & WgzRect)[];
   };
   /** 戰鬥畫面（BattleScene） */
   battle?: {
