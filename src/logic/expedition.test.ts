@@ -214,3 +214,53 @@ describe('runExpedition', () => {
     expect(s.history[HISTORY_MAX - 1].id).toBe(`exp-${HISTORY_MAX + 5}`);
   });
 });
+
+describe('第 1 章通關送補血狗（T017）', () => {
+  const BOSS = 'luoyepo-5';
+  const GIFT = 'nuantong';
+  /** 前 4 關已通過；strong 時把狗練強，打 Boss 一定贏 */
+  const beforeBoss = (strong = true): GameState => {
+    const s = fresh();
+    const dogs = Object.fromEntries(
+      Object.entries(s.dogs).map(([id, p]) => [
+        id,
+        strong ? { ...p, growthAttack: p.growthAttack + 200 } : p,
+      ]),
+    );
+    return { ...s, dogs, cleared: ['luoyepo-1', 'luoyepo-2', 'luoyepo-3', 'luoyepo-4'] };
+  };
+
+  it('第一次打贏 Boss：補血狗加入，有養成進度，紀錄記下來', () => {
+    const s = beforeBoss();
+    expect(s.owned).not.toContain(GIFT);
+    const { state, record } = run(s, BOSS, ALL);
+    expect(record.win).toBe(true);
+    expect(record.newDogId).toBe(GIFT);
+    expect(state.owned).toEqual([...s.owned, GIFT]);
+    expect(state.dogs[GIFT].level).toBe(5);
+    expect(idleDogIds(state)).toContain(GIFT);
+    // 馬上可以帶牠出征，戰鬥裡會標成補血狗
+    const next = run(state, 'luoyepo-1', ['daer', GIFT], T0 + 1);
+    expect(next.record.team.find((d) => d.id === GIFT)?.heal).toBe(true);
+    expect(next.record.team.find((d) => d.id === 'daer')?.heal).toBeUndefined();
+  });
+
+  it('再打贏一次不會重複送', () => {
+    const first = run(beforeBoss(), BOSS, ALL).state;
+    const again = run(first, BOSS, ALL, T0 + 1);
+    expect(again.record.win).toBe(true);
+    expect(again.record.newDogId).toBeUndefined();
+    expect(again.state.owned.filter((id) => id === GIFT)).toHaveLength(1);
+    expect(again.state.dogs[GIFT]).toEqual(first.dogs[GIFT]);
+  });
+
+  it('打輸不送；其他關卡打贏也不送', () => {
+    const lost = run(beforeBoss(false), BOSS, ['abai']);
+    expect(lost.record.win).toBe(false);
+    expect(lost.record.newDogId).toBeUndefined();
+    expect(lost.state.owned).not.toContain(GIFT);
+    const other = run(fresh());
+    expect(other.record.newDogId).toBeUndefined();
+    expect(other.state.owned).not.toContain(GIFT);
+  });
+});

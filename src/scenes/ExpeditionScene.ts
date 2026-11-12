@@ -1,12 +1,12 @@
 import Phaser from 'phaser';
 import { COLORS, FONT_FAMILY } from '../config';
-import { DOGS } from '../data/dogs';
+import { DOGS, findDog } from '../data/dogs';
 import { BACKGROUNDS } from '../data/backgrounds';
 import { findStage, type StageData } from '../data/regions';
 import { skillBonusOf, winChance } from '../logic/battle';
 import { TEAM_MIN, TEAM_SIZE, battleDogOf, busyDogIds, runExpedition } from '../logic/expedition';
 import { formatCountdown } from '../logic/format';
-import { autoTeam } from '../logic/dogFilter';
+import { autoTeam, roleKeyOf } from '../logic/dogFilter';
 import type { Rect } from '../logic/layout';
 import { SIDE_WIDTH } from '../logic/pickerLayout';
 import { newStoriesAfter, unlockedBackgrounds } from '../logic/progress';
@@ -309,6 +309,8 @@ export class ExpeditionScene extends Phaser.Scene {
     const extra: string[] = [];
     if (!record.win) extra.push('只帶回三成物資，關卡還沒通過');
     else if (!before.cleared.includes(stage.id)) extra.push('通過關卡！下一關已開放');
+    const gift = record.newDogId ? findDog(record.newDogId) : undefined;
+    if (gift) extra.push(`新夥伴「${gift.name}」加入！（${gift.breed}・${roleKeyOf(gift)}）`);
     const newBgs = unlockedBackgrounds(r.state).filter(
       (b) => !unlockedBackgrounds(before).includes(b),
     );
@@ -335,7 +337,7 @@ export class ExpeditionScene extends Phaser.Scene {
       record.gains,
     );
     patchDebug({
-      result: { ...record.reward, win: record.win },
+      result: { ...record.reward, win: record.win, newDogId: record.newDogId },
       growth: record.gains,
       resources: { ...r.state.resources },
       stamina: { value: r.state.stamina.value, max: STAMINA_MAX },

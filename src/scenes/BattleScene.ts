@@ -34,6 +34,7 @@ export interface BattleSceneData {
 /** 野犬（非 Boss 敵人）的佔位配色 */
 const MOB_LOOK = { color: 0x7d746c, accent: 0xcfc6bb };
 const HP_COLOR = { team: 0x4f8a3c, enemy: 0xb0413e };
+const HEAL_TEXT = '#9df08a';
 
 /** 畫面上的一隻角色：頭像 + 名字 + 血條 */
 interface UnitView {
@@ -168,7 +169,7 @@ export class BattleScene extends Phaser.Scene {
     this.battle.team.forEach((u, i) => {
       const d = findDog(u.id);
       this.units.team.push(
-        this.makeUnit('team', u.id, u.name, u.maxHp, this.layout.team[i], {
+        this.makeUnit('team', u.id, u.heal ? `✚ ${u.name}` : u.name, u.maxHp, this.layout.team[i], {
           color: d?.color ?? 0xd9894a,
           accent: d?.accent ?? 0xfff3e0,
           fierce: false,
@@ -284,15 +285,63 @@ export class BattleScene extends Phaser.Scene {
 
   /** 把一次出手的結果套到血量上（略過時也用這個，不帶動畫） */
   private apply(e: BattleEvent): void {
-    const target = this.units[e.side === 'team' ? 'enemy' : 'team'][e.target];
+    const target = this.targetOf(e);
     target.hp = e.targetHp;
     this.redrawUnit(target);
   }
 
-  /** 純裝飾：攻擊方往前衝、被打的閃一下、跳出傷害數字 */
+  /** 這次出手的對象：攻擊是對面的，補血是自己這一方的 */
+  private targetOf(e: BattleEvent): UnitView {
+    const side = e.heal !== undefined ? e.side : e.side === 'team' ? 'enemy' : 'team';
+    return this.units[side][e.target];
+  }
+
+  /** 飄起來再淡掉的數字 */
+  private floatText(target: UnitView, s: string, size: number, color: string, d: number): void {
+    const text = addText(
+      this,
+      target.slot.x,
+      target.slot.y - target.slot.r - 6,
+      s,
+      size,
+      color,
+      true,
+    )
+      .setOrigin(0.5, 1)
+      .setStroke('#3b2a1a', 5)
+      .setDepth(10);
+    this.floating.add(text);
+    this.tweens.add({
+      targets: text,
+      y: text.y - 34,
+      alpha: 0,
+      duration: Math.max(260, d * 1.4),
+      ease: 'Quad.easeOut',
+      onComplete: () => {
+        this.floating.delete(text);
+        text.destroy();
+      },
+    });
+  }
+
+  /** 純裝飾：攻擊方往前衝、被打的閃一下、跳出傷害數字；補血是原地跳一下、跳出綠色數字 */
   private animate(e: BattleEvent, d: number): void {
     const attacker = this.units[e.side][e.attacker];
-    const target = this.units[e.side === 'team' ? 'enemy' : 'team'][e.target];
+    const target = this.targetOf(e);
+    if (e.heal !== undefined) {
+      for (const u of new Set([attacker, target])) {
+        this.tweens.add({
+          targets: u.box,
+          y: u.slot.y - 10,
+          duration: d * 0.25,
+          yoyo: true,
+          ease: 'Quad.easeOut',
+          onComplete: () => u.box.setY(u.slot.y),
+        });
+      }
+      this.floatText(target, `+${e.heal}`, 22, HEAL_TEXT, d);
+      return;
+    }
     const dir = e.side === 'team' ? 1 : -1;
     this.tweens.add({
       targets: attacker.box,
@@ -313,30 +362,13 @@ export class BattleScene extends Phaser.Scene {
         onComplete: () => target.box.setX(target.slot.x),
       });
     }
-    const text = addText(
-      this,
-      target.slot.x,
-      target.slot.y - target.slot.r - 6,
+    this.floatText(
+      target,
       e.damage > 0 ? `-${e.damage}` : '閃過',
       e.defeated ? 26 : 21,
       e.damage > 0 ? (e.side === 'team' ? '#ffe08a' : '#ff9a8a') : '#ffffff',
-      true,
-    )
-      .setOrigin(0.5, 1)
-      .setStroke('#3b2a1a', 5)
-      .setDepth(10);
-    this.floating.add(text);
-    this.tweens.add({
-      targets: text,
-      y: text.y - 34,
-      alpha: 0,
-      duration: Math.max(260, d * 1.4),
-      ease: 'Quad.easeOut',
-      onComplete: () => {
-        this.floating.delete(text);
-        text.destroy();
-      },
-    });
+      d,
+    );
   }
 
   /** 略過：剩下的出手直接套用，馬上進結算。結果和看完整場一樣。 */
@@ -357,7 +389,8 @@ export class BattleScene extends Phaser.Scene {
     this.tweens.killAll();
     for (const t of this.floating) t.destroy();
     this.floating.clear();
-    for (const u of [...this.units.team, ...this.units.enemy]) u.box.setX(u.slot.x);
+    for (const u of [...this.units.team, ...this.units.enemy])
+      u.box.setPosition(u.slot.x, u.slot.y);
     this.skipButton.setVisible(false).disableInteractive();
     const last = this.battle.events[this.battle.events.length - 1];
     if (last) this.round = last.round;
@@ -382,7 +415,10 @@ export class BattleScene extends Phaser.Scene {
       this.payload.extra ?? [],
       rec.gains,
     );
-    patchDebug({ result: { ...rec.reward, win: rec.win }, growth: rec.gains });
+    patchDebug({
+      result: { ...rec.reward, win: rec.win, newDogId: rec.newDogId },
+      growth: rec.gains,
+    });
   }
 
   /** 更新文字與 Playwright 用的除錯資訊 */
@@ -399,6 +435,7 @@ export class BattleScene extends Phaser.Scene {
         stepMs: this.stepMs,
         index: this.index,
         total: this.battle.events.length,
+        heals: this.battle.events.slice(0, this.index).filter((e) => e.heal !== undefined).length,
         round: this.round,
         skipped: this.skipped,
         skipButton: this.layout.skip,

@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import {
   BATTLE_ROLL_RANGE,
+  HEAL_BONUS_RATE,
+  HEAL_RATE,
+  HEAL_TRIGGER,
+  SKILL_BONUS_RATE,
+  skillBonusOf,
   DEFEAT_REWARD_RATE,
   battleDurationMs,
   battlePaceFromSearch,
@@ -224,5 +229,80 @@ describe('獎勵與播放節奏', () => {
     expect(battlePaceFromSearch('?fast=1&battle=normal')).toBe('normal');
     expect(battlePaceFromSearch('?fast=1&battle=slow')).toBe('slow');
     expect(stepDelayMs(24, 1, 'slow')).toBe(stepDelayMs(24, 1) * 4);
+  });
+});
+
+describe('補血狗（T017）', () => {
+  const healer = (id = 'h'): BattleDog => ({ ...dog(id, 30, 50, 1, true), heal: true });
+  const withHealer = (over: Partial<BattleInput> = {}): BattleInput =>
+    input({ team: [dog('a'), dog('b'), healer()], ...over });
+
+  it('補血狗給隊伍 +10% 戰力，取代一般技能的 +2%', () => {
+    expect(skillBonusOf([healer()])).toBeCloseTo(HEAL_BONUS_RATE);
+    expect(skillBonusOf([healer(), dog('a', 40, 40, 1, true)])).toBeCloseTo(
+      HEAL_BONUS_RATE + SKILL_BONUS_RATE,
+    );
+    // 同樣的隊伍，有補血的勝率比較高
+    const plain = input({ team: [dog('a'), dog('b'), dog('h', 30, 50, 1, true)] });
+    expect(winRate(withHealer())).toBeGreaterThan(winRate(plain));
+  });
+
+  it('補血紀錄合理：只補活著、血量六成以下的隊友，補最大血量的 25% 且不超過上限', () => {
+    let heals = 0;
+    for (const seed of SEEDS) {
+      for (const recommendedPower of [200, 260, 400]) {
+        const r = resolveBattle(withHealer({ seed, recommendedPower }));
+        const hp = { team: r.team.map((u) => u.maxHp), enemy: r.enemies.map((u) => u.maxHp) };
+        let lastWasHeal = false;
+        for (const e of r.events) {
+          if (e.heal === undefined) {
+            const foes = e.side === 'team' ? hp.enemy : hp.team;
+            foes[e.target] -= e.damage;
+            expect(foes[e.target]).toBe(e.targetHp);
+            if (e.side === 'team' && e.attacker === 2) lastWasHeal = false;
+            continue;
+          }
+          heals++;
+          expect(e.side).toBe('team');
+          expect(r.team[e.attacker].heal).toBe(true);
+          expect(hp.team[e.attacker]).toBeGreaterThan(0);
+          expect(lastWasHeal).toBe(false);
+          lastWasHeal = true;
+          const max = r.team[e.target].maxHp;
+          const before = hp.team[e.target];
+          expect(before).toBeGreaterThan(0);
+          expect(before / max).toBeLessThanOrEqual(HEAL_TRIGGER);
+          expect(e.heal).toBe(Math.min(max - before, Math.round(max * HEAL_RATE)));
+          expect(e.heal).toBeGreaterThan(0);
+          expect(e.damage).toBe(0);
+          expect(e.defeated).toBe(false);
+          hp.team[e.target] += e.heal;
+          expect(hp.team[e.target]).toBe(e.targetHp);
+        }
+        expect(hp.team).toEqual(r.finalHp.team);
+        expect(hp.enemy).toEqual(r.finalHp.enemies);
+        // 勝負與結尾的規則不變
+        const loser = r.win ? r.finalHp.enemies : r.finalHp.team;
+        const winner = r.win ? r.finalHp.team : r.finalHp.enemies;
+        expect(loser.every((x) => x === 0)).toBe(true);
+        expect(winner.some((x) => x > 0)).toBe(true);
+        expect(r.events.length).toBeLessThanOrEqual(80);
+      }
+    }
+    expect(heals).toBeGreaterThan(50);
+  });
+
+  it('只有補血狗一隻也打得完；同種子結果一樣', () => {
+    for (const seed of SEEDS.slice(0, 50)) {
+      const a = resolveBattle(input({ team: [healer()], recommendedPower: 80, seed }));
+      const b = resolveBattle(input({ team: [healer()], recommendedPower: 80, seed }));
+      expect(a).toEqual(b);
+      expect(a.events[a.events.length - 1].defeated).toBe(true);
+    }
+  });
+
+  it('沒有補血狗的隊伍不會出現補血', () => {
+    for (const seed of SEEDS.slice(0, 50))
+      expect(resolveBattle(input({ seed })).events.every((e) => e.heal === undefined)).toBe(true);
   });
 });

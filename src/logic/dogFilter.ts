@@ -8,8 +8,8 @@ import { baseStats } from './leveling';
  */
 
 /** 定位（從 DogData.role 的「前排／突擊」這類字串取後半） */
-export type RoleKey = '突擊' | '守護' | '謀略' | '幸運' | '補給';
-export const ROLE_KEYS: readonly RoleKey[] = ['突擊', '守護', '謀略', '幸運', '補給'];
+export type RoleKey = '突擊' | '守護' | '謀略' | '幸運' | '補給' | '補血';
+export const ROLE_KEYS: readonly RoleKey[] = ['突擊', '守護', '謀略', '幸運', '補給', '補血'];
 
 /** 狀態：可出征（擁有且沒在出征）／出征中 */
 export type StatusKey = 'idle' | 'busy';

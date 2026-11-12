@@ -61,7 +61,7 @@ interface WgzDebugState {
     cancel: WgzRect;
   } | null;
   /** 結算面板顯示的獎勵與勝負，沒開為 null */
-  result?: { food: number; bones: number; win: boolean } | null;
+  result?: { food: number; bones: number; win: boolean; newDogId?: string } | null;
   /** 結算面板上每隻狗的經驗與升級（T005），沒開為 null */
   growth?:
     | {
@@ -101,6 +101,8 @@ interface WgzDebugState {
     win: boolean;
     /** playing：播放中；result：已顯示結算 */
     phase: 'playing' | 'result';
+    /** 已經播過幾次補血（T017） */
+    heals: number;
     /** 目前倍速 1～4 */
     speed: number;
     /** 每一次出手播多久（毫秒，已含倍速） */

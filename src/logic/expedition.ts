@@ -13,7 +13,15 @@ import {
   type BattleDog,
   type BattleResult,
 } from './battle';
-import { addExp, dogStats, expeditionExp, progressOf, sumUps, type DogExpGain } from './leveling';
+import {
+  addExp,
+  dogStats,
+  expeditionExp,
+  initialProgress,
+  progressOf,
+  sumUps,
+  type DogExpGain,
+} from './leveling';
 import { isStageUnlocked } from './progress';
 import { runBlock, spendRun, type TimeOptions } from './stamina';
 
@@ -65,6 +73,7 @@ export function battleDogOf(state: Pick<GameState, 'dogs'>, dogId: string): Batt
     defense: s.defense,
     level: s.level,
     hasSkill: !!d.skill,
+    ...(d.role.includes('補血') ? { heal: true } : {}),
   };
 }
 
@@ -134,6 +143,7 @@ export function expeditionGrowth(
  * 檢查：關卡存在且已解鎖、1 到 5 隻、不重複、狗存在且擁有、今天還有次數、體力夠。
  * 通過就扣體力與次數、結算戰鬥、加資源與經驗（經驗滿了自動升級）、寫一筆紀錄。
  * 打贏才記為通過該關（解鎖下一關）；打輸只拿部分獎勵與一半經驗。
+ * 第一次打贏有 firstClearDog 的關卡，那隻狗會加入（紀錄的 newDogId）。
  * seed 為這一仗的亂數種子；沒給就由時間與出征編號算出。
  */
 export function runExpedition(
@@ -168,6 +178,10 @@ export function runExpedition(
   const { win } = expeditionBattle(exp);
   const reward = expeditionReward(exp, win);
   const growth = expeditionGrowth(state, exp, win);
+  // 第一次打贏有送狗的關卡：狗狗加入（已經擁有就不再送）
+  const firstClear = win && !state.cleared.includes(stageId);
+  const gift = firstClear ? findDog(stage.firstClearDog ?? '') : undefined;
+  const newDog = gift && !state.owned.includes(gift.id) ? gift : undefined;
   const record: ExpeditionRecord = {
     id: `exp-${state.nextExpeditionNo}`,
     ...exp,
@@ -176,6 +190,7 @@ export function runExpedition(
     win,
     gains: growth.gains,
     ...(opts.auto ? { auto: true } : {}),
+    ...(newDog ? { newDogId: newDog.id } : {}),
   };
   return {
     ok: true,
@@ -186,7 +201,8 @@ export function runExpedition(
         food: paid.resources.food + reward.food,
         bones: paid.resources.bones + reward.bones,
       },
-      dogs: growth.dogs,
+      dogs: newDog ? { ...growth.dogs, [newDog.id]: initialProgress(newDog) } : growth.dogs,
+      owned: newDog ? [...paid.owned, newDog.id] : paid.owned,
       nextExpeditionNo: state.nextExpeditionNo + 1,
       cleared:
         !win || state.cleared.includes(stageId) ? state.cleared : [...state.cleared, stageId],

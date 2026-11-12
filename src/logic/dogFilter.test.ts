@@ -37,6 +37,7 @@ describe('選狗篩選', () => {
     expect(by('謀略')).toEqual(['xiaosuan', 'shuangyan']);
     expect(by('幸運')).toEqual(['abai']);
     expect(by('補給')).toEqual(['daer', 'duantui']);
+    expect(by('補血')).toEqual(['nuantong']);
   });
 
   it('依狀態篩選：可出征要擁有且沒在出征', () => {
@@ -79,6 +80,7 @@ describe('選狗排序', () => {
       'heixuan', // 103
       'xiaosuan', // 72
       'abai', // 70
+      'nuantong', // 124，未擁有（第 1 章通關才送）
       'tieya', // 115，未擁有
       'shuangyan', // 90
       'duantui', // 84
@@ -123,22 +125,22 @@ describe('自動編隊', () => {
   it('挑可出征中戰力最高的 5 隻', () => {
     const owned = DOGS.map((d) => d.id);
     expect(autoTeam(DOGS, { owned, busy: [] })).toEqual([
+      'nuantong',
       'tieya',
       'changxu',
       'daer',
       'heixuan',
-      'shuangyan',
     ]);
   });
 
   it('出征中、未擁有的不會被選', () => {
     const owned = DOGS.map((d) => d.id).filter((id) => id !== 'tieya');
     expect(autoTeam(DOGS, { owned, busy: ['changxu'] })).toEqual([
+      'nuantong',
       'daer',
       'heixuan',
       'shuangyan',
       'duantui',
-      'xiaosuan',
     ]);
   });
 

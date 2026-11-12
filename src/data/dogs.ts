@@ -1,9 +1,11 @@
 /**
  * 官方已釋放的狗狗武將。前 5 隻依 docs/GDD.md，玩家一開始就擁有（見 STARTER_DOG_IDS）；
  * 後面幾隻已釋放但玩家尚未擁有，組隊畫面會以暗色顯示（招募 T007 之後才拿得到）。
+ * 最後的補血狗不靠招募，第一次打贏第 1 章 Boss 就送（見 regions.ts 的 firstClearDog）。
  * 純資料，不放公式；戰力由 src/logic/power.ts 計算。
  */
-export type DogRole = '隊長／補給' | '前排／突擊' | '前排／守護' | '後排／謀略' | '後排／幸運';
+export type DogRole =
+  '隊長／補給' | '前排／突擊' | '前排／守護' | '後排／謀略' | '後排／幸運' | '後排／補血';
 
 /** 稀有度（T007 抽卡之後才有資料，先預留） */
 export type DogRarity = 'N' | 'R' | 'SR' | 'SSR';
@@ -142,6 +144,20 @@ export const DOGS: readonly DogData[] = [
     baseDefense: 38,
     level: 1,
     skill: { name: '狼嚎', description: '敵方士氣 -10%' },
+  },
+  {
+    // 第 1 章 Boss 的通關獎勵（T017）。名字、犬種、數值暫定
+    id: 'nuantong',
+    name: '暖桶',
+    breed: '聖伯納犬',
+    personality: '溫和、有耐心，看到誰受傷就叼著小木桶跑過去',
+    role: '後排／補血',
+    color: 0xb5652f,
+    accent: 0xfdf6ea,
+    baseAttack: 36,
+    baseDefense: 60,
+    level: 5,
+    skill: { name: '暖心桶', description: '隊友血量剩六成以下時幫他回血 25%，隊伍戰力 +10%' },
   },
 ];
 
