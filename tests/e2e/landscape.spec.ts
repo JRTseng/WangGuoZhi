@@ -20,6 +20,7 @@ test.describe('手機橫放', () => {
     expect(s.size).toEqual({ width: W, height: H });
     for (const r of Object.values(s.lobby!.buttons)) inside(r);
     inside(s.status!);
+    inside(s.auto!.toggle);
     const box = await page.locator('canvas').boundingBox();
     expect(box!.width).toBeCloseTo(W, 0);
     await page.waitForTimeout(500);
@@ -57,10 +58,20 @@ test.describe('手機橫放', () => {
     for (const c of e.teamCards) inside(c);
     inside(e.confirmButton!);
     await page.screenshot({ path: 'artifacts/screenshots/landscape/team-pick.png' });
+    // 開戰直接進戰鬥畫面 → 略過 → 結算 → 過關劇情 → 主頁
     await tap(page, e.confirmButton!);
+    await waitScene(page, 'BattleScene');
+    await tap(page, (await wgz(page)).battle!.skipButton);
+    await page.waitForFunction(() => !!window.__WGZ__?.result);
+    await tap(page, { x: 0, y: 380, width: W, height: 6 });
+    await waitScene(page, 'StoryScene');
+    await tap(page, (await wgz(page)).story!.skip!);
     await waitScene(page, 'LobbyScene');
     s = await wgz(page);
-    expect(s.expedition).toBeTruthy();
+    // 測試模式體力 5 秒回 1 點，留一點誤差
+    expect(s.stamina!.value).toBeGreaterThanOrEqual(80);
+    expect(s.stamina!.value).toBeLessThan(90);
+    inside(s.auto!.toggle);
 
     await tap(page, s.lobby!.buttons.story);
     await waitScene(page, 'StoryScene');

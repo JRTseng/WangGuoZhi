@@ -169,18 +169,15 @@ export function sumUps(ups: readonly LevelUp[]): { attack: StatGain; defense: St
 }
 
 /**
- * 一關給隊伍裡每隻狗多少經驗（不平分）：越久、越難給越多。
- * 暫定公式：耗時（分鐘）×（難度 + 2）× 2。
+ * 一關給隊伍裡每隻狗多少經驗（不平分）：越難給越多。
+ * T019 起每一關都花一樣的體力，所以只看難度。暫定公式：30 ×（難度 + 2）。
  */
-export function stageExp(stage: Pick<StageData, 'durationMin' | 'difficulty'>): number {
-  return Math.round(stage.durationMin * (stage.difficulty + 2) * 2);
+export function stageExp(stage: Pick<StageData, 'difficulty'>): number {
+  return 30 * (stage.difficulty + 2);
 }
 
 /** 這次出征每隻狗拿多少經驗：打贏全額，打輸一半 */
-export function expeditionExp(
-  stage: Pick<StageData, 'durationMin' | 'difficulty'>,
-  win: boolean,
-): number {
+export function expeditionExp(stage: Pick<StageData, 'difficulty'>, win: boolean): number {
   const full = stageExp(stage);
   return win ? full : Math.floor(full * DEFEAT_EXP_RATE);
 }

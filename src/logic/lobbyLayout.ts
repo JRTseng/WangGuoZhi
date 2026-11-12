@@ -26,8 +26,12 @@ export interface LobbyLayout {
   expeditionCard: Rect;
   /** 出征大卡上半部（點了進地圖） */
   expedition: Rect;
-  /** 出征卡底部的狀態條（倒數／收成） */
+  /** 出征卡底部左邊的體力條（點了補體力） */
   status: Rect;
+  /** 出征卡底部右邊的「自動出征」勾選框 */
+  auto: Rect;
+  /** 自動出征有結果時，狗狗頭上的「看結果」提示 */
+  autoBanner: Rect;
   story: Rect;
   miniCards: Record<MiniCardKey, Rect>;
   dog: { x: number; y: number; scale: number };
@@ -85,6 +89,8 @@ function landscapeLayout(w: number, h: number): LobbyLayout {
   const miniH = avail - expH - storyH - gap * 2;
   const statusH = 30;
   const expCard: Rect = { x: cx, y: top, width: cw, height: expH };
+  const autoW = 98;
+  const dog = { x: (m + menuW + cx) / 2, y: h - 52, scale: 1.15 };
   const story: Rect = { x: cx, y: top + expH + gap, width: cw, height: storyH };
   const my = story.y + storyH + gap;
   const mw = (cw - gap) / 2;
@@ -97,13 +103,20 @@ function landscapeLayout(w: number, h: number): LobbyLayout {
     menuCompact: false,
     expeditionCard: expCard,
     expedition: { ...expCard, height: expH - statusH - 6 },
-    status: { x: cx + 8, y: top + expH - statusH - 6, width: cw - 16, height: statusH },
+    status: {
+      x: cx + 8,
+      y: top + expH - statusH - 6,
+      width: cw - 16 - autoW - 6,
+      height: statusH,
+    },
+    auto: { x: cx + cw - 8 - autoW, y: top + expH - statusH - 6, width: autoW, height: statusH },
+    autoBanner: bannerAbove(dog),
     story,
     miniCards: {
       event: { x: cx, y: my, width: mw, height: miniH },
       train: { x: cx + mw + gap, y: my, width: mw, height: miniH },
     },
-    dog: { x: (m + menuW + cx) / 2, y: h - 52, scale: 1.15 },
+    dog,
   };
 }
 
@@ -140,6 +153,8 @@ function portraitLayout(w: number, h: number): LobbyLayout {
   const rowY = expY - gap - rowH;
   const storyW = Math.round((cw - gap) * 0.5);
   const miniW = (cw - storyW - gap * 2) / 2;
+  const autoW = 112;
+  const dog = { x: w * 0.56, y: rowY - 40, scale: 1.35 };
   return {
     account: { x: m, y: 12, width: 216, height: 70 },
     resources,
@@ -149,14 +164,27 @@ function portraitLayout(w: number, h: number): LobbyLayout {
     menuCompact: true,
     expeditionCard: { x: m, y: expY, width: cw, height: expH },
     expedition: { x: m, y: expY, width: cw, height: expH - statusH - 8 },
-    status: { x: m + 8, y: expY + expH - statusH - 8, width: cw - 16, height: statusH },
+    status: {
+      x: m + 8,
+      y: expY + expH - statusH - 8,
+      width: cw - 16 - autoW - 8,
+      height: statusH,
+    },
+    auto: { x: m + cw - 8 - autoW, y: expY + expH - statusH - 8, width: autoW, height: statusH },
+    autoBanner: bannerAbove(dog),
     story: { x: m, y: rowY, width: storyW, height: rowH },
     miniCards: {
       event: { x: m + storyW + gap, y: rowY, width: miniW, height: rowH },
       train: { x: m + storyW + gap * 2 + miniW, y: rowY, width: miniW, height: rowH },
     },
-    dog: { x: w * 0.56, y: rowY - 40, scale: 1.35 },
+    dog,
   };
+}
+
+/** 狗狗頭上的提示條位置 */
+function bannerAbove(dog: { x: number; y: number; scale: number }): Rect {
+  const width = 220;
+  return { x: dog.x - width / 2, y: dog.y - 150 * dog.scale - 60, width, height: 36 };
 }
 
 /** 版面上所有可點的區塊（給測試檢查重疊與出界） */
@@ -168,6 +196,8 @@ export function tappableRects(L: LobbyLayout): Record<string, Rect> {
     ...L.menu,
     expedition: L.expedition,
     status: L.status,
+    auto: L.auto,
+    autoBanner: L.autoBanner,
     story: L.story,
     ...L.miniCards,
   };

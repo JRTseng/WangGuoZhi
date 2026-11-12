@@ -1,8 +1,8 @@
 import { expect, test } from '@playwright/test';
 import { openLobby, tap, waitScene, wgz } from './helpers';
 
-test('出征地圖 → 選隊伍 → 倒數 → 收成 → 戰鬥 → 劇情 → 下一關開放（測試模式）', async ({ page }) => {
-  // 完整流程含 5 秒倒數與多次換畫面，給比預設 30 秒寬的時間
+test('出征地圖 → 選隊伍 → 開戰 → 戰鬥 → 劇情 → 下一關開放', async ({ page }) => {
+  // 完整流程多次換畫面，給比預設 30 秒寬的時間
   test.setTimeout(60_000);
   await openLobby(page, '?fast=1');
   await tap(page, (await wgz(page)).lobby!.buttons.expedition);
@@ -48,12 +48,14 @@ test('出征地圖 → 選隊伍 → 倒數 → 收成 → 戰鬥 → 劇情 →
     null,
     null,
   ]);
-  expect(e.confirmButton).toMatchObject({ label: '出發！', enabled: true });
+  expect(e.confirmButton).toMatchObject({ label: '開戰！', enabled: true });
+  expect(e.buyButton).toBeNull();
+  expect(e.runsLeft).toBe(3);
   // 隊伍最多 5 隻：可以再加第 4 隻，再點一次取消
   await tap(page, e.teamCards[3]);
   e = (await wgz(page)).expeditionPanel!;
   expect(e.teamCards[3].selected).toBe(true);
-  expect(e.confirmButton).toMatchObject({ label: '出發！', enabled: true });
+  expect(e.confirmButton).toMatchObject({ label: '開戰！', enabled: true });
   await tap(page, e.teamCards[3]);
   e = (await wgz(page)).expeditionPanel!;
   expect(e.teamCards[3].selected).toBe(false);
@@ -81,35 +83,19 @@ test('出征地圖 → 選隊伍 → 倒數 → 收成 → 戰鬥 → 劇情 →
   ]);
   await page.screenshot({ path: 'artifacts/screenshots/portrait/team-pick.png' });
 
-  // 4. 出發 → 回主頁倒數
+  // 4. 開戰 → 不用等，直接進戰鬥畫面；體力 -20
   await tap(page, e.confirmButton!);
-  await page.waitForFunction(
-    () => window.__WGZ__?.scene === 'LobbyScene' && !!window.__WGZ__.expedition,
-  );
-  let s = await wgz(page);
-  expect(s.expedition!.complete).toBe(false);
-  expect(s.status!.label).toMatch(/^坡腳小徑 出征中 00:0[1-5]$/);
-  expect(s.status!.enabled).toBe(false);
-  await page.screenshot({ path: 'artifacts/screenshots/portrait/countdown.png' });
-
-  // 5. 時間到 → 收成
-  await page.waitForFunction(() => window.__WGZ__?.expedition?.complete === true, null, {
-    timeout: 10_000,
-  });
-  s = await wgz(page);
-  expect(s.status).toMatchObject({ label: '收成！ 坡腳小徑', enabled: true });
-  await tap(page, s.status!);
   // 預設會進戰鬥畫面，播完顯示結算（測試模式下約 1 秒播完）
   await waitScene(page, 'BattleScene');
   await page.waitForFunction(() => !!window.__WGZ__?.result);
-  s = await wgz(page);
+  const s = await wgz(page);
   expect(s.battle).toMatchObject({ stageId: 'luoyepo-1', win: true, phase: 'result' });
   expect(s.battle!.skipped).toBe(false);
   expect(s.battle!.index).toBe(s.battle!.total);
   expect(s.result).toEqual({ food: 120, bones: 5, win: true });
-  await page.screenshot({ path: 'artifacts/screenshots/portrait/harvest.png' });
+  await page.screenshot({ path: 'artifacts/screenshots/portrait/result.png' });
 
-  // 6. 關掉結算 → 第一次過關的劇情自動播放
+  // 5. 關掉結算 → 第一次過關的劇情自動播放
   await tap(page, { x: 0, y: 800, width: 390, height: 20 });
   await waitScene(page, 'StoryScene');
   let story = (await wgz(page)).story!;
@@ -119,8 +105,12 @@ test('出征地圖 → 選隊伍 → 倒數 → 收成 → 戰鬥 → 劇情 →
   for (let i = 0; i < story.total; i++) await tap(page, { x: 100, y: 300, width: 0, height: 0 });
   await waitScene(page, 'LobbyScene');
   expect((await wgz(page)).resources).toEqual({ food: 1320, bones: 55 });
+  // 測試模式體力 5 秒回 1 點，留一點誤差
+  const stamina = (await wgz(page)).stamina!.value;
+  expect(stamina).toBeGreaterThanOrEqual(80);
+  expect(stamina).toBeLessThan(90);
 
-  // 7. 地圖上第 1 關打勾、第 2 關開放
+  // 6. 地圖上第 1 關打勾、第 2 關開放
   await tap(page, (await wgz(page)).lobby!.buttons.expedition);
   await waitScene(page, 'CampaignScene');
   m = (await wgz(page)).map!;

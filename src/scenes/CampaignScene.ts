@@ -10,7 +10,8 @@ import {
   stageNodeState,
   type NodeState,
 } from '../logic/progress';
-import { getState } from '../state/store';
+import { STAMINA_COST, STAMINA_MAX, runsLeft, runsTotal } from '../logic/stamina';
+import { tick, timeOptions } from '../state/store';
 import { drawDogHead } from './components/dogArt';
 import { makeTapArea } from './components/hitArea';
 import { Scenery } from './components/Scenery';
@@ -26,7 +27,7 @@ interface CampaignData {
 
 /**
  * 出征地圖：3 個章節分頁，每章 5 個小節用點和線連起來，最後一關是大隻的 Boss。
- * 打過的關卡打勾，可以挑戰的會閃，還沒開的上鎖。點關卡看詳情 → 選隊伍出發。
+ * 打過的關卡打勾，可以挑戰的會閃，還沒開的上鎖。點關卡看詳情（體力、今日次數）→ 選隊伍開戰。
  */
 export class CampaignScene extends Phaser.Scene {
   private chapter = 0;
@@ -38,7 +39,7 @@ export class CampaignScene extends Phaser.Scene {
   }
 
   init(data: CampaignData): void {
-    const st = getState();
+    const st = tick();
     const want = data?.chapter ?? currentChapterIndex(st);
     this.chapter = isChapterUnlocked(st, want) ? want : currentChapterIndex(st);
   }
@@ -49,7 +50,7 @@ export class CampaignScene extends Phaser.Scene {
     resetDebug(this);
     const { w, h, landscape } = viewOf(this);
     const region = REGIONS[this.chapter];
-    const st = getState();
+    const st = tick();
 
     new Scenery(
       this,
@@ -115,7 +116,6 @@ export class CampaignScene extends Phaser.Scene {
       : { x: 50, y: tabY + tabH + 160, width: w - 100, height: h - (tabY + tabH + 160) - 70 };
     const pts = layoutPath(region.stages.length, area, landscape);
     const states = region.stages.map((s) => stageNodeState(st, s.id));
-    const busyStages = new Set(st.expeditions.map((e) => e.stageId));
 
     const path = this.add.graphics();
     for (let i = 1; i < pts.length; i++) {
@@ -123,9 +123,7 @@ export class CampaignScene extends Phaser.Scene {
       this.drawSegment(path, pts[i - 1], pts[i], done);
     }
 
-    const nodes = region.stages.map((s, i) =>
-      this.drawNode(s, pts[i], states[i], busyStages.has(s.id), landscape),
-    );
+    const nodes = region.stages.map((s, i) => this.drawNode(s, pts[i], states[i], landscape));
 
     patchDebug({
       backButton: back,
@@ -158,7 +156,6 @@ export class CampaignScene extends Phaser.Scene {
     s: StageData,
     p: { x: number; y: number },
     state: NodeState,
-    busy: boolean,
     landscape: boolean,
   ): { id: string; state: NodeState; boss: boolean } & Rect {
     const boss = !!s.boss;
@@ -216,15 +213,6 @@ export class CampaignScene extends Phaser.Scene {
         .setBackgroundColor('#fffaf2cc')
         .setPadding(6, 2, 6, 2),
     );
-    if (busy) {
-      c.add(
-        addText(this, 0, -r - (boss ? 26 : 4), '出征中', 12, '#ffffff', true)
-          .setOrigin(0.5, 1)
-          .setBackgroundColor('#8a6f55')
-          .setPadding(5, 2, 5, 2),
-      );
-    }
-
     const rect = { x: p.x - r, y: p.y - r, width: r * 2, height: r * 2 };
     const hit = this.add.zone(rect.x, rect.y, rect.width, rect.height).setOrigin(0, 0);
     hit.setInteractive({ cursor: 'pointer' }).on('pointerup', () => {
@@ -244,7 +232,7 @@ export class CampaignScene extends Phaser.Scene {
     };
     const { layer, box } = openModal(
       this,
-      landscape ? { width: 520, height: 300 } : { width: 340, height: s.boss ? 420 : 330 },
+      landscape ? { width: 520, height: 320 } : { width: 340, height: s.boss ? 450 : 360 },
       close,
       s.boss ? 0xc0392b : COLORS.cardBorder,
     );
@@ -273,9 +261,24 @@ export class CampaignScene extends Phaser.Scene {
         this,
         left,
         y,
-        `耗時 ${s.durationMin} 分鐘・建議戰力 ${s.recommendedPower}`,
+        `體力 ${STAMINA_COST}・建議戰力 ${s.recommendedPower}`,
         16,
         COLORS.inkSoft,
+      ),
+    );
+    y += 28;
+    const st = tick();
+    const now = Date.now();
+    const o = timeOptions();
+    const runs = runsLeft(st, s.id, now, o);
+    layer.add(
+      addText(
+        this,
+        left,
+        y,
+        `目前體力 ${st.stamina.value}/${STAMINA_MAX}・今日剩 ${runs}/${runsTotal(st, s.id, now, o)} 次`,
+        16,
+        runs > 0 && st.stamina.value >= STAMINA_COST ? COLORS.inkSoft : '#b0413e',
       ),
     );
     y += 28;
@@ -293,7 +296,7 @@ export class CampaignScene extends Phaser.Scene {
     g.fillRoundedRect(0, 0, go.width, go.height, 16);
     c.add([
       g,
-      addText(this, go.width / 2, go.height / 2, '選隊伍出發', 21, '#ffffff', true).setOrigin(0.5),
+      addText(this, go.width / 2, go.height / 2, '選隊伍開戰', 21, '#ffffff', true).setOrigin(0.5),
     ]);
     makeTapArea(c, go.width, go.height);
     c.on('pointerup', () =>

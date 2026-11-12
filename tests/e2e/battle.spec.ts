@@ -1,13 +1,12 @@
 import { expect, test, type Page } from '@playwright/test';
-import { openLobby, sendAndWait, tap, waitScene, wgz, type R } from './helpers';
+import { enableSkipBattle, openLobby, startBattle, tap, waitScene, wgz, type R } from './helpers';
 
 const battle = async (page: Page) => (await wgz(page)).battle!;
 
 test('戰鬥畫面：速度 ×1～×4 切換並記住，略過直接到結算（勝利）', async ({ page }) => {
-  // &battle=slow：出征時間用測試模式，戰鬥畫面放慢 4 倍，機器再慢也來得及按按鈕
+  // &battle=slow：戰鬥畫面放慢 4 倍，機器再慢也來得及按按鈕
   await openLobby(page, '?fast=1&battle=slow');
-  await sendAndWait(page);
-  await tap(page, (await wgz(page)).status!);
+  await startBattle(page);
   await waitScene(page, 'BattleScene');
 
   let b = await battle(page);
@@ -39,7 +38,7 @@ test('戰鬥畫面：速度 ×1～×4 切換並記住，略過直接到結算（
   await tap(page, b.speedButton);
   await page.waitForFunction(() => window.__WGZ__?.battle?.speed === 2);
 
-  // 略過 → 直接結算；結果和收成時算好的一樣（勝）
+  // 略過 → 直接結算；結果和開戰時算好的一樣（勝）
   b = await battle(page);
   expect(b.phase, '戰鬥還沒播完才能測略過').toBe('playing');
   expect(b.index).toBeLessThan(b.total);
@@ -69,8 +68,7 @@ test('戰鬥畫面：速度 ×1～×4 切換並記住，略過直接到結算（
 test('打輸：播完顯示敗北，只拿三成獎勵，關卡沒通過', async ({ page }) => {
   await openLobby(page, '?fast=1');
   // 只派阿白（戰力 70）去建議戰力 150 的關卡，一定輸
-  await sendAndWait(page, 0, ['abai']);
-  await tap(page, (await wgz(page)).status!);
+  await startBattle(page, 0, ['abai']);
   await waitScene(page, 'BattleScene');
   await page.waitForFunction(() => window.__WGZ__?.battle?.phase === 'result');
   const b = await battle(page);
@@ -81,13 +79,8 @@ test('打輸：播完顯示敗北，只拿三成獎勵，關卡沒通過', async
   await page.waitForTimeout(200);
   await page.screenshot({ path: 'artifacts/screenshots/portrait/battle-lose.png' });
 
-  // 沒有過關劇情，直接回主頁；狗狗回家、關卡還是沒通過
+  // 沒有過關劇情，直接回出征地圖；關卡還是沒通過
   await tap(page, { x: 0, y: 800, width: 390, height: 20 });
-  await waitScene(page, 'LobbyScene');
-  const s = await wgz(page);
-  expect(s.resources).toEqual({ food: 1236, bones: 51 });
-  expect(s.expedition).toBeNull();
-  await tap(page, s.lobby!.buttons.expedition);
   await waitScene(page, 'CampaignScene');
   expect((await wgz(page)).map!.nodes.map((n) => n.state)).toEqual([
     'open',
@@ -96,30 +89,24 @@ test('打輸：播完顯示敗北，只拿三成獎勵，關卡沒通過', async
     'locked',
     'locked',
   ]);
+  await tap(page, (await wgz(page)).backButton!);
+  await waitScene(page, 'LobbyScene');
+  expect((await wgz(page)).resources).toEqual({ food: 1236, bones: 51 });
 });
 
-test('設定打開「略過戰鬥畫面」：收成直接顯示結算，不進戰鬥畫面', async ({ page }) => {
+test('設定打開「略過戰鬥畫面」：開戰直接顯示結算，不進戰鬥畫面', async ({ page }) => {
   await openLobby(page, '?fast=1');
-  await tap(page, (await wgz(page)).lobby!.buttons.account);
-  await page.waitForFunction(() => !!window.__WGZ__?.settings);
-  let st = (await wgz(page)).settings!;
-  expect(st.values.skipBattle).toBe(false);
-  await tap(page, st.rects.skipBattle);
-  await page.waitForFunction(() => window.__WGZ__?.settings?.values.skipBattle === true);
-  await page.screenshot({ path: 'artifacts/screenshots/portrait/settings-skip-battle.png' });
-  st = (await wgz(page)).settings!;
-  await tap(page, st.rects.close);
-  await page.waitForFunction(() => !window.__WGZ__?.settings);
+  expect((await wgz(page)).settings).toBeUndefined();
+  await enableSkipBattle(page);
 
-  await sendAndWait(page);
-  await tap(page, (await wgz(page)).status!);
+  await startBattle(page);
   await page.waitForFunction(() => !!window.__WGZ__?.result);
   const s = await wgz(page);
-  expect(s.scene).toBe('LobbyScene');
+  expect(s.scene).toBe('ExpeditionScene');
   expect(s.battle).toBeUndefined();
   expect(s.result).toEqual({ food: 120, bones: 5, win: true });
   expect(s.resources).toEqual({ food: 1320, bones: 55 });
-  await page.screenshot({ path: 'artifacts/screenshots/portrait/harvest-skip.png' });
+  await page.screenshot({ path: 'artifacts/screenshots/portrait/result-skip.png' });
 });
 
 test.describe('手機橫放', () => {
@@ -129,8 +116,7 @@ test.describe('手機橫放', () => {
 
   test('戰鬥畫面橫式：5 隻全上，都在畫面內', async ({ page }) => {
     await openLobby(page, '?fast=1&battle=slow');
-    await sendAndWait(page, 0, ['daer', 'heixuan', 'changxu', 'xiaosuan', 'abai']);
-    await tap(page, (await wgz(page)).status!);
+    await startBattle(page, 0, ['daer', 'heixuan', 'changxu', 'xiaosuan', 'abai']);
     await waitScene(page, 'BattleScene');
     let b = await battle(page);
     expect(b.team).toHaveLength(5);

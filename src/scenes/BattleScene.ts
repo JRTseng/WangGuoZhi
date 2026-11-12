@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { COLORS } from '../config';
 import { findDog } from '../data/dogs';
-import { findRegionOfStage, findStage, type StageData } from '../data/regions';
+import { REGIONS, findRegionOfStage, findStage, type StageData } from '../data/regions';
 import {
   battlePaceFromSearch,
   type BattlePace,
@@ -23,7 +23,7 @@ import { Scenery } from './components/Scenery';
 import { addText, patchDebug, resetDebug, viewOf } from './ui';
 
 export interface BattleSceneData {
-  /** 已收成的出征紀錄 id（勝負與獎勵都已寫在裡面） */
+  /** 出征紀錄 id（開戰當下就結算，勝負與獎勵都已寫在裡面） */
   recordId: string;
   /** 結算面板的額外訊息（通過關卡、新背景…） */
   extra?: string[];
@@ -98,7 +98,7 @@ export class BattleScene extends Phaser.Scene {
       return;
     }
     this.pace = battlePaceFromSearch(window.location.search);
-    // 同一份紀錄、同一個種子，重算出來和收成時一模一樣
+    // 同一份紀錄、同一個種子，重算出來和開戰時結算的一模一樣
     this.battle = expeditionBattle(this.record);
 
     const { w, h, landscape } = viewOf(this);
@@ -374,7 +374,9 @@ export class BattleScene extends Phaser.Scene {
         if (this.payload.storyId) {
           this.scene.start('StoryScene', { mode: 'play', storyId: this.payload.storyId });
         } else {
-          this.scene.start('LobbyScene');
+          // 回出征地圖，可以馬上再打一場
+          const chapter = REGIONS.findIndex((r) => r.stages.some((x) => x.id === rec.stageId));
+          this.scene.start('CampaignScene', chapter >= 0 ? { chapter } : undefined);
         }
       },
       this.payload.extra ?? [],
