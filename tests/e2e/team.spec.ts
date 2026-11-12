@@ -7,7 +7,7 @@ test('組隊：全部角色、未擁有變暗、編隊與設定主頁角色', as
   await waitScene(page, 'TeamScene');
 
   let t = (await wgz(page)).team!;
-  expect(t.dogs).toHaveLength(8);
+  expect(t.dogs).toHaveLength(9);
   // 預設：全部、戰力高到低，擁有的排前面
   expect(t.dogs.map((d) => d.id)).toEqual([
     'changxu',
@@ -15,11 +15,13 @@ test('組隊：全部角色、未擁有變暗、編隊與設定主頁角色', as
     'heixuan',
     'xiaosuan',
     'abai',
+    'nuantong',
     'tieya',
     'shuangyan',
     'duantui',
   ]);
   expect(t.dogs.filter((d) => !d.owned).map((d) => d.id)).toEqual([
+    'nuantong',
     'tieya',
     'shuangyan',
     'duantui',
@@ -74,7 +76,7 @@ test('組隊：篩選、排序、自動編隊', async ({ page }) => {
   let p = (await wgz(page)).picker!;
   expect(p.filter).toEqual({ role: 'all', status: 'all' });
   expect(p.sort).toBe('power');
-  expect(p.cells).toHaveLength(8);
+  expect(p.cells).toHaveLength(9);
 
   // 定位：守護
   await tap(page, await chip('roleChips', '守護'));
@@ -90,7 +92,7 @@ test('組隊：篩選、排序、自動編隊', async ({ page }) => {
   // 回到全部
   await tap(page, await chip('statusChips', 'all'));
   await tap(page, await chip('roleChips', 'all'));
-  expect(await ids()).toHaveLength(8);
+  expect(await ids()).toHaveLength(9);
 
   // 排序：等級
   await tap(page, (await wgz(page)).picker!.sortChip);
