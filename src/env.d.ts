@@ -64,6 +64,8 @@ interface WgzDebugState {
     list: WgzRect;
     scrollY: number;
     scrollMax: number;
+    /** 目前糧草 */
+    food: number;
     rows: ({
       id: string;
       level: number;
@@ -72,6 +74,11 @@ interface WgzDebugState {
       attack: number;
       defense: number;
       power: number;
+      /** 特訓按鈕（T020）：位置、已練次數、下一次花費、能不能按 */
+      drill: {
+        attack: { count: number; cost: number; enabled: boolean } & WgzRect;
+        defense: { count: number; cost: number; enabled: boolean } & WgzRect;
+      };
     } & WgzRect)[];
   };
   /** 戰鬥畫面（BattleScene） */
