@@ -9,7 +9,6 @@ import {
   STATUS_LABEL,
   listDogs,
   nextSort,
-  powerOf,
   roleKeyOf,
   sortOptions,
   type DogFilter,
@@ -19,6 +18,7 @@ import {
 } from '../../logic/dogFilter';
 import { busyDogIds } from '../../logic/expedition';
 import type { Rect } from '../../logic/layout';
+import { dogStats } from '../../logic/leveling';
 import {
   clampScroll,
   gridCell,
@@ -27,6 +27,7 @@ import {
   maxScroll,
   type PickerLayout,
 } from '../../logic/pickerLayout';
+import { dogContext } from '../../logic/team';
 import { getState } from '../../state/store';
 import { addText, darken, viewOf } from '../ui';
 import { drawDogHead } from './dogArt';
@@ -119,10 +120,7 @@ export class DogPicker {
   /** 篩選、排序後目前列出的狗 */
   listed(): DogData[] {
     const st = getState();
-    return listDogs(this.o.dogs(), this.filter, this.sort, {
-      owned: st.owned,
-      busy: busyDogIds(st),
-    });
+    return listDogs(this.o.dogs(), this.filter, this.sort, dogContext(st));
   }
 
   scrollTo(y: number): void {
@@ -335,7 +333,7 @@ export class DogPicker {
             this.scene,
             r.width - 12,
             r.height / 2,
-            `戰力 ${powerOf(d)}`,
+            `戰力 ${dogStats(getState(), d).power}`,
             14,
             COLORS.inkSoft,
           ).setOrigin(1, 0.5),
@@ -402,7 +400,9 @@ export class DogPicker {
         this.scene,
         r.width / 2,
         nameY + 24,
-        s.owned ? `Lv.${d.level}・戰力 ${powerOf(d)}` : '未擁有',
+        s.owned
+          ? `Lv.${dogStats(getState(), d).level}・戰力 ${dogStats(getState(), d).power}`
+          : '未擁有',
         13,
         s.owned ? COLORS.inkSoft : '#b9a48c',
       ).setOrigin(0.5, 0),

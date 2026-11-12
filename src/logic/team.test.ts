@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { createInitialState } from '../state/gameState';
-import { autoFillTeam, setLobbyDog, teamPower, toggleTeamMember } from './team';
+import { autoFillTeam, dogPower, setLobbyDog, teamPower, toggleTeamMember } from './team';
 
 describe('組隊編排', () => {
   it('預設隊伍 3 隻，點隊伍中的狗移出', () => {
@@ -27,7 +27,15 @@ describe('組隊編排', () => {
       ...s0,
       owned: [...s0.owned, 'tieya'],
       expeditions: [
-        { id: 'e1', stageId: 'luoyepo-1', dogIds: ['changxu'], startedAt: 0, endsAt: 1, seed: 1 },
+        {
+          id: 'e1',
+          stageId: 'luoyepo-1',
+          dogIds: ['changxu'],
+          team: [],
+          startedAt: 0,
+          endsAt: 1,
+          seed: 1,
+        },
       ],
     };
     expect(autoFillTeam(busy).team).toEqual(['tieya', 'daer', 'heixuan', 'xiaosuan', 'abai']);
@@ -38,7 +46,19 @@ describe('組隊編排', () => {
     expect(setLobbyDog(createInitialState(), 'abai').lobbyDogId).toBe('abai');
   });
   it('隊伍戰力為成員戰力加總', () => {
-    expect(teamPower(['daer', 'heixuan'])).toBe(108 + 103);
-    expect(teamPower([])).toBe(0);
+    const s = createInitialState();
+    // 大耳 3 級：攻 42+7、防 48+7；黑旋 2 級：攻 64+4、防 30+3
+    expect(teamPower(s, ['daer', 'heixuan'])).toBe(104 + 101);
+    expect(teamPower(s, [])).toBe(0);
+  });
+  it('升級後戰力跟著變高，自動編隊照新的戰力排', () => {
+    const s0 = createInitialState();
+    const abai = s0.dogs.abai;
+    const s = {
+      ...s0,
+      dogs: { ...s0.dogs, abai: { ...abai, level: 20, growthAttack: 60, growthDefense: 60 } },
+    };
+    expect(dogPower(s, 'abai')).toBe(70 + 120);
+    expect(autoFillTeam(s).team[0]).toBe('abai');
   });
 });

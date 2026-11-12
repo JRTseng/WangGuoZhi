@@ -48,6 +48,32 @@ interface WgzDebugState {
   } | null;
   /** 收成結算面板顯示的獎勵與勝負，沒開為 null */
   result?: { food: number; bones: number; win: boolean } | null;
+  /** 結算面板上每隻狗的經驗與升級（T005），沒開為 null */
+  growth?:
+    | {
+        dogId: string;
+        exp: number;
+        fromLevel: number;
+        toLevel: number;
+        attack: { fixed: number; bonus: number };
+        defense: { fixed: number; bonus: number };
+      }[]
+    | null;
+  /** 訓練場（TrainingScene） */
+  training?: {
+    list: WgzRect;
+    scrollY: number;
+    scrollMax: number;
+    rows: ({
+      id: string;
+      level: number;
+      exp: number;
+      expNeed: number;
+      attack: number;
+      defense: number;
+      power: number;
+    } & WgzRect)[];
+  };
   /** 戰鬥畫面（BattleScene） */
   battle?: {
     stageId: string;
@@ -97,6 +123,8 @@ interface WgzDebugState {
     /** 擁有幾隻 */
     owned: number;
     panel: string | null;
+    /** 資訊面板上顯示的等級與經驗（沒開為 null） */
+    panelStats?: { level: number; exp: number; expNeed: number; power: number } | null;
     panelButtons: { team?: WgzRect; lobby?: WgzRect } | null;
     lobbyDogId: string;
   };

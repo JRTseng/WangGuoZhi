@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { COLORS } from '../config';
 import { DOGS, type DogData } from '../data/dogs';
 import { TEAM_SIZE } from '../logic/expedition';
+import { dogStats } from '../logic/leveling';
 import { autoFillTeam, setLobbyDog, teamPower, toggleTeamMember } from '../logic/team';
 import { getState, setState } from '../state/store';
 import { DogInfoPanel } from './components/DogInfoPanel';
@@ -43,7 +44,7 @@ export class TeamScene extends Phaser.Scene {
       selected: () => getState().team,
       title: () => {
         const st = getState();
-        return `${landscape ? '隊伍' : '出征隊伍'} ${st.team.length}/${TEAM_SIZE}・戰力 ${teamPower(st.team)}`;
+        return `${landscape ? '隊伍' : '出征隊伍'} ${st.team.length}/${TEAM_SIZE}・戰力 ${teamPower(st, st.team)}`;
       },
       onSlotTap: (id) => {
         setState(toggleTeamMember(getState(), id));
@@ -69,6 +70,7 @@ export class TeamScene extends Phaser.Scene {
         dogs: p.cells.map(({ selected, ...c }) => ({ ...c, inTeam: selected })),
         owned: st.owned.length,
         panel: this.panelDogId,
+        panelStats: this.panel?.stats ?? null,
         panelButtons: this.panel?.buttons ?? null,
         lobbyDogId: st.lobbyDogId,
       },
@@ -82,6 +84,7 @@ export class TeamScene extends Phaser.Scene {
       const st = getState();
       this.panelDogId = d.id;
       this.panel = new DogInfoPanel(this, d, {
+        stats: dogStats(st, d),
         owned: st.owned.includes(d.id),
         inTeam: st.team.includes(d.id),
         teamFull: st.team.length >= TEAM_SIZE,

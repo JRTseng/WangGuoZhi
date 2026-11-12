@@ -7,7 +7,7 @@ import { TEAM_MIN, TEAM_SIZE, battleDogOf, busyDogIds, startExpedition } from '.
 import { autoTeam } from '../logic/dogFilter';
 import type { Rect } from '../logic/layout';
 import { SIDE_WIDTH } from '../logic/pickerLayout';
-import { teamPower } from '../logic/team';
+import { dogContext, teamPower } from '../logic/team';
 import { minuteMsFromSearch } from '../logic/timeScale';
 import { getState, setState } from '../state/store';
 import { Button } from './components/Button';
@@ -94,7 +94,7 @@ export class ExpeditionScene extends Phaser.Scene {
       onCellTap: (dog) => this.toggleDog(dog.id),
       onAuto: () => {
         const st = getState();
-        const team = autoTeam(DOGS, { owned: st.owned, busy: busyDogIds(st) });
+        const team = autoTeam(DOGS, dogContext(st));
         if (team.length > 0) this.selected = team;
         this.render();
       },
@@ -110,11 +110,11 @@ export class ExpeditionScene extends Phaser.Scene {
     const { w, landscape } = viewOf(this);
     const confirm = this.confirmRect;
 
-    const power = teamPower(this.selected);
+    const power = teamPower(getState(), this.selected);
     const chance = winChance(
       power,
       stage.recommendedPower,
-      skillBonusOf(this.selected.flatMap((id) => battleDogOf(id) ?? [])),
+      skillBonusOf(this.selected.flatMap((id) => battleDogOf(getState(), id) ?? [])),
     );
     const color = chance >= 0.6 ? '#4f8a3c' : chance > 0 ? COLORS.inkSoft : '#b0413e';
     const powerLine = `隊伍戰力 ${power}／建議 ${stage.recommendedPower}`;
