@@ -5,6 +5,11 @@
  */
 export type DogRole = '隊長／補給' | '前排／突擊' | '前排／守護' | '後排／謀略' | '後排／幸運';
 
+/** 稀有度（T007 抽卡之後才有資料，先預留） */
+export type DogRarity = 'N' | 'R' | 'SR' | 'SSR';
+/** 體型（T007 之後才有資料，先預留） */
+export type DogSize = '小型' | '中型' | '大型';
+
 export interface DogSkill {
   name: string;
   description: string;
@@ -25,6 +30,12 @@ export interface DogData {
   baseDefense: number;
   level: number;
   skill: DogSkill;
+  /** 稀有度，T007 定義後填上 */
+  rarity?: DogRarity;
+  /** 體型，T007 定義後填上 */
+  size?: DogSize;
+  /** 屬性，T007 定義後填上 */
+  element?: string;
 }
 
 export const DOGS: readonly DogData[] = [

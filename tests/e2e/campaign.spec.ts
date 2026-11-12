@@ -34,11 +34,19 @@ test('出征地圖 → 選隊伍 → 倒數 → 收成 → 戰鬥 → 劇情 →
   // 3. 隊伍預設帶入組隊編排的 3 隻
   let e = (await wgz(page)).expeditionPanel!;
   expect(e.stageId).toBe('luoyepo-1');
-  expect(e.teamCards.map((c) => c.id)).toEqual(['daer', 'heixuan', 'changxu', 'xiaosuan', 'abai']);
+  // 只列擁有的狗，預設戰力高到低
+  expect(e.teamCards.map((c) => c.id)).toEqual(['changxu', 'daer', 'heixuan', 'xiaosuan', 'abai']);
   expect(e.teamCards.filter((c) => c.selected).map((c) => c.id)).toEqual([
+    'changxu',
+    'daer',
+    'heixuan',
+  ]);
+  expect((await wgz(page)).picker!.slots.map((s) => s.id)).toEqual([
     'daer',
     'heixuan',
     'changxu',
+    null,
+    null,
   ]);
   expect(e.confirmButton).toMatchObject({ label: '出發！', enabled: true });
   // 隊伍最多 5 隻：可以再加第 4 隻，再點一次取消
@@ -49,6 +57,28 @@ test('出征地圖 → 選隊伍 → 倒數 → 收成 → 戰鬥 → 劇情 →
   await tap(page, e.teamCards[3]);
   e = (await wgz(page)).expeditionPanel!;
   expect(e.teamCards[3].selected).toBe(false);
+  // 篩選：謀略只剩小算；回到全部
+  let pk = (await wgz(page)).picker!;
+  await tap(
+    page,
+    pk.roleChips.find((c) => c.key === '謀略')!,
+  );
+  expect((await wgz(page)).expeditionPanel!.teamCards.map((c) => c.id)).toEqual(['xiaosuan']);
+  await page.screenshot({ path: 'artifacts/screenshots/portrait/team-pick-filter.png' });
+  await tap(page, pk.roleChips[0]);
+  // 自動編隊選滿 5 隻；點隊伍格可以移出，滿了再點別隻沒反應
+  await tap(page, pk.autoButton);
+  pk = (await wgz(page)).picker!;
+  expect(pk.slots.map((s) => s.id)).toEqual(['changxu', 'daer', 'heixuan', 'xiaosuan', 'abai']);
+  await page.screenshot({ path: 'artifacts/screenshots/portrait/team-pick-auto.png' });
+  await tap(page, pk.slots[3]);
+  await tap(page, pk.slots[3]);
+  e = (await wgz(page)).expeditionPanel!;
+  expect(e.teamCards.filter((c) => c.selected).map((c) => c.id)).toEqual([
+    'changxu',
+    'daer',
+    'heixuan',
+  ]);
   await page.screenshot({ path: 'artifacts/screenshots/portrait/team-pick.png' });
 
   // 4. 出發 → 回主頁倒數
