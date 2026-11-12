@@ -4,12 +4,14 @@ import { DOGS } from '../data/dogs';
 import { findStage, type StageData } from '../data/regions';
 import { skillBonusOf, winChance } from '../logic/battle';
 import { TEAM_MIN, TEAM_SIZE, battleDogOf, busyDogIds, startExpedition } from '../logic/expedition';
-import { layoutGrid, layoutList, type Rect } from '../logic/layout';
+import { autoTeam } from '../logic/dogFilter';
+import type { Rect } from '../logic/layout';
+import { SIDE_WIDTH } from '../logic/pickerLayout';
 import { teamPower } from '../logic/team';
 import { minuteMsFromSearch } from '../logic/timeScale';
 import { getState, setState } from '../state/store';
 import { Button } from './components/Button';
-import { DogCard } from './components/DogCard';
+import { DogPicker } from './components/DogPicker';
 import { drawHeader, patchDebug, resetDebug, viewOf } from './ui';
 
 const BAR_HEIGHT = 56;
@@ -23,14 +25,19 @@ interface ExpeditionData {
 /**
  * 出征選隊伍：從地圖點關卡進來。
  * 預設帶入「組隊編排」的隊伍（出征中的除外），可再點卡片調整，選 1 到 5 隻出發。
- * 只列出擁有的狗；大按鈕在下方，單手拇指按得到。
+ * T015 改版：上方 5 個隊伍格、篩選與排序、可捲動的卡片格、一鍵自動編隊。
+ * 只列出擁有的狗；出發按鈕在下方，單手拇指按得到。
  */
 export class ExpeditionScene extends Phaser.Scene {
   private stage: StageData | null = null;
   private chapter = 0;
   private selected: string[] = [];
   private layer!: Phaser.GameObjects.Container;
+  private picker!: DogPicker;
   private back!: Rect;
+  private confirmRect!: Rect;
+  private confirmLabel = '';
+  private confirmReady = false;
 
   constructor() {
     super('ExpeditionScene');
@@ -50,58 +57,58 @@ export class ExpeditionScene extends Phaser.Scene {
       this.scene.start('CampaignScene');
       return;
     }
-    const { w, h } = viewOf(this);
-    this.add.rectangle(0, 0, w, h, COLORS.background).setOrigin(0, 0);
-    this.back = drawHeader(this, `出征・${this.stage.name}`, () =>
-      this.scene.start('CampaignScene', { chapter: this.chapter }),
-    );
-    this.layer = this.add.container(0, 0);
-    this.render();
-  }
-
-  private render(): void {
-    this.layer.removeAll(true);
-    const stage = this.stage!;
-    const st = getState();
-    const busy = busyDogIds(st);
+    const stage = this.stage;
     const { w, h, landscape } = viewOf(this);
-    const dogs = DOGS.filter((d) => st.owned.includes(d.id));
-
-    const confirm: Rect = landscape
-      ? { x: w - 316, y: h - 72, width: 300, height: 60 }
-      : { x: 24, y: h - 96, width: w - 48, height: 64 };
-
-    this.layer.add(
+    this.add.rectangle(0, 0, w, h, COLORS.background).setOrigin(0, 0);
+    const brief = `${stage.durationMin} 分鐘・建議戰力 ${stage.recommendedPower}`;
+    // 橫式高度不夠，關卡資訊併進標題列
+    this.back = drawHeader(
+      this,
+      landscape ? `出征・${stage.name}・${brief}` : `出征・${stage.name}`,
+      () => this.scene.start('CampaignScene', { chapter: this.chapter }),
+    );
+    if (!landscape) {
       this.text(
         w / 2,
         BAR_HEIGHT + 22,
-        `${stage.durationMin} 分鐘・建議戰力 ${stage.recommendedPower}・選 ${TEAM_MIN}～${TEAM_SIZE} 隻`,
+        `${brief}・選 ${TEAM_MIN}～${TEAM_SIZE} 隻`,
         17,
         COLORS.ink,
         true,
-      ).setOrigin(0.5),
-    );
-
-    const listTop = BAR_HEIGHT + 44;
-    const rects = landscape
-      ? layoutGrid(dogs.length, {
-          area: { x: 16, y: listTop, width: w - 32, height: confirm.y - 12 - listTop },
-          columns: 3,
-          gap: 10,
-          maxCellHeight: 100,
-        })
-      : layoutList(dogs.length, {
-          area: { x: 16, y: listTop, width: w - 32, height: confirm.y - 76 - listTop },
-          gap: 10,
-          maxCardHeight: 100,
-        });
-    const cards = dogs.map((dog, i) => {
-      const card = new DogCard(this, dog, rects[i], () => this.toggleDog(dog.id));
-      card.setSelectable(true);
-      card.setStatus({ busy: busy.has(dog.id), selected: this.selected.includes(dog.id) });
-      this.layer.add(card);
-      return card;
+      ).setOrigin(0.5);
+    }
+    this.confirmRect = landscape
+      ? { x: 16, y: h - 66, width: SIDE_WIDTH, height: 54 }
+      : { x: 24, y: h - 96, width: w - 48, height: 64 };
+    // 放在卡片格上面，捲動時出發按鈕不會被卡片擋住
+    this.layer = this.add.container(0, 0).setDepth(1);
+    this.picker = new DogPicker(this, {
+      mode: 'expedition',
+      top: landscape ? BAR_HEIGHT + 6 : BAR_HEIGHT + 40,
+      bottom: landscape ? h - 12 : this.confirmRect.y - 42,
+      slotsBottom: landscape ? this.confirmRect.y - 48 : undefined,
+      dogs: () => DOGS.filter((d) => getState().owned.includes(d.id)),
+      selected: () => this.selected,
+      title: () => `${landscape ? '隊伍' : '出征隊伍'} ${this.selected.length}/${TEAM_SIZE}`,
+      onSlotTap: (id) => this.toggleDog(id),
+      onCellTap: (dog) => this.toggleDog(dog.id),
+      onAuto: () => {
+        const st = getState();
+        const team = autoTeam(DOGS, { owned: st.owned, busy: busyDogIds(st) });
+        if (team.length > 0) this.selected = team;
+        this.render();
+      },
+      onUpdate: () => this.publish(),
     });
+    this.render();
+  }
+
+  /** 下方（橫式在左欄下方）的戰力、勝率與出發按鈕，再重畫選狗區 */
+  private render(): void {
+    this.layer.removeAll(true);
+    const stage = this.stage!;
+    const { w, landscape } = viewOf(this);
+    const confirm = this.confirmRect;
 
     const power = teamPower(this.selected);
     const chance = winChance(
@@ -109,47 +116,55 @@ export class ExpeditionScene extends Phaser.Scene {
       stage.recommendedPower,
       skillBonusOf(this.selected.flatMap((id) => battleDogOf(id) ?? [])),
     );
-    const names = this.selected.map((id) => DOGS.find((d) => d.id === id)!.name);
-    const infoX = landscape ? 16 : w / 2;
-    const info1 = this.text(
-      infoX,
-      landscape ? confirm.y + 4 : confirm.y - 52,
-      names.length
-        ? `已選 ${names.length}/${TEAM_SIZE}：${names.join('、')}`
-        : `點卡片選 ${TEAM_MIN}～${TEAM_SIZE} 隻，再點一次取消`,
-      landscape ? 16 : 18,
-      names.length ? '#b5651d' : COLORS.inkSoft,
-      true,
-    ).setOrigin(landscape ? 0 : 0.5, landscape ? 0 : 0.5);
-    const info2 = this.text(
-      infoX,
-      landscape ? confirm.y + 32 : confirm.y - 22,
-      `隊伍戰力 ${power}／建議 ${stage.recommendedPower}・勝率約 ${Math.round(chance * 100)}%`,
-      15,
-      chance >= 0.6 ? '#4f8a3c' : chance > 0 ? COLORS.inkSoft : '#b0413e',
-      true,
-    ).setOrigin(landscape ? 0 : 0.5, landscape ? 0 : 0.5);
-    this.layer.add([info1, info2]);
+    const color = chance >= 0.6 ? '#4f8a3c' : chance > 0 ? COLORS.inkSoft : '#b0413e';
+    const powerLine = `隊伍戰力 ${power}／建議 ${stage.recommendedPower}`;
+    const chanceLine = `勝率約 ${Math.round(chance * 100)}%`;
+    if (landscape) {
+      this.layer.add([
+        this.text(confirm.x, confirm.y - 42, powerLine, 14, color, true),
+        this.text(confirm.x, confirm.y - 23, chanceLine, 14, color, true),
+      ]);
+    } else {
+      this.layer.add(
+        this.text(w / 2, confirm.y - 20, `${powerLine}・${chanceLine}`, 15, color, true).setOrigin(
+          0.5,
+        ),
+      );
+    }
 
     const ready = this.selected.length >= TEAM_MIN && this.selected.length <= TEAM_SIZE;
-    const label = ready ? '出發！' : `出發（已選 ${this.selected.length}/${TEAM_SIZE}）`;
-    const btn = new Button(this, confirm, label, () => this.confirm());
+    this.confirmLabel = ready ? '出發！' : `出發（已選 ${this.selected.length}/${TEAM_SIZE}）`;
+    this.confirmReady = ready;
+    const btn = new Button(this, confirm, this.confirmLabel, () => this.confirm());
     btn.setEnabled(ready);
     this.layer.add(btn);
 
+    this.picker.render();
+  }
+
+  private publish(): void {
+    const p = this.picker.debug();
     patchDebug({
       backButton: this.back,
+      picker: p,
       expeditionPanel: {
         step: 'team',
-        stageId: stage.id,
+        stageId: this.stage!.id,
         stages: [],
-        teamCards: cards.map((c) => ({
-          id: c.dog.id,
-          busy: busy.has(c.dog.id),
-          selected: this.selected.includes(c.dog.id),
-          ...c.rect,
+        teamCards: p.cells.map(({ id, busy, selected, x, y, width, height }) => ({
+          id,
+          busy,
+          selected,
+          x,
+          y,
+          width,
+          height,
         })),
-        confirmButton: { label, enabled: ready, ...confirm },
+        confirmButton: {
+          label: this.confirmLabel,
+          enabled: this.confirmReady,
+          ...this.confirmRect,
+        },
       },
     });
   }
@@ -167,7 +182,7 @@ export class ExpeditionScene extends Phaser.Scene {
   }
 
   private confirm(): void {
-    if (!this.stage) return;
+    if (!this.stage || this.picker.wasDragged) return;
     const r = startExpedition(
       getState(),
       this.stage.id,

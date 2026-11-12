@@ -86,10 +86,42 @@ interface WgzDebugState {
   /** 組隊畫面 */
   team?: {
     slots: ({ id: string | null } & WgzRect)[];
-    dogs: ({ id: string; owned: boolean; inTeam: boolean; busy: boolean } & WgzRect)[];
+    /** 目前列出的狗（已篩選、排序） */
+    dogs: ({
+      id: string;
+      owned: boolean;
+      inTeam: boolean;
+      busy: boolean;
+      visible: boolean;
+    } & WgzRect)[];
+    /** 擁有幾隻 */
+    owned: number;
     panel: string | null;
     panelButtons: { team?: WgzRect; lobby?: WgzRect } | null;
     lobbyDogId: string;
+  };
+
+  /** 選狗元件（組隊編排與出征選狗共用，T015） */
+  picker?: {
+    filter: { role: string; status: string };
+    sort: string;
+    roleChips: ({ key: string } & WgzRect)[];
+    statusChips: ({ key: string } & WgzRect)[];
+    sortChip: WgzRect;
+    autoButton: WgzRect;
+    slots: ({ id: string | null } & WgzRect)[];
+    /** 卡片格可見範圍 */
+    grid: WgzRect;
+    /** 目前列出的狗（已篩選、排序），座標已扣掉捲動量 */
+    cells: ({
+      id: string;
+      owned: boolean;
+      busy: boolean;
+      selected: boolean;
+      visible: boolean;
+    } & WgzRect)[];
+    scrollY: number;
+    scrollMax: number;
   };
 
   /** 出征地圖 */
