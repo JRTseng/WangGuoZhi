@@ -1,11 +1,31 @@
-import { STARTER_DOG_IDS } from '../data/dogs';
+import { DOGS, STARTER_DOG_IDS } from '../data/dogs';
 import type { ThemeId } from '../data/regions';
 import { INITIAL_RESOURCES, type Resources } from '../data/resources';
+import type { BattleDog } from '../logic/battle';
+import { initialProgress, type DogExpGain } from '../logic/leveling';
 
 /**
  * 遊戲狀態：純物件（只有數字、字串、陣列），可直接 JSON 序列化，給 T006 存檔用。
  * 所有變更都經由 src/logic/ 的純函式，回傳新的狀態，不直接改舊物件。
  */
+
+/**
+ * 一隻狗的養成進度（T005）。攻防 = 資料檔的基礎值 + 這裡的成長值。
+ * 隨機加成在升級當下就寫進來，存檔讀檔或重開都不會重抽。
+ */
+export interface DogProgress {
+  level: number;
+  /** 目前這一級已累積的經驗 */
+  exp: number;
+  /** 升級累積的攻擊成長（固定 + 隨機） */
+  growthAttack: number;
+  growthDefense: number;
+  /** 其中隨機加成的累積，用來把運氣限制在平均 ±4 內 */
+  bonusAttack: number;
+  bonusDefense: number;
+  /** 抽過幾次隨機加成 */
+  rolls: number;
+}
 
 /** 進行中的出征 */
 export interface Expedition {
@@ -13,6 +33,8 @@ export interface Expedition {
   stageId: string;
   /** 隊伍（狗狗 id，1 到 5 隻） */
   dogIds: string[];
+  /** 出發當下隊伍的攻防等級；戰鬥用這份算，之後升級也不會改變這一仗的結果與重播 */
+  team: BattleDog[];
   /** 開始時間（毫秒時間戳） */
   startedAt: number;
   /** 預計結束時間（毫秒時間戳） */
@@ -26,6 +48,8 @@ export interface ExpeditionRecord {
   id: string;
   stageId: string;
   dogIds: string[];
+  /** 出發當下隊伍的攻防等級（重播戰鬥用） */
+  team: BattleDog[];
   startedAt: number;
   endsAt: number;
   collectedAt: number;
@@ -35,6 +59,8 @@ export interface ExpeditionRecord {
   win: boolean;
   /** 戰鬥亂數種子，可用來重播同一場戰鬥 */
   seed: number;
+  /** 隊伍每隻狗這次拿到的經驗與升級成長（打輸只有一半經驗） */
+  gains: DogExpGain[];
 }
 
 export type Quality = 'low' | 'medium' | 'high';
@@ -59,6 +85,8 @@ export interface GameState {
   nextExpeditionNo: number;
   /** 擁有的狗狗 id */
   owned: string[];
+  /** 每隻狗的養成進度（等級、經驗、成長值），以狗狗 id 為鍵 */
+  dogs: Record<string, DogProgress>;
   /** 組隊編排（最多 5 隻），出征選角時預設帶入 */
   team: string[];
   /** 主頁上顯示的狗狗 */
@@ -81,6 +109,9 @@ export function createInitialState(): GameState {
     history: [],
     nextExpeditionNo: 1,
     owned: [...STARTER_DOG_IDS],
+    dogs: Object.fromEntries(
+      DOGS.filter((d) => STARTER_DOG_IDS.includes(d.id)).map((d) => [d.id, initialProgress(d)]),
+    ),
     team: ['daer', 'heixuan', 'changxu'],
     lobbyDogId: 'daer',
     backgroundId: 'slope',

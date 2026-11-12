@@ -8,6 +8,7 @@ import { STORIES } from '../data/stories';
 import { collectExpedition, isComplete, progress, remainingMs } from '../logic/expedition';
 import { formatAmount, formatCountdown } from '../logic/format';
 import type { Rect } from '../logic/layout';
+import { dogStats } from '../logic/leveling';
 import { lobbyLayout, tappableRects, type LobbyLayout } from '../logic/lobbyLayout';
 import {
   currentChapterIndex,
@@ -115,6 +116,7 @@ export class LobbyScene extends Phaser.Scene {
 
   private drawDog(): void {
     const d = findDog(getState().lobbyDogId) ?? DOGS[0];
+    const level = dogStats(getState(), d).level;
     const { x, y, scale } = this.layout.dog;
     this.dog = new DogSprite(this, x, y, { color: d.color, accent: d.accent });
     this.dog.setScale(scale);
@@ -123,7 +125,7 @@ export class LobbyScene extends Phaser.Scene {
     this.dog.startCycle(ACTION_MS);
 
     // 名牌
-    addText(this, x, y + 8, `${d.name}\u3000Lv.${d.level}`, 16, '#ffffff', true)
+    addText(this, x, y + 8, `${d.name}\u3000Lv.${level}`, 16, '#ffffff', true)
       .setOrigin(0.5, 0)
       .setStroke(COLORS.ink, 4);
 
@@ -178,7 +180,7 @@ export class LobbyScene extends Phaser.Scene {
       g,
       addText(this, tx, 12, 'Lv.1', 17, LOBBY.goldText, true),
       addText(this, tx + 44, 13, '城主', 15, LOBBY.text, true),
-      addText(this, tx, 36, `總戰力 ${formatAmount(teamPower(st.team))}`, 15, LOBBY.text, true),
+      addText(this, tx, 36, `總戰力 ${formatAmount(teamPower(st, st.team))}`, 15, LOBBY.text, true),
       // 設定小齒輪
       addText(this, r.width - 8, r.height - 10, '⚙', 15, LOBBY.goldText).setOrigin(1, 1),
     ]);
@@ -318,8 +320,8 @@ export class LobbyScene extends Phaser.Scene {
     new LobbyCard(
       this,
       L.miniCards.train,
-      { title: '訓練', icon: 'train', color: 0x2f7a74, tag: COMING_SOON, decorate: faint('train') },
-      () => this.showToast(`訓練${COMING_SOON}（升級 T005）`),
+      { title: '訓練', icon: 'train', color: 0x2f7a74, decorate: faint('train') },
+      () => this.scene.start('TrainingScene'),
     );
   }
 
@@ -427,12 +429,13 @@ export class LobbyScene extends Phaser.Scene {
       () => {
         this.result?.destroy();
         this.result = null;
-        patchDebug({ result: null });
+        patchDebug({ result: null, growth: null });
         if (storyId) this.scene.start('StoryScene', { mode: 'play', storyId });
       },
       extra,
+      record.gains,
     );
-    patchDebug({ result: { ...record.reward, win: record.win } });
+    patchDebug({ result: { ...record.reward, win: record.win }, growth: record.gains });
   }
 
   /** 依目前狀態與時間更新畫面（資源、出征狀態、劇情紅點） */

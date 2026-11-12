@@ -2,12 +2,15 @@ import Phaser from 'phaser';
 import { COLORS } from '../../config';
 import type { DogData } from '../../data/dogs';
 import type { Rect } from '../../logic/layout';
-import { calcPower } from '../../logic/power';
+import type { DogStats } from '../../logic/leveling';
 import { addText, openModal, viewOf } from '../ui';
 import { drawDogHead } from './dogArt';
+import { drawExpBar, expLabel } from './ExpBar';
 import { makeTapArea } from './hitArea';
 
 export interface DogInfoOptions {
+  /** 目前的等級、經驗、攻防與戰力（含升級成長） */
+  stats: DogStats;
   owned: boolean;
   inTeam: boolean;
   teamFull: boolean;
@@ -25,6 +28,7 @@ export interface DogInfoOptions {
 export class DogInfoPanel {
   readonly layer: Phaser.GameObjects.Container;
   readonly buttons: { team?: Rect; lobby?: Rect } = {};
+  readonly stats: { level: number; exp: number; expNeed: number; power: number };
 
   constructor(scene: Phaser.Scene, dog: DogData, o: DogInfoOptions) {
     const { landscape } = viewOf(scene);
@@ -35,6 +39,8 @@ export class DogInfoPanel {
       o.owned ? (dog.color === 0xf7f4ee ? COLORS.cardBorder : dog.color) : 0x6b5a4a,
     );
     this.layer = layer;
+    const s = o.stats;
+    this.stats = { level: s.level, exp: s.exp, expNeed: s.expNeed, power: s.power };
 
     const head = scene.add.graphics();
     const hr = 40;
@@ -50,7 +56,7 @@ export class DogInfoPanel {
         scene,
         tx,
         box.y + 30,
-        o.owned ? `${dog.name}  Lv.${dog.level}` : dog.name,
+        o.owned ? `${dog.name}  Lv.${s.level}` : dog.name,
         26,
         COLORS.ink,
         true,
@@ -68,19 +74,26 @@ export class DogInfoPanel {
     );
     if (!o.owned) {
       layer.add(addText(scene, tx, box.y + 92, '尚未擁有', 16, '#c0392b', true));
+    } else {
+      // 經驗條
+      const bar = scene.add.graphics();
+      const barW = Math.min(textW, 200);
+      drawExpBar(bar, tx, box.y + 98, barW, 8, s.exp / (s.expNeed || 1), s.expNeed === 0);
+      layer.add([
+        bar,
+        addText(scene, tx, box.y + 110, expLabel(s.exp, s.expNeed), 13, COLORS.inkSoft),
+      ]);
     }
-
-    const power = calcPower(dog.baseAttack, dog.baseDefense, dog.level);
     const left = box.x + 24;
     const wrap = box.width - 48;
-    let y = box.y + 132;
+    let y = box.y + 140;
     const line = (s: string, size: number, color: string = COLORS.ink, bold = false, gap = 30) => {
       const t = addText(scene, left, y, s, size, color, bold).setWordWrapWidth(wrap);
       layer.add(t);
       y += gap;
     };
     line(`性格：${dog.personality}`, 16);
-    line(`攻擊 ${dog.baseAttack}\u3000防禦 ${dog.baseDefense}\u3000戰力 ${power}`, 16);
+    line(`攻擊 ${s.attack}\u3000防禦 ${s.defense}\u3000戰力 ${s.power}`, 16);
     line(`技能「${dog.skill.name}」：${dog.skill.description}`, 16, '#b5651d', true, 40);
 
     const by = box.y + box.height - 64;

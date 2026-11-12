@@ -8,6 +8,7 @@ import { ExpeditionScene } from './scenes/ExpeditionScene';
 import { LobbyScene } from './scenes/LobbyScene';
 import { StoryScene } from './scenes/StoryScene';
 import { TeamScene } from './scenes/TeamScene';
+import { TrainingScene } from './scenes/TrainingScene';
 
 const parent = document.getElementById('game')!;
 const currentOrientation = (): Orientation =>
@@ -35,6 +36,7 @@ const game = new Phaser.Game({
     BootScene,
     LobbyScene,
     TeamScene,
+    TrainingScene,
     CampaignScene,
     ExpeditionScene,
     BattleScene,

@@ -370,7 +370,7 @@ export class BattleScene extends Phaser.Scene {
       rec.reward,
       rec.win,
       () => {
-        patchDebug({ result: null });
+        patchDebug({ result: null, growth: null });
         if (this.payload.storyId) {
           this.scene.start('StoryScene', { mode: 'play', storyId: this.payload.storyId });
         } else {
@@ -378,8 +378,9 @@ export class BattleScene extends Phaser.Scene {
         }
       },
       this.payload.extra ?? [],
+      rec.gains,
     );
-    patchDebug({ result: { ...rec.reward, win: rec.win } });
+    patchDebug({ result: { ...rec.reward, win: rec.win }, growth: rec.gains });
   }
 
   /** 更新文字與 Playwright 用的除錯資訊 */

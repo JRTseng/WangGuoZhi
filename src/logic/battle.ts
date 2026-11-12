@@ -24,7 +24,7 @@ export const DEFEAT_REWARD_RATE = 0.3;
 
 export type BattleSide = 'team' | 'enemy';
 
-/** 參戰的狗：傳入攻防等級，不直接讀資料檔（T005 之後攻防會加成長值） */
+/** 參戰的狗：傳入攻防等級，不直接讀資料檔。攻防已含升級成長值，等級只是顯示用 */
 export interface BattleDog {
   id: string;
   name: string;
@@ -114,7 +114,7 @@ export function mixSeed(...parts: number[]): number {
 }
 
 export function battleDogPower(dog: BattleDog): number {
-  return calcPower(dog.attack, dog.defense, dog.level);
+  return calcPower(dog.attack, dog.defense);
 }
 
 export function battleTeamPower(team: readonly BattleDog[]): number {

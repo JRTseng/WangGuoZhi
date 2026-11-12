@@ -4,6 +4,7 @@ import {
   busyDogIds,
   collectExpedition,
   expeditionBattle,
+  expeditionGrowth,
   expeditionReward,
   idleDogIds,
   isComplete,
@@ -11,6 +12,7 @@ import {
   remainingMs,
   startExpedition,
 } from './expedition';
+import { dogPower } from './team';
 import { FAST_MINUTE_MS, MINUTE_MS } from './timeScale';
 
 const T0 = 1_800_000_000_000; // 固定的「現在」
@@ -175,6 +177,8 @@ describe('collectExpedition', () => {
         id: 'exp-1',
         stageId: 'luoyepo-1',
         dogIds: TEAM,
+        team: s.expeditions[0].team,
+        gains: r.state.history[0].gains,
         startedAt: T0,
         endsAt: T0 + 5 * MINUTE_MS,
         collectedAt: now,
@@ -233,6 +237,96 @@ describe('collectExpedition', () => {
       outcomes.add(battle.win);
     }
     expect(outcomes.size).toBe(2);
+  });
+
+  it('出發時記下隊伍當下的攻防等級（含升級成長）', () => {
+    const e = started().expeditions[0];
+    expect(e.team.map((d) => d.id)).toEqual(TEAM);
+    // 大耳 3 級：攻 42+7、防 48+7
+    expect(e.team[0]).toMatchObject({ attack: 49, defense: 55, level: 3 });
+  });
+
+  it('收成：隊伍每隻狗都拿到經驗，滿了自動升級，沒出征的不變', () => {
+    const s = started();
+    const r = collectExpedition(s, 'exp-1', T0 + 5 * MINUTE_MS);
+    if (!r.ok) throw new Error(r.error);
+    const gains = r.state.history[0].gains;
+    expect(gains.map((g) => g.dogId)).toEqual(TEAM);
+    // 第 1 關每隻 30 經驗：3 級的大耳（需要 104）還沒升，2 級的黑旋、長鬚（需要 57）也還沒升
+    for (const g of gains) expect(g).toMatchObject({ exp: 30, toLevel: g.fromLevel });
+    for (const id of TEAM) expect(r.state.dogs[id].exp).toBe(30);
+    expect(r.state.dogs.abai).toEqual(s.dogs.abai);
+    expect(r.state.dogs.xiaosuan).toEqual(s.dogs.xiaosuan);
+    // 原本的狀態沒被改動
+    expect(s.dogs.daer.exp).toBe(0);
+  });
+
+  it('升級結果寫進狀態與紀錄：1 級的狗打贏第 1 關升到 2 級，多的經驗保留', () => {
+    const r0 = startExpedition(
+      createInitialState(),
+      'luoyepo-1',
+      ['daer', 'heixuan', 'changxu', 'xiaosuan', 'abai'],
+      T0,
+      MINUTE_MS,
+      5,
+    );
+    if (!r0.ok) throw new Error(r0.error);
+    const r = collectExpedition(r0.state, 'exp-1', T0 + 5 * MINUTE_MS);
+    if (!r.ok) throw new Error(r.error);
+    const g = r.state.history[0].gains.find((x) => x.dogId === 'abai')!;
+    expect(g).toMatchObject({ exp: 30, fromLevel: 1, toLevel: 2 });
+    const p = r.state.dogs.abai;
+    expect(p).toMatchObject({ level: 2, exp: 10, rolls: 1 });
+    expect(p.growthAttack).toBe(g.attack.fixed + g.attack.bonus);
+    expect(p.growthDefense).toBe(g.defense.fixed + g.defense.bonus);
+    expect(g.attack.fixed + g.defense.fixed).toBe(5);
+    expect(dogPower(r.state, 'abai')).toBe(70 + p.growthAttack + p.growthDefense);
+  });
+
+  it('打輸拿一半經驗', () => {
+    const r0 = startExpedition(createInitialState(), 'luoyepo-1', ['abai'], T0);
+    if (!r0.ok) throw new Error(r0.error);
+    const r = collectExpedition(r0.state, 'exp-1', T0 + 5 * MINUTE_MS);
+    if (!r.ok) throw new Error(r.error);
+    expect(r.state.history[0].win).toBe(false);
+    expect(r.state.history[0].gains).toEqual([
+      {
+        dogId: 'abai',
+        exp: 15,
+        fromLevel: 1,
+        toLevel: 1,
+        attack: { fixed: 0, bonus: 0 },
+        defense: { fixed: 0, bonus: 0 },
+      },
+    ]);
+    expect(r.state.dogs.abai).toMatchObject({ level: 1, exp: 15 });
+  });
+
+  it('升級不能重抽：同一筆出征存檔還原後再收成，成長值一模一樣', () => {
+    const all = ['daer', 'heixuan', 'changxu', 'xiaosuan', 'abai'];
+    const r0 = startExpedition(createInitialState(), 'luoyepo-1', all, T0, MINUTE_MS, 99);
+    if (!r0.ok) throw new Error(r0.error);
+    const a = collectExpedition(r0.state, 'exp-1', T0 + 5 * MINUTE_MS);
+    const restored = JSON.parse(JSON.stringify(r0.state)) as GameState;
+    const b = collectExpedition(restored, 'exp-1', T0 + 9 * MINUTE_MS);
+    if (!a.ok || !b.ok) throw new Error('收成失敗');
+    expect(b.state.dogs).toEqual(a.state.dogs);
+    expect(b.state.history[0].gains).toEqual(a.state.history[0].gains);
+    expect(expeditionGrowth(r0.state, r0.state.expeditions[0], true)).toEqual({
+      dogs: a.state.dogs,
+      gains: a.state.history[0].gains,
+    });
+  });
+
+  it('滿級的狗出征不再拿經驗', () => {
+    const s0 = createInitialState();
+    const maxed = { ...s0, dogs: { ...s0.dogs, daer: { ...s0.dogs.daer, level: 100, exp: 0 } } };
+    const r0 = startExpedition(maxed, 'luoyepo-1', ['daer'], T0);
+    if (!r0.ok) throw new Error(r0.error);
+    const r = collectExpedition(r0.state, 'exp-1', T0 + 5 * MINUTE_MS);
+    if (!r.ok) throw new Error(r.error);
+    expect(r.state.dogs.daer).toEqual(maxed.dogs.daer);
+    expect(r.state.history[0].gains[0]).toMatchObject({ exp: 0, fromLevel: 100, toLevel: 100 });
   });
 
   it('狀態可 JSON 序列化後還原（給 T006 存檔）', () => {

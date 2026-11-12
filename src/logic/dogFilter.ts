@@ -1,6 +1,6 @@
 import type { DogData, DogRarity, DogSize } from '../data/dogs';
 import { TEAM_SIZE } from './expedition';
-import { calcPower } from './power';
+import { baseStats } from './leveling';
 
 /**
  * 選狗畫面的篩選、排序與自動編隊（T015）。
@@ -43,10 +43,14 @@ export const SORT_LABEL: Record<SortKey, string> = {
   rarity: '稀有度',
 };
 
-/** 誰擁有、誰在出征 */
+/** 查一隻狗目前的等級與戰力（T005 起會隨升級改變，由狀態查出來） */
+export type StatsOf = (dog: DogData) => { level: number; power: number };
+
+/** 誰擁有、誰在出征，以及怎麼查目前的等級與戰力（沒給就用初始數字） */
 export interface DogContext {
   owned: ReadonlySet<string> | readonly string[];
   busy: ReadonlySet<string> | readonly string[];
+  stats?: StatsOf;
 }
 
 const has = (set: ReadonlySet<string> | readonly string[], id: string): boolean =>
@@ -56,8 +60,8 @@ export function roleKeyOf(dog: Pick<DogData, 'role'>): RoleKey | undefined {
   return ROLE_KEYS.find((k) => dog.role.includes(k));
 }
 
-export function powerOf(dog: DogData): number {
-  return calcPower(dog.baseAttack, dog.baseDefense, dog.level);
+export function powerOf(dog: DogData, stats: StatsOf = baseStats): number {
+  return stats(dog).power;
 }
 
 /** 可出征：擁有且沒在出征 */
@@ -93,11 +97,14 @@ export function sortDogs(
   dogs: readonly DogData[],
   sort: SortKey,
   owned?: ReadonlySet<string> | readonly string[],
+  stats: StatsOf = baseStats,
 ): DogData[] {
+  const numbers = new Map(dogs.map((d) => [d.id, stats(d)]));
+  const power = (d: DogData): number => numbers.get(d.id)!.power;
   const key = (d: DogData): number =>
-    sort === 'level' ? d.level : sort === 'rarity' ? rarityRank(d) : powerOf(d);
+    sort === 'level' ? numbers.get(d.id)!.level : sort === 'rarity' ? rarityRank(d) : power(d);
   const own = (d: DogData): number => (!owned || has(owned, d.id) ? 1 : 0);
-  return [...dogs].sort((a, b) => own(b) - own(a) || key(b) - key(a) || powerOf(b) - powerOf(a));
+  return [...dogs].sort((a, b) => own(b) - own(a) || key(b) - key(a) || power(b) - power(a));
 }
 
 /** 篩選後排序，選狗畫面直接用這個 */
@@ -107,7 +114,7 @@ export function listDogs(
   sort: SortKey,
   ctx: DogContext,
 ): DogData[] {
-  return sortDogs(filterDogs(dogs, filter, ctx), sort, ctx.owned);
+  return sortDogs(filterDogs(dogs, filter, ctx), sort, ctx.owned, ctx.stats);
 }
 
 /**
@@ -118,6 +125,8 @@ export function autoTeam(dogs: readonly DogData[], ctx: DogContext, size = TEAM_
   return sortDogs(
     dogs.filter((d) => isIdle(d, ctx)),
     'power',
+    undefined,
+    ctx.stats,
   )
     .slice(0, Math.max(0, size))
     .map((d) => d.id);
