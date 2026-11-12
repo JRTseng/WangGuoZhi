@@ -5,7 +5,8 @@ import type { BattleDog } from '../logic/battle';
 import { initialProgress, type DogExpGain } from '../logic/leveling';
 
 /**
- * 遊戲狀態：純物件（只有數字、字串、陣列），可直接 JSON 序列化，給 T006 存檔用。
+ * 遊戲狀態：純物件（只有數字、字串、陣列），可直接 JSON 序列化，整份存進存檔（T006）。
+ * 加新欄位時，記得在 src/logic/save.ts 的 sanitizeState 補上檢查，否則讀檔時會被丟掉。
  * 所有變更都經由 src/logic/ 的純函式，回傳新的狀態，不直接改舊物件。
  */
 

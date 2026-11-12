@@ -13,6 +13,8 @@ interface WgzDebugState {
   size?: { width: number; height: number };
   resources?: { food: number; bones: number };
   backButton?: WgzRect;
+  /** 存檔狀態（T006）：這次是新遊戲／讀檔成功／壞檔重置，以及最後一次存檔有沒有成功 */
+  save?: { load: 'new' | 'ok' | 'reset'; saveOk: boolean };
 
   /** 主頁 */
   lobby?: {
@@ -130,6 +132,8 @@ interface WgzDebugState {
     rects: Record<string, WgzRect>;
     input: WgzRect;
     message: string;
+    /** 「重新開始」已按過一次，等第二次確認 */
+    resetArmed: boolean;
   };
 
   /** 組隊畫面 */

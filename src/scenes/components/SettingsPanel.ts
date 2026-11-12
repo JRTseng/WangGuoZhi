@@ -3,7 +3,7 @@ import { COLORS } from '../../config';
 import { REDEEM_ERROR_TEXT, redeemCode } from '../../logic/promo';
 import type { Rect } from '../../logic/layout';
 import type { Quality, Settings } from '../../state/gameState';
-import { getState, setState } from '../../state/store';
+import { getState, resetSave, setState } from '../../state/store';
 import { addText, openModal, patchDebug, viewOf } from '../ui';
 import { makeTapArea } from './hitArea';
 
@@ -14,7 +14,7 @@ export const FORUM_URL = 'https://github.com/JRTseng/WangGuoZhi/issues';
 const QUALITY_LABEL: Record<Quality, string> = { low: '低', medium: '中', high: '高' };
 
 type ToggleKey = 'voice' | 'music' | 'push' | 'skipBattle';
-type Key = ToggleKey | Quality | 'site' | 'forum' | 'redeem' | 'close';
+type Key = ToggleKey | Quality | 'site' | 'forum' | 'redeem' | 'reset' | 'close';
 
 /**
  * 左上角「帳號與設定」面板：語音、音樂、推播、略過戰鬥畫面開關，畫質，官方連結、討論區、優惠碼。
@@ -26,6 +26,8 @@ export class SettingsPanel {
   private input: Phaser.GameObjects.DOMElement | null = null;
   private message = '';
   private messageOk = true;
+  /** 「重新開始」按過一次、等第二次確認 */
+  private resetArmed = false;
   private readonly rects: Partial<Record<Key, Rect>> = {};
 
   constructor(
@@ -175,8 +177,19 @@ export class SettingsPanel {
     ry += 40;
 
     const closeY = landscape ? box.y + box.height - 58 : box.y + box.height - 62;
+    // 最下面一列：左邊「重新開始」（要按兩次才會清除存檔），右邊「關閉」
+    const lastY = Math.max(ry, closeY);
+    const resetW = Math.floor((colW - 10) * 0.46);
     this.pill(
-      { x: rightX, y: Math.max(ry, closeY), width: colW, height: 46 },
+      { x: rightX, y: lastY, width: resetW, height: 46 },
+      this.resetArmed ? '再按一次清除' : '重新開始',
+      this.resetArmed ? 0xc0392b : 0xe9dcc8,
+      this.resetArmed,
+      'reset',
+      () => this.reset(),
+    );
+    this.pill(
+      { x: rightX + resetW + 10, y: lastY, width: colW - resetW - 10, height: 46 },
       '關閉',
       COLORS.bar,
       true,
@@ -190,6 +203,7 @@ export class SettingsPanel {
         rects: { ...this.rects } as Record<string, Rect>,
         input: inputRect,
         message: this.message,
+        resetArmed: this.resetArmed,
       },
     });
   }
@@ -254,12 +268,34 @@ export class SettingsPanel {
   private update(patch: Partial<Settings>, qualityChanged: boolean): void {
     const st = getState();
     setState({ ...st, settings: { ...st.settings, ...patch } });
+    this.disarmReset();
     this.render();
     this.onChange(qualityChanged);
   }
 
+  /** 做了別的事就取消「重新開始」的確認狀態 */
+  private disarmReset(): void {
+    if (!this.resetArmed) return;
+    this.resetArmed = false;
+    this.message = '';
+  }
+
+  /** 第一次按只是提醒，第二次才真的清除存檔並重開遊戲 */
+  private reset(): void {
+    if (!this.resetArmed) {
+      this.resetArmed = true;
+      this.message = '會清除所有進度，從頭開始。確定的話再按一次。';
+      this.messageOk = false;
+      this.render();
+      return;
+    }
+    resetSave();
+    window.location.reload();
+  }
+
   private redeem(): void {
     const el = this.input?.node as HTMLInputElement | undefined;
+    this.resetArmed = false;
     const r = redeemCode(getState(), el?.value ?? '');
     if (r.ok) {
       setState(r.state);

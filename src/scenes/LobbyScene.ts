@@ -19,7 +19,7 @@ import {
 } from '../logic/progress';
 import { STAMINA_MAX, msUntilNextPoint } from '../logic/stamina';
 import { teamPower } from '../logic/team';
-import { getState, setState, tick, timeOptions } from '../state/store';
+import { acknowledgeLoad, getState, saveStatus, setState, tick, timeOptions } from '../state/store';
 import { Button } from './components/Button';
 import { drawDogHead } from './components/dogArt';
 import { DogSprite } from './components/DogSprite';
@@ -103,6 +103,14 @@ export class LobbyScene extends Phaser.Scene {
 
     this.refresh();
     this.time.addEvent({ delay: REFRESH_MS, loop: true, callback: () => this.refresh() });
+
+    // 存檔壞掉被重置時講一次就好
+    const save = saveStatus();
+    patchDebug({ save });
+    if (save.load === 'reset') {
+      this.showToast('存檔讀不出來，已重新開始', 4000);
+      acknowledgeLoad();
+    }
   }
 
   // ---- 畫面 ----
@@ -397,7 +405,7 @@ export class LobbyScene extends Phaser.Scene {
     patchDebug({ lobby: { ...window.__WGZ__!.lobby!, background: after.backgroundId } });
   }
 
-  private showToast(text: string): void {
+  private showToast(text: string, holdMs = 1600): void {
     this.toast?.destroy();
     if (!text) return;
     const { w, h } = viewOf(this);
@@ -410,7 +418,7 @@ export class LobbyScene extends Phaser.Scene {
     this.tweens.add({
       targets: t,
       alpha: 0,
-      delay: 1600,
+      delay: holdMs,
       duration: 400,
       onComplete: () => t.destroy(),
     });
