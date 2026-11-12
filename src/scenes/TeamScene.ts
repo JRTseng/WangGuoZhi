@@ -88,6 +88,7 @@ export class TeamScene extends Phaser.Scene {
         owned: st.owned.includes(d.id),
         inTeam: st.team.includes(d.id),
         teamFull: st.team.length >= TEAM_SIZE,
+        boarding: st.boarding.some((b) => b.dogId === d.id),
         isLobby: st.lobbyDogId === d.id,
         onToggleTeam: () => {
           setState(toggleTeamMember(getState(), d.id));

@@ -1,4 +1,5 @@
 import { advanceAuto } from '../logic/auto';
+import { settleBoarding } from '../logic/boarding';
 import { SAVE_BACKUP_KEY, SAVE_KEY, deserialize, serialize, type LoadStatus } from '../logic/save';
 import { regenMsFromSearch, settle, type TimeOptions } from '../logic/stamina';
 import { createInitialState, type GameState } from './gameState';
@@ -80,12 +81,12 @@ export function timeOptions(): TimeOptions {
 }
 
 /**
- * 把跟時間有關的狀態結算到現在：體力恢復、每日重置、自動出征補算。
+ * 把跟時間有關的狀態結算到現在：體力恢復、每日重置、自動出征補算、寄宿經驗（T021）。
  * 畫面定時呼叫，進入要用體力的畫面前也呼叫一次。
  */
 export function tick(now: number = Date.now()): GameState {
   const o = timeOptions();
-  const next = settle(advanceAuto(current, now, o), now, o);
+  const next = settleBoarding(settle(advanceAuto(current, now, o), now, o), now, o);
   if (next === current) return current;
   // 體力滿的時候，每次結算只會把「上次結算時間」往前推；這種變化不用寫進存檔，
   // 免得主頁每 0.25 秒就存一次。讀檔時時間本來就會重新結算。

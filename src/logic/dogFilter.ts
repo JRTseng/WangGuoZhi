@@ -4,17 +4,17 @@ import { baseStats } from './leveling';
 
 /**
  * 選狗畫面的篩選、排序與自動編隊（T015）。
- * 純函式：傳入狗狗清單與「擁有／出征中」的 id，回傳新的清單，不改原陣列。
+ * 純函式：傳入狗狗清單與「擁有／寄宿中」的 id，回傳新的清單，不改原陣列。
  */
 
 /** 定位（從 DogData.role 的「前排／突擊」這類字串取後半） */
 export type RoleKey = '突擊' | '守護' | '謀略' | '幸運' | '補給' | '補血';
 export const ROLE_KEYS: readonly RoleKey[] = ['突擊', '守護', '謀略', '幸運', '補給', '補血'];
 
-/** 狀態：可出征（擁有且沒在出征）／出征中 */
+/** 狀態：可出征（擁有且沒在寄宿）／寄宿中（T021） */
 export type StatusKey = 'idle' | 'busy';
 export const STATUS_KEYS: readonly StatusKey[] = ['idle', 'busy'];
-export const STATUS_LABEL: Record<StatusKey, string> = { idle: '可出征', busy: '出征中' };
+export const STATUS_LABEL: Record<StatusKey, string> = { idle: '可出征', busy: '寄宿中' };
 
 export const RARITY_ORDER: readonly DogRarity[] = ['N', 'R', 'SR', 'SSR'];
 
@@ -46,7 +46,7 @@ export const SORT_LABEL: Record<SortKey, string> = {
 /** 查一隻狗目前的等級與戰力（T005 起會隨升級改變，由狀態查出來） */
 export type StatsOf = (dog: DogData) => { level: number; power: number };
 
-/** 誰擁有、誰在出征，以及怎麼查目前的等級與戰力（沒給就用初始數字） */
+/** 誰擁有、誰在寄宿（不能出征），以及怎麼查目前的等級與戰力（沒給就用初始數字） */
 export interface DogContext {
   owned: ReadonlySet<string> | readonly string[];
   busy: ReadonlySet<string> | readonly string[];
@@ -64,7 +64,7 @@ export function powerOf(dog: DogData, stats: StatsOf = baseStats): number {
   return stats(dog).power;
 }
 
-/** 可出征：擁有且沒在出征 */
+/** 可出征：擁有且沒在寄宿 */
 export function isIdle(dog: DogData, ctx: DogContext): boolean {
   return has(ctx.owned, dog.id) && !has(ctx.busy, dog.id);
 }
@@ -118,7 +118,7 @@ export function listDogs(
 }
 
 /**
- * 一鍵自動編隊：可出征（擁有且沒在出征）的狗裡戰力最高的幾隻，戰力高的排前面。
+ * 一鍵自動編隊：可出征（擁有且沒在寄宿）的狗裡戰力最高的幾隻，戰力高的排前面。
  * 不看目前的篩選條件。可出征的不到 size 隻就全上。
  */
 export function autoTeam(dogs: readonly DogData[], ctx: DogContext, size = TEAM_SIZE): string[] {

@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { COLORS } from '../config';
 import { DOGS, type DogData } from '../data/dogs';
+import { boardingSlotCount } from '../logic/boarding';
 import { busyDogIds } from '../logic/expedition';
 import { formatAmount } from '../logic/format';
 import type { Rect } from '../logic/layout';
@@ -19,12 +20,16 @@ import {
   trainingRow,
   type TrainingLayout,
 } from '../logic/trainingLayout';
-import { getState, setState } from '../state/store';
+import type { GameState } from '../state/gameState';
+import { getState, setState, tick } from '../state/store';
+import { makeTapArea } from './components/hitArea';
 import { drawDogHead } from './components/dogArt';
 import { drawExpBar, expLabel } from './components/ExpBar';
 import { addText, drawHeader, patchDebug, resetDebug, viewOf } from './ui';
 
 const BAR = 56;
+/** 多久結算一次寄宿經驗並更新數字（T021） */
+const REFRESH_MS = 500;
 const STATS: readonly DrillStat[] = ['attack', 'defense'];
 /** 手指移動超過這個距離就當成捲動，不算點按鈕 */
 const TAP_SLOP = 8;
@@ -32,8 +37,8 @@ const TAP_SLOP = 8;
 const TAP_PAD = 3;
 
 /**
- * 訓練場（T005、T020）：看每隻狗的等級、經驗條、攻防與升級累積的成長，
- * 並可以花糧草做攻擊或防禦特訓（每次永久 +1）。
+ * 訓練場（T005、T020、T021）：看每隻狗的等級、經驗條、攻防與升級累積的成長，
+ * 並可以花糧草做攻擊或防禦特訓（每次永久 +1）。右上角進「板凳寄宿」。
  * 進場時依等級高到低排，特訓後順序不變；狗多了可以上下捲動。
  */
 export class TrainingScene extends Phaser.Scene {
@@ -44,6 +49,9 @@ export class TrainingScene extends Phaser.Scene {
   private scrollY = 0;
   private dragFrom: { x: number; y: number; scroll: number } | null = null;
   private ids: string[] = [];
+  private boardingButton!: Rect;
+  private boardingLabel!: Phaser.GameObjects.Text;
+  private seenDogs: GameState['dogs'] | null = null;
 
   constructor() {
     super('TrainingScene');
@@ -55,9 +63,20 @@ export class TrainingScene extends Phaser.Scene {
     this.dragFrom = null;
     const { w, h, landscape } = viewOf(this);
     this.landscape = landscape;
-    const st = getState();
+    const st = tick();
     this.add.rectangle(0, 0, w, h, COLORS.background).setOrigin(0, 0);
     const back = drawHeader(this, '訓練場', () => this.scene.start('LobbyScene'));
+
+    // 右上角：進板凳寄宿（T021）
+    const bb = (this.boardingButton = { x: w - 8 - 112, y: 6, width: 112, height: BAR - 12 });
+    const bc = this.add.container(bb.x, bb.y).setDepth(51);
+    const bg = this.add.graphics();
+    bg.fillStyle(COLORS.harvest, 1);
+    bg.fillRoundedRect(0, 0, bb.width, bb.height, 12);
+    this.boardingLabel = addText(this, bb.width / 2, bb.height / 2, '', 16, '#ffffff', true);
+    bc.add([bg, this.boardingLabel.setOrigin(0.5)]);
+    makeTapArea(bc, bb.width, bb.height);
+    bc.on('pointerup', () => this.scene.start('BoardingScene'));
 
     this.ids = DOGS.filter((d) => st.owned.includes(d.id))
       .map((d) => ({ d, s: dogStats(st, d) }))
@@ -93,6 +112,17 @@ export class TrainingScene extends Phaser.Scene {
       this.scrollTo(this.scrollY + dy),
     );
 
+    // 寄宿中的狗經驗會自己漲：定時結算，有變才重畫
+    this.time.addEvent({
+      delay: REFRESH_MS,
+      loop: true,
+      callback: () => {
+        if (tick().dogs === this.seenDogs) return;
+        this.renderRows();
+        this.publish();
+      },
+    });
+
     patchDebug({ backButton: back });
     this.publish();
   }
@@ -107,6 +137,8 @@ export class TrainingScene extends Phaser.Scene {
     const l = this.layout;
     const landscape = this.landscape;
     const busy = busyDogIds(st);
+    this.seenDogs = st.dogs;
+    this.boardingLabel.setText(`寄宿 ${st.boarding.length}/${boardingSlotCount(st)} ›`);
     this.hint.setText(`花糧草特訓，攻擊或防禦永久 +1・糧草 ${formatAmount(st.resources.food)}`);
     this.rows.removeAll(true);
 
@@ -138,9 +170,9 @@ export class TrainingScene extends Phaser.Scene {
           this,
           right,
           top + gapY,
-          busy.has(d.id) ? '出征中' : '',
+          busy.has(d.id) ? '寄宿中' : '',
           13,
-          '#b0413e',
+          '#2f7d32',
           true,
         ).setOrigin(1, 0),
         addText(
@@ -235,6 +267,11 @@ export class TrainingScene extends Phaser.Scene {
     const shift = (r: Rect): Rect => ({ ...r, y: r.y - this.scrollY });
     patchDebug({
       training: {
+        boardingButton: {
+          ...this.boardingButton,
+          count: st.boarding.length,
+          slots: boardingSlotCount(st),
+        },
         list: this.layout.list,
         scrollY: this.scrollY,
         scrollMax: this.layout.scrollMax,
@@ -248,6 +285,7 @@ export class TrainingScene extends Phaser.Scene {
           };
           return {
             id,
+            boarding: st.boarding.some((b) => b.dogId === id),
             level: s.level,
             exp: s.exp,
             expNeed: s.expNeed,

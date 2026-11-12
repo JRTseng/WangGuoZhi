@@ -1,6 +1,6 @@
 import { REGIONS, type StageData } from '../data/regions';
 import type { AutoSummary, ExpeditionRecord, GameState } from '../state/gameState';
-import { TEAM_MIN, TEAM_SIZE, runExpedition } from './expedition';
+import { TEAM_MIN, TEAM_SIZE, busyDogIds, runExpedition } from './expedition';
 import { stageExp } from './leveling';
 import {
   STAMINA_COST,
@@ -21,9 +21,10 @@ import {
 /** 一次補算最多模擬幾步，避免離開太久時卡住畫面 */
 const MAX_STEPS = 2000;
 
-/** 自動出征用的隊伍：組隊編排裡目前擁有的狗 */
+/** 自動出征用的隊伍：組隊編排裡目前擁有、沒在寄宿的狗 */
 export function autoTeamOf(state: GameState): string[] {
-  return state.team.filter((id) => state.owned.includes(id)).slice(0, TEAM_SIZE);
+  const busy = busyDogIds(state);
+  return state.team.filter((id) => state.owned.includes(id) && !busy.has(id)).slice(0, TEAM_SIZE);
 }
 
 /**

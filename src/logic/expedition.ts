@@ -37,6 +37,7 @@ export type RunError =
   | 'duplicate-dog'
   | 'dog-not-found'
   | 'dog-not-owned'
+  | 'dog-busy'
   | 'no-runs'
   | 'no-stamina';
 
@@ -47,12 +48,11 @@ export type RunResult =
 export const HISTORY_MAX = 30;
 
 /**
- * 目前不能出征的狗狗 id。T019 起出征當下就打完，沒有狗會「出征中」，所以是空的；
- * 選狗畫面的狀態篩選還留著這個概念，之後 T021 板凳寄宿會用到。
+ * 目前不能出征的狗狗 id：在訓練場寄宿中的狗（T021）。
+ * T019 起出征當下就打完，所以沒有狗會「出征中」。
  */
-export function busyDogIds(state?: GameState): Set<string> {
-  void state;
-  return new Set();
+export function busyDogIds(state?: Pick<GameState, 'boarding'>): Set<string> {
+  return new Set((state?.boarding ?? []).map((s) => s.dogId));
 }
 
 /** 可出征的狗狗 id：擁有的，依 DOGS 順序 */
@@ -140,7 +140,7 @@ export function expeditionGrowth(
 
 /**
  * 出征（T019）：沒有等待時間，按下去就打完。
- * 檢查：關卡存在且已解鎖、1 到 5 隻、不重複、狗存在且擁有、今天還有次數、體力夠。
+ * 檢查：關卡存在且已解鎖、1 到 5 隻、不重複、狗存在且擁有、沒在寄宿、今天還有次數、體力夠。
  * 通過就扣體力與次數、結算戰鬥、加資源與經驗（經驗滿了自動升級）、寫一筆紀錄。
  * 打贏才記為通過該關（解鎖下一關）；打輸只拿部分獎勵與一半經驗。
  * 第一次打贏有 firstClearDog 的關卡，那隻狗會加入（紀錄的 newDogId）。
@@ -165,6 +165,8 @@ export function runExpedition(
   if (!dogIds.every((id) => state.owned.includes(id))) {
     return { ok: false, error: 'dog-not-owned' };
   }
+  const busy = busyDogIds(state);
+  if (dogIds.some((id) => busy.has(id))) return { ok: false, error: 'dog-busy' };
   const block = runBlock(state, stageId, now, opts);
   if (!block.ok) return { ok: false, error: block.reason };
 

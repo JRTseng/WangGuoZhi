@@ -6,12 +6,14 @@ import { findStory } from '../data/stories';
 import {
   createInitialState,
   type AutoSummary,
+  type BoardingSlot,
   type DogProgress,
   type ExpeditionRecord,
   type GameState,
   type Quality,
   type Settings,
 } from '../state/gameState';
+import { boardingSlotCount } from './boarding';
 import { HISTORY_MAX, TEAM_SIZE } from './expedition';
 import { MAX_LEVEL, expNeeded, initialProgress } from './leveling';
 import { DRILL_MAX } from './training';
@@ -252,6 +254,28 @@ export function sanitizeState(raw: unknown, now: number): GameState {
       }
     : base.auto;
 
+  const cleared = stringList(raw.cleared, isStage);
+
+  // 寄宿位（T021）：只留擁有、不在隊伍裡、不重複的狗，超過位子數的丟掉；時間不能比現在晚
+  const boarding: BoardingSlot[] = [];
+  if (Array.isArray(raw.boarding)) {
+    for (const v of raw.boarding) {
+      if (boarding.length >= boardingSlotCount({ cleared })) break;
+      if (!isObj(v) || typeof v.dogId !== 'string') continue;
+      const id = v.dogId;
+      if (!isOwned(id) || team.includes(id) || boarding.some((b) => b.dogId === id)) continue;
+      const at = Math.min(now, int(v.at, now));
+      boarding.push({
+        dogId: id,
+        since: Math.min(at, int(v.since, at)),
+        at,
+        carry: int(v.carry, 0),
+        exp: int(v.exp, 0),
+        levels: int(v.levels, 0),
+      });
+    }
+  }
+
   return {
     resources: resources(raw.resources, base.resources),
     history,
@@ -261,13 +285,14 @@ export function sanitizeState(raw: unknown, now: number): GameState {
     team,
     lobbyDogId,
     backgroundId,
-    cleared: stringList(raw.cleared, isStage),
+    cleared,
     seenStories: stringList(raw.seenStories, (id) => !!findStory(id)),
     redeemedCodes: stringList(raw.redeemedCodes, () => true),
     settings: settings(raw.settings, base.settings),
     stamina,
     daily,
     auto,
+    boarding,
   };
 }
 

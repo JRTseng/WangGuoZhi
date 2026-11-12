@@ -94,6 +94,20 @@ export interface AutoState {
   summary: AutoSummary | null;
 }
 
+/** 訓練場的一個寄宿位（T021）：放在裡面的狗隨時間慢慢拿經驗，離線也算 */
+export interface BoardingSlot {
+  dogId: string;
+  /** 開始寄宿的時間（毫秒時間戳） */
+  since: number;
+  /** 上次結算經驗的時間 */
+  at: number;
+  /** 還沒湊滿 1 點經驗的零頭（單位：毫秒 × 每場經驗） */
+  carry: number;
+  /** 這次寄宿累積拿到的經驗與升了幾級（顯示用） */
+  exp: number;
+  levels: number;
+}
+
 export type Quality = 'low' | 'medium' | 'high';
 
 /** 帳號設定（語音／音樂／推播目前只記住開關，還沒有實際功能） */
@@ -134,6 +148,8 @@ export interface GameState {
   stamina: StaminaState;
   daily: DailyState;
   auto: AutoState;
+  /** 訓練場寄宿中的狗（T021） */
+  boarding: BoardingSlot[];
 }
 
 /** 體力上限；新遊戲從滿體力開始 */
@@ -166,5 +182,6 @@ export function createInitialState(now: number = Date.now()): GameState {
     // day 留空：第一次結算時會換成當天
     daily: { day: '', runs: {}, extraRuns: {}, staminaBuys: 0, runBuys: 0 },
     auto: { enabled: false, lastAt: now, summary: null },
+    boarding: [],
   };
 }
