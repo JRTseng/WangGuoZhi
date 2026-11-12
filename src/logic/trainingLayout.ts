@@ -1,7 +1,8 @@
 import type { Rect } from './layout';
 
 /**
- * 訓練場（T005）的排版：上方一行說明，下面是可捲動的狗狗列表。
+ * 訓練場（T005、T020）的排版：上方一行說明，下面是可捲動的狗狗列表，
+ * 每張卡片底部有攻擊特訓、防禦特訓兩顆按鈕。
  * 直式一欄、橫式兩欄；放不下就上下捲動。
  */
 export interface TrainingLayout {
@@ -12,6 +13,9 @@ export interface TrainingLayout {
   columns: number;
   rowWidth: number;
   rowHeight: number;
+  /** 特訓按鈕（T020）在卡片裡的位置：離卡片頂端多遠、多高 */
+  buttonTop: number;
+  buttonHeight: number;
   gap: number;
   /** 全部列排完的高度 */
   contentHeight: number;
@@ -31,7 +35,8 @@ export function trainingLayout(
 ): TrainingLayout {
   const columns = landscape ? 2 : 1;
   const gap = 10;
-  const rowHeight = landscape ? 92 : 104;
+  const rowHeight = landscape ? 130 : 138;
+  const buttonHeight = landscape ? 36 : 40;
   const list: Rect = {
     x: MARGIN,
     y: top + HINT_HEIGHT,
@@ -47,6 +52,8 @@ export function trainingLayout(
     columns,
     rowWidth,
     rowHeight,
+    buttonTop: rowHeight - buttonHeight - 6,
+    buttonHeight,
     gap,
     contentHeight,
     scrollMax: Math.max(0, contentHeight - list.height),
@@ -62,5 +69,19 @@ export function trainingRow(l: TrainingLayout, index: number): Rect {
     y: l.list.y + row * (l.rowHeight + l.gap),
     width: l.rowWidth,
     height: l.rowHeight,
+  };
+}
+
+const BUTTON_PAD = 14;
+const BUTTON_GAP = 8;
+
+/** 第 index 列的兩顆特訓按鈕（還沒扣掉捲動量）：左邊攻擊、右邊防禦 */
+export function trainingButtons(l: TrainingLayout, index: number): { attack: Rect; defense: Rect } {
+  const r = trainingRow(l, index);
+  const width = (r.width - BUTTON_PAD * 2 - BUTTON_GAP) / 2;
+  const y = r.y + l.buttonTop;
+  return {
+    attack: { x: r.x + BUTTON_PAD, y, width, height: l.buttonHeight },
+    defense: { x: r.x + BUTTON_PAD + width + BUTTON_GAP, y, width, height: l.buttonHeight },
   };
 }

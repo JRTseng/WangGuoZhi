@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { trainingLayout, trainingRow } from './trainingLayout';
+import { trainingButtons, trainingLayout, trainingRow } from './trainingLayout';
 
 describe('trainingLayout', () => {
   it('直式一欄：5 隻不用捲動，都在畫面內', () => {
@@ -37,5 +37,27 @@ describe('trainingLayout', () => {
     const l = trainingLayout(390, 844, false, 0);
     expect(l.contentHeight).toBe(0);
     expect(l.scrollMax).toBe(0);
+  });
+
+  it('特訓按鈕：兩顆並排在卡片底部、不重疊、不超出卡片，直式至少 40 高', () => {
+    for (const [w, h, landscape] of [
+      [390, 844, false],
+      [844, 390, true],
+    ] as const) {
+      const l = trainingLayout(w, h, landscape, 5);
+      for (let i = 0; i < 5; i++) {
+        const r = trainingRow(l, i);
+        const b = trainingButtons(l, i);
+        expect(b.attack.x).toBeGreaterThanOrEqual(r.x);
+        expect(b.defense.x).toBeGreaterThanOrEqual(b.attack.x + b.attack.width);
+        expect(b.defense.x + b.defense.width).toBeLessThanOrEqual(r.x + r.width);
+        expect(b.attack.y).toBe(b.defense.y);
+        expect(b.attack.y + b.attack.height).toBeLessThan(r.y + r.height);
+        // 經驗條畫到卡片頂端往下約 88，按鈕要在它下面
+        expect(b.attack.y - r.y).toBeGreaterThanOrEqual(88);
+        expect(b.attack.width).toBeGreaterThanOrEqual(120);
+      }
+      if (!landscape) expect(l.buttonHeight).toBeGreaterThanOrEqual(40);
+    }
   });
 });
