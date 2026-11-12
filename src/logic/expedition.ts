@@ -1,7 +1,7 @@
 import { DOGS, findDog } from '../data/dogs';
 import { findStage } from '../data/regions';
 import type { Resources } from '../data/resources';
-import type { Expedition, GameState } from '../state/gameState';
+import type { ExpeditionRecord, GameState } from '../state/gameState';
 import {
   BATTLE_TEAM_MAX,
   BATTLE_TEAM_MIN,
@@ -15,107 +15,42 @@ import {
 } from './battle';
 import { addExp, dogStats, expeditionExp, progressOf, sumUps, type DogExpGain } from './leveling';
 import { isStageUnlocked } from './progress';
-import { MINUTE_MS } from './timeScale';
+import { runBlock, spendRun, type TimeOptions } from './stamina';
 
 /** 一支出征隊伍最多幾隻 */
 export const TEAM_SIZE = BATTLE_TEAM_MAX;
 /** 一支出征隊伍最少幾隻 */
 export const TEAM_MIN = BATTLE_TEAM_MIN;
 
-export type StartError =
+export type RunError =
   | 'stage-not-found'
   | 'stage-locked'
   | 'wrong-team-size'
   | 'duplicate-dog'
   | 'dog-not-found'
   | 'dog-not-owned'
-  | 'dog-busy';
+  | 'no-runs'
+  | 'no-stamina';
 
-export type CollectError = 'expedition-not-found' | 'not-ready';
+export type RunResult =
+  { ok: true; state: GameState; record: ExpeditionRecord } | { ok: false; error: RunError };
 
-export type Result<E> = { ok: true; state: GameState } | { ok: false; error: E };
+/** 出征紀錄只留最近幾筆（重播戰鬥與結算用），不讓存檔越長越大 */
+export const HISTORY_MAX = 30;
 
-/** 目前出征中的狗狗 id */
-export function busyDogIds(state: GameState): Set<string> {
-  return new Set(state.expeditions.flatMap((e) => e.dogIds));
+/**
+ * 目前不能出征的狗狗 id。T019 起出征當下就打完，沒有狗會「出征中」，所以是空的；
+ * 選狗畫面的狀態篩選還留著這個概念，之後 T021 板凳寄宿會用到。
+ */
+export function busyDogIds(state?: GameState): Set<string> {
+  void state;
+  return new Set();
 }
 
-/** 閒置（可出征）的狗狗 id：擁有且沒在出征，依 DOGS 順序 */
+/** 可出征的狗狗 id：擁有的，依 DOGS 順序 */
 export function idleDogIds(state: GameState): string[] {
   const busy = busyDogIds(state);
   return DOGS.map((d) => d.id).filter((id) => state.owned.includes(id) && !busy.has(id));
-}
-
-/**
- * 開始出征。檢查：關卡存在且已解鎖、1 到 5 隻、不重複、狗存在且擁有、沒有正在出征。
- * minuteMs 為「1 分鐘」的毫秒數，測試模式可傳 1000。
- * seed 為這一仗的亂數種子，出發時就定下來；沒給就由時間與出征編號算出。
- */
-export function startExpedition(
-  state: GameState,
-  stageId: string,
-  dogIds: readonly string[],
-  now: number,
-  minuteMs: number = MINUTE_MS,
-  seed?: number,
-): Result<StartError> {
-  const stage = findStage(stageId);
-  if (!stage) return { ok: false, error: 'stage-not-found' };
-  if (!isStageUnlocked(state, stageId)) return { ok: false, error: 'stage-locked' };
-  if (dogIds.length < TEAM_MIN || dogIds.length > TEAM_SIZE)
-    return { ok: false, error: 'wrong-team-size' };
-  if (new Set(dogIds).size !== dogIds.length) return { ok: false, error: 'duplicate-dog' };
-  if (!dogIds.every((id) => DOGS.some((d) => d.id === id))) {
-    return { ok: false, error: 'dog-not-found' };
-  }
-  if (!dogIds.every((id) => state.owned.includes(id))) {
-    return { ok: false, error: 'dog-not-owned' };
-  }
-  const busy = busyDogIds(state);
-  if (dogIds.some((id) => busy.has(id))) return { ok: false, error: 'dog-busy' };
-
-  const expedition: Expedition = {
-    id: `exp-${state.nextExpeditionNo}`,
-    stageId,
-    dogIds: [...dogIds],
-    team: dogIds.flatMap((id) => battleDogOf(state, id) ?? []),
-    startedAt: now,
-    endsAt: now + stage.durationMin * minuteMs,
-    seed: (seed ?? mixSeed(now, state.nextExpeditionNo)) >>> 0,
-  };
-  return {
-    ok: true,
-    state: {
-      ...state,
-      expeditions: [...state.expeditions, expedition],
-      nextExpeditionNo: state.nextExpeditionNo + 1,
-    },
-  };
-}
-
-/** 總耗時（毫秒） */
-export function durationMs(exp: Expedition): number {
-  return Math.max(0, exp.endsAt - exp.startedAt);
-}
-
-/**
- * 剩餘毫秒，介於 0 到總耗時之間。
- * 系統時間被調快 → 直接變 0（可收成）；被調慢到開始之前 → 最多顯示總耗時，不會變更長。
- */
-export function remainingMs(exp: Expedition, now: number): number {
-  return Math.min(durationMs(exp), Math.max(0, exp.endsAt - now));
-}
-
-/** 是否已可收成 */
-export function isComplete(exp: Expedition, now: number): boolean {
-  return now >= exp.endsAt;
-}
-
-/** 進度 0 到 1 */
-export function progress(exp: Expedition, now: number): number {
-  const total = durationMs(exp);
-  if (total === 0) return 1;
-  return 1 - remainingMs(exp, now) / total;
 }
 
 /** 把狗狗轉成戰鬥用的攻防等級：攻防 = 基礎值 + 升級成長值 */
@@ -139,11 +74,11 @@ export function enemyNamesOf(stageId: string): string[] {
   return boss ? [boss.name] : ['野犬甲', '野犬乙', '野犬丙'];
 }
 
-type BattleSource = Pick<Expedition, 'stageId' | 'team' | 'seed'>;
+type BattleSource = Pick<ExpeditionRecord, 'stageId' | 'team' | 'seed'>;
 
 /**
  * 這次出征的戰鬥（勝負 + 回合紀錄）。只看關卡、出發當下的隊伍攻防與種子，
- * 所以收成前、收成後（用歷史紀錄，狗已經升級）算出來都一樣。
+ * 所以結算當下和之後用紀錄重播（狗已經升級）算出來都一樣。
  */
 export function expeditionBattle(exp: BattleSource): BattleResult {
   return resolveBattle({
@@ -155,13 +90,13 @@ export function expeditionBattle(exp: BattleSource): BattleResult {
 }
 
 /** 這次出征的獎勵：勝利全額，敗北只拿一部分 */
-export function expeditionReward(exp: Pick<Expedition, 'stageId'>, win: boolean): Resources {
+export function expeditionReward(exp: Pick<ExpeditionRecord, 'stageId'>, win: boolean): Resources {
   const stage = findStage(exp.stageId);
   const full = stage ? { ...stage.reward } : { food: 0, bones: 0 };
   return win ? full : scaleReward(full, DEFEAT_REWARD_RATE);
 }
 
-/** 升級亂數的種子：由這一仗的種子與隊伍位置算出，所以同一次出征怎麼收成結果都一樣 */
+/** 升級亂數的種子：由這一仗的種子與隊伍位置算出，所以同一次出征怎麼算結果都一樣 */
 const LEVEL_SEED_SALT = 0x7005;
 
 /**
@@ -170,7 +105,7 @@ const LEVEL_SEED_SALT = 0x7005;
  */
 export function expeditionGrowth(
   state: Pick<GameState, 'dogs'>,
-  exp: Pick<Expedition, 'stageId' | 'dogIds' | 'seed'>,
+  exp: Pick<ExpeditionRecord, 'stageId' | 'dogIds' | 'seed'>,
   win: boolean,
 ): { dogs: GameState['dogs']; gains: DogExpGain[] } {
   const stage = findStage(exp.stageId);
@@ -195,52 +130,67 @@ export function expeditionGrowth(
 }
 
 /**
- * 收成：先結算戰鬥，再加資源與經驗（經驗滿了自動升級）、釋放狗狗、寫一筆歷史（含勝負）。
- * 打贏才記為通過該關（解鎖下一關）；打輸只拿部分獎勵與一半經驗，狗狗一樣回家。
- * 時間未到或找不到則回傳錯誤，狀態不變。
+ * 出征（T019）：沒有等待時間，按下去就打完。
+ * 檢查：關卡存在且已解鎖、1 到 5 隻、不重複、狗存在且擁有、今天還有次數、體力夠。
+ * 通過就扣體力與次數、結算戰鬥、加資源與經驗（經驗滿了自動升級）、寫一筆紀錄。
+ * 打贏才記為通過該關（解鎖下一關）；打輸只拿部分獎勵與一半經驗。
+ * seed 為這一仗的亂數種子；沒給就由時間與出征編號算出。
  */
-export function collectExpedition(
+export function runExpedition(
   state: GameState,
-  expeditionId: string,
+  stageId: string,
+  dogIds: readonly string[],
   now: number,
-): Result<CollectError> {
-  const exp = state.expeditions.find((e) => e.id === expeditionId);
-  if (!exp) return { ok: false, error: 'expedition-not-found' };
-  if (!isComplete(exp, now)) return { ok: false, error: 'not-ready' };
+  opts: TimeOptions & { seed?: number; auto?: boolean } = {},
+): RunResult {
+  const stage = findStage(stageId);
+  if (!stage) return { ok: false, error: 'stage-not-found' };
+  if (!isStageUnlocked(state, stageId)) return { ok: false, error: 'stage-locked' };
+  if (dogIds.length < TEAM_MIN || dogIds.length > TEAM_SIZE)
+    return { ok: false, error: 'wrong-team-size' };
+  if (new Set(dogIds).size !== dogIds.length) return { ok: false, error: 'duplicate-dog' };
+  if (!dogIds.every((id) => DOGS.some((d) => d.id === id))) {
+    return { ok: false, error: 'dog-not-found' };
+  }
+  if (!dogIds.every((id) => state.owned.includes(id))) {
+    return { ok: false, error: 'dog-not-owned' };
+  }
+  const block = runBlock(state, stageId, now, opts);
+  if (!block.ok) return { ok: false, error: block.reason };
 
+  const paid = spendRun(state, stageId, now, opts);
+  const exp = {
+    stageId,
+    dogIds: [...dogIds],
+    team: dogIds.flatMap((id) => battleDogOf(state, id) ?? []),
+    seed: (opts.seed ?? mixSeed(now, state.nextExpeditionNo)) >>> 0,
+  };
   const { win } = expeditionBattle(exp);
   const reward = expeditionReward(exp, win);
   const growth = expeditionGrowth(state, exp, win);
+  const record: ExpeditionRecord = {
+    id: `exp-${state.nextExpeditionNo}`,
+    ...exp,
+    at: now,
+    reward,
+    win,
+    gains: growth.gains,
+    ...(opts.auto ? { auto: true } : {}),
+  };
   return {
     ok: true,
+    record,
     state: {
-      ...state,
+      ...paid,
       resources: {
-        food: state.resources.food + reward.food,
-        bones: state.resources.bones + reward.bones,
+        food: paid.resources.food + reward.food,
+        bones: paid.resources.bones + reward.bones,
       },
       dogs: growth.dogs,
-      expeditions: state.expeditions.filter((e) => e.id !== expeditionId),
+      nextExpeditionNo: state.nextExpeditionNo + 1,
       cleared:
-        !win || state.cleared.includes(exp.stageId)
-          ? state.cleared
-          : [...state.cleared, exp.stageId],
-      history: [
-        ...state.history,
-        {
-          id: exp.id,
-          stageId: exp.stageId,
-          dogIds: [...exp.dogIds],
-          team: exp.team.map((d) => ({ ...d })),
-          startedAt: exp.startedAt,
-          endsAt: exp.endsAt,
-          collectedAt: now,
-          reward,
-          win,
-          seed: exp.seed,
-          gains: growth.gains,
-        },
-      ],
+        !win || state.cleared.includes(stageId) ? state.cleared : [...state.cleared, stageId],
+      history: [...state.history, record].slice(-HISTORY_MAX),
     },
   };
 }

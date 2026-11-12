@@ -30,7 +30,12 @@ test('主頁：左上帳號、左側選單、右上資源與小圖示、下方�
   await tap(page, b.quest);
   await page.waitForTimeout(200);
   expect((await wgz(page)).scene).toBe('LobbyScene');
-  expect(s.status!.label).toContain('待命');
+  // 出征卡底部：體力條與自動出征勾選框（預設關）
+  expect(s.status!.label).toBe('體力 100/100 ＋');
+  expect(s.stamina).toEqual({ value: 100, max: 100 });
+  expect(s.auto).toMatchObject({ enabled: false, runs: 0, banner: null });
+  expect(s.auto!.toggle.y).toBe(s.status!.y);
+  expect(s.auto!.toggle.x).toBeGreaterThan(s.status!.x + s.status!.width);
 
   // 狗狗每幾秒換一個動作
   const first = s.lobby!.dogAction;

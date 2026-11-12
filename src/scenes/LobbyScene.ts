@@ -5,7 +5,7 @@ import { DOGS, findDog } from '../data/dogs';
 import { REGIONS, findStage } from '../data/regions';
 import { RESOURCE_LABELS, type Resources } from '../data/resources';
 import { STORIES } from '../data/stories';
-import { collectExpedition, isComplete, progress, remainingMs } from '../logic/expedition';
+import { clearAutoSummary, setAuto } from '../logic/auto';
 import { formatAmount, formatCountdown } from '../logic/format';
 import type { Rect } from '../logic/layout';
 import { dogStats } from '../logic/leveling';
@@ -13,24 +13,23 @@ import { lobbyLayout, tappableRects, type LobbyLayout } from '../logic/lobbyLayo
 import {
   currentChapterIndex,
   isStoryUnlocked,
-  newStoriesAfter,
   nextBackground,
   stageNodeState,
   unlockedBackgrounds,
 } from '../logic/progress';
+import { STAMINA_MAX, msUntilNextPoint } from '../logic/stamina';
 import { teamPower } from '../logic/team';
-import type { Expedition } from '../state/gameState';
-import { getState, setState } from '../state/store';
+import { getState, setState, tick, timeOptions } from '../state/store';
 import { Button } from './components/Button';
 import { drawDogHead } from './components/dogArt';
 import { DogSprite } from './components/DogSprite';
 import { makeTapArea } from './components/hitArea';
 import { drawLobbyIcon, drawPanel, drawPaw } from './components/lobbyIcons';
 import { LOBBY, LobbyCard, MenuItem, RoundShortcut } from './components/LobbyWidgets';
-import { ResultPanel } from './components/ResultPanel';
 import { Scenery } from './components/Scenery';
 import { SettingsPanel } from './components/SettingsPanel';
-import { addText, patchDebug, resetDebug, viewOf } from './ui';
+import { StaminaShop } from './components/StaminaShop';
+import { addText, openModal, patchDebug, resetDebug, viewOf } from './ui';
 
 /** 主頁狗狗換動作的間隔 */
 const ACTION_MS = 3000;
@@ -45,7 +44,7 @@ const COMING_SOON = '即將開放';
  * - 左上：頭像、城主等級、總戰力（點了開帳號與設定）
  * - 左側：功能選單（武將／任務／倉庫／背景）
  * - 右上：資源列、信箱，下方一排召募／商城／獎勵
- * - 右側（直式為下方）：出征大卡（含出征倒數與收成）、劇情章節卡、活動與訓練小卡
+ * - 右側（直式為下方）：出征大卡（底部是體力條與「自動出征」勾選框）、劇情章節卡、活動與訓練小卡
  */
 export class LobbyScene extends Phaser.Scene {
   private layout!: LobbyLayout;
@@ -53,9 +52,13 @@ export class LobbyScene extends Phaser.Scene {
   private dog!: DogSprite;
   private statusButton!: Button;
   private progressBar!: Phaser.GameObjects.Graphics;
+  private autoBox!: Phaser.GameObjects.Graphics;
+  private autoDrawn: boolean | null = null;
+  private autoBanner!: Button;
+  private shop: StaminaShop | null = null;
+  private summary: Phaser.GameObjects.Container | null = null;
   private resourceTexts: Partial<Record<keyof Resources, Phaser.GameObjects.Text>> = {};
   private settings: SettingsPanel | null = null;
-  private result: ResultPanel | null = null;
   private storyCard!: LobbyCard;
   private expeditionCard!: LobbyCard;
   private toast: Phaser.GameObjects.Text | null = null;
@@ -68,7 +71,9 @@ export class LobbyScene extends Phaser.Scene {
     const { w, h, landscape } = viewOf(this);
     this.layout = lobbyLayout(w, h, landscape);
     this.settings = null;
-    this.result = null;
+    this.shop = null;
+    this.summary = null;
+    this.autoDrawn = null;
     this.toast = null;
     this.resourceTexts = {};
     resetDebug(this);
@@ -84,6 +89,8 @@ export class LobbyScene extends Phaser.Scene {
 
     const buttons: Partial<Record<string, Rect>> = { ...tappableRects(this.layout) };
     delete buttons.status;
+    delete buttons.auto;
+    delete buttons.autoBanner;
     patchDebug({
       lobby: {
         dogId: getState().lobbyDogId,
@@ -325,11 +332,52 @@ export class LobbyScene extends Phaser.Scene {
     );
   }
 
-  /** 出征卡底部的狀態條（倒數／收成）與進度條 */
+  /** 出征卡底部：左邊體力條（點了補體力）、右邊「自動出征」勾選框；狗狗頭上是自動出征的結果提示 */
   private drawStatus(): void {
+    const { landscape } = viewOf(this);
     const r = this.layout.status;
     this.progressBar = this.add.graphics();
-    this.statusButton = new Button(this, r, '', () => this.onStatus(), 15);
+    this.statusButton = new Button(this, r, '', () => this.openShop(), landscape ? 13 : 15);
+    this.statusButton.setColor(0x6b4a2e);
+
+    const a = this.layout.auto;
+    const c = this.add.container(a.x, a.y);
+    this.autoBox = this.add.graphics();
+    c.add([
+      this.autoBox,
+      addText(this, 30, a.height / 2, '自動出征', landscape ? 13 : 15, LOBBY.text, true).setOrigin(
+        0,
+        0.5,
+      ),
+    ]);
+    makeTapArea(c, a.width, a.height);
+    c.on('pointerup', () => this.toggleAuto());
+
+    this.autoBanner = new Button(this, this.layout.autoBanner, '', () => this.openSummary(), 15);
+    this.autoBanner.setColor(COLORS.harvest).setDepth(5).setVisible(false).setEnabled(false);
+  }
+
+  /** 勾選框：打勾代表自動出征開著 */
+  private drawAutoBox(on: boolean): void {
+    if (this.autoDrawn === on) return;
+    this.autoDrawn = on;
+    const a = this.layout.auto;
+    const g = this.autoBox;
+    g.clear();
+    drawPanel(g, 0, 0, a.width, a.height, a.height / 2, LOBBY.panel, 0.9);
+    const cy = a.height / 2;
+    g.fillStyle(on ? COLORS.harvest : 0xfff6e8, 1);
+    g.lineStyle(2, LOBBY.gold, 1);
+    g.fillRoundedRect(8, cy - 8, 16, 16, 4);
+    g.strokeRoundedRect(8, cy - 8, 16, 16, 4);
+    if (on) {
+      g.lineStyle(3, 0xffffff, 1);
+      g.beginPath();
+      g.moveTo(11, cy);
+      g.lineTo(15, cy + 4);
+      g.lineTo(21, cy - 5);
+      g.strokePath();
+    }
   }
 
   // ---- 互動 ----
@@ -369,7 +417,7 @@ export class LobbyScene extends Phaser.Scene {
   }
 
   private openSettings(): void {
-    if (this.settings || this.result) return;
+    if (this.busyWithPanel) return;
     this.settings = new SettingsPanel(
       this,
       (qualityChanged) => {
@@ -383,65 +431,95 @@ export class LobbyScene extends Phaser.Scene {
     );
   }
 
-  /** 主頁要顯示的那一筆出征：先找可收成的，否則取最快結束的 */
-  private focusExpedition(now: number): Expedition | undefined {
-    const list = getState().expeditions;
-    return list.find((e) => isComplete(e, now)) ?? [...list].sort((a, b) => a.endsAt - b.endsAt)[0];
+  private get busyWithPanel(): boolean {
+    return !!(this.settings || this.shop || this.summary);
   }
 
-  private onStatus(): void {
-    if (this.result || this.settings) return;
-    const now = Date.now();
-    const exp = this.focusExpedition(now);
-    if (!exp) {
-      this.scene.start('CampaignScene');
-      return;
+  private openShop(): void {
+    if (this.busyWithPanel) return;
+    this.shop = new StaminaShop(this, 'stamina', '', () => {
+      this.shop = null;
+      this.refresh();
+    });
+  }
+
+  private toggleAuto(): void {
+    if (this.busyWithPanel) return;
+    const st = tick();
+    const on = !st.auto.enabled;
+    setState(setAuto(st, on, Date.now()));
+    if (on) {
+      this.showToast(
+        st.cleared.length > 0
+          ? '自動出征已開：體力夠就自動打已通過的關卡'
+          : '自動出征已開：先通過一關才會開始打',
+      );
+    } else {
+      this.showToast('自動出征已關');
     }
-    if (!isComplete(exp, now)) return;
-    const before = getState();
-    const r = collectExpedition(before, exp.id, now);
-    if (!r.ok) return;
-    setState(r.state);
     this.refresh();
-    // 勝負與獎勵在收成時就算好寫進歷史，戰鬥畫面只是照著播
-    const record = r.state.history[r.state.history.length - 1];
-
-    const extra: string[] = [];
-    if (!record.win) extra.push('只帶回三成物資，關卡還沒通過');
-    else if (!before.cleared.includes(exp.stageId)) extra.push('通過關卡！下一關已開放');
-    const newBgs = unlockedBackgrounds(r.state).filter(
-      (b) => !unlockedBackgrounds(before).includes(b),
-    );
-    for (const b of newBgs)
-      extra.push(`獲得主頁背景「${BACKGROUNDS.find((x) => x.id === b)?.name}」`);
-    const storyId = newStoriesAfter(r.state, exp.stageId)[0]?.id;
-
-    if (!before.settings.skipBattle) {
-      this.scene.start('BattleScene', { recordId: record.id, extra, storyId });
-      return;
-    }
-    // 設定開了「略過戰鬥畫面」：直接看結算
-    this.result = new ResultPanel(
-      this,
-      findStage(exp.stageId)?.name ?? '',
-      record.reward,
-      record.win,
-      () => {
-        this.result?.destroy();
-        this.result = null;
-        patchDebug({ result: null, growth: null });
-        if (storyId) this.scene.start('StoryScene', { mode: 'play', storyId });
-      },
-      extra,
-      record.gains,
-    );
-    patchDebug({ result: { ...record.reward, win: record.win }, growth: record.gains });
   }
 
-  /** 依目前狀態與時間更新畫面（資源、出征狀態、劇情紅點） */
+  /** 自動出征的結果摘要；看過就清掉 */
+  private openSummary(): void {
+    const sum = getState().auto.summary;
+    if (this.busyWithPanel || !sum) return;
+    const stages = Object.entries(sum.stages);
+    const dogs = Object.entries(sum.dogs);
+    const close = () => {
+      this.summary?.destroy();
+      this.summary = null;
+      setState(clearAutoSummary(getState()));
+      patchDebug({ autoSummary: null });
+      this.refresh();
+    };
+    const { layer, box } = openModal(
+      this,
+      { width: 340, height: 190 + (stages.length + dogs.length) * 24 },
+      close,
+      COLORS.harvest,
+    );
+    this.summary = layer;
+    const cx = box.x + box.width / 2;
+    let y = box.y + 32;
+    const line = (t: string, size: number, color: string = COLORS.ink, bold = false) => {
+      layer.add(addText(this, cx, y, t, size, color, bold).setOrigin(0.5));
+      y += size + 8;
+    };
+    line('自動出征結果', 24, COLORS.ink, true);
+    y += 4;
+    line(`共 ${sum.runs} 場・勝 ${sum.wins}・敗 ${sum.runs - sum.wins}`, 17, '#4f8a3c', true);
+    for (const [id, n] of stages) line(`${findStage(id)?.name ?? id} × ${n}`, 15, COLORS.inkSoft);
+    line(
+      `糧草 +${formatAmount(sum.reward.food)}・骨頭幣 +${formatAmount(sum.reward.bones)}`,
+      17,
+      COLORS.ink,
+      true,
+    );
+    for (const [id, d] of dogs) {
+      line(
+        `${findDog(id)?.name ?? id} 經驗 +${d.exp}${d.levels > 0 ? `・升 ${d.levels} 級！` : ''}`,
+        15,
+        d.levels > 0 ? '#b5651d' : COLORS.inkSoft,
+        d.levels > 0,
+      );
+    }
+    layer.add(
+      addText(this, cx, box.y + box.height - 20, '點一下關閉', 14, COLORS.inkSoft).setOrigin(0.5),
+    );
+    // 點卡片本身也關閉
+    const hit = this.add.zone(box.x, box.y, box.width, box.height).setOrigin(0, 0).setInteractive();
+    hit.on('pointerup', close);
+    layer.add(hit);
+    patchDebug({
+      autoSummary: { runs: sum.runs, wins: sum.wins, ...sum.reward, stages: { ...sum.stages } },
+    });
+  }
+
+  /** 依目前狀態與時間更新畫面（資源、體力、自動出征、劇情紅點）；順便把體力與自動出征結算到現在 */
   private refresh(): void {
-    const state = getState();
     const now = Date.now();
+    const state = tick(now);
 
     for (const key of Object.keys(this.resourceTexts) as (keyof Resources)[]) {
       const text = `${RESOURCE_LABELS[key]} ${formatAmount(state.resources[key])}`;
@@ -453,44 +531,41 @@ export class LobbyScene extends Phaser.Scene {
     );
     this.expeditionCard.setSubtitle(this.nextStageLabel());
 
+    // 體力條：數字 + 下一點還要多久，上面一條細細的進度
     const r = this.layout.status;
-    const exp = this.focusExpedition(now);
+    const value = state.stamina.value;
+    const wait = msUntilNextPoint(state, now, timeOptions());
+    this.statusButton.setText(
+      value >= STAMINA_MAX
+        ? `體力 ${value}/${STAMINA_MAX} ＋`
+        : `體力 ${value}/${STAMINA_MAX}・${formatCountdown(wait)} ＋`,
+    );
+    const p = Math.min(1, value / STAMINA_MAX);
     this.progressBar.clear();
-    if (!exp) {
-      this.statusButton.setText('隊伍待命中・點我選關卡出征').setColor(0x6b4a2e).setEnabled(true);
-    } else {
-      const stage = findStage(exp.stageId);
-      if (isComplete(exp, now)) {
-        this.statusButton
-          .setText(`收成！ ${stage?.name ?? ''}`)
-          .setColor(COLORS.harvest)
-          .setEnabled(true);
-      } else {
-        this.statusButton
-          .setText(`${stage?.name ?? ''} 出征中 ${formatCountdown(remainingMs(exp, now))}`)
-          .setEnabled(false);
-      }
-      const p = progress(exp, now);
-      this.progressBar.fillStyle(COLORS.cardBorder, 1);
-      this.progressBar.fillRoundedRect(r.x, r.y - 7, r.width, 4, 2);
-      if (p > 0) {
-        this.progressBar.fillStyle(p >= 1 ? COLORS.harvest : LOBBY.gold, 1);
-        this.progressBar.fillRoundedRect(r.x, r.y - 7, Math.max(4, r.width * p), 4, 2);
-      }
+    this.progressBar.fillStyle(COLORS.cardBorder, 1);
+    this.progressBar.fillRoundedRect(r.x, r.y - 7, r.width, 4, 2);
+    if (p > 0) {
+      this.progressBar.fillStyle(p >= 1 ? COLORS.harvest : LOBBY.gold, 1);
+      this.progressBar.fillRoundedRect(r.x, r.y - 7, Math.max(4, r.width * p), 4, 2);
     }
+
+    this.drawAutoBox(state.auto.enabled);
+    const runs = state.auto.summary?.runs ?? 0;
+    this.autoBanner
+      .setText(`自動出征打了 ${runs} 場・看結果`)
+      .setVisible(runs > 0)
+      .setEnabled(runs > 0);
 
     patchDebug({
       resources: { ...state.resources },
       status: { label: this.statusButton.text, enabled: this.statusButton.isEnabled, ...r },
-      expedition: exp
-        ? {
-            id: exp.id,
-            stageId: exp.stageId,
-            dogIds: [...exp.dogIds],
-            remainingMs: remainingMs(exp, now),
-            complete: isComplete(exp, now),
-          }
-        : null,
+      stamina: { value, max: STAMINA_MAX },
+      auto: {
+        enabled: state.auto.enabled,
+        runs,
+        toggle: this.layout.auto,
+        banner: runs > 0 ? this.layout.autoBanner : null,
+      },
     });
   }
 

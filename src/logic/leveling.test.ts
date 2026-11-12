@@ -193,11 +193,11 @@ describe('初始進度與數字', () => {
 });
 
 describe('關卡經驗', () => {
-  it('越久越難給越多；打輸拿一半', () => {
-    expect(stageExp({ durationMin: 5, difficulty: 1 })).toBe(30);
-    expect(stageExp({ durationMin: 30, difficulty: 7 })).toBe(540);
-    expect(expeditionExp({ durationMin: 5, difficulty: 1 }, true)).toBe(30);
-    expect(expeditionExp({ durationMin: 5, difficulty: 1 }, false)).toBe(15);
+  it('只看難度，越難給越多；打輸拿一半', () => {
+    expect(stageExp({ difficulty: 1 })).toBe(90);
+    expect(stageExp({ difficulty: 7 })).toBe(270);
+    expect(expeditionExp({ difficulty: 1 }, true)).toBe(90);
+    expect(expeditionExp({ difficulty: 1 }, false)).toBe(45);
   });
 });
 

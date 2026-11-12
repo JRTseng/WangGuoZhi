@@ -29,11 +29,10 @@ export async function openLobby(page: Page, query = '') {
 }
 
 /**
- * 從主頁派隊伍去第 1 章某一關，回到主頁並等到可以收成。
+ * 在出征地圖點第 1 章某一關 → 選隊伍 → 按開戰（T019：沒有等待，直接進戰鬥或結算）。
  * team 沒給就用預設隊伍；有給就把選取調整成剛好這幾隻。
  */
-export async function sendAndWait(page: Page, nodeIndex = 0, team?: string[]) {
-  await tap(page, (await wgz(page)).lobby!.buttons.expedition);
+export async function battleFromMap(page: Page, nodeIndex = 0, team?: string[]) {
   await waitScene(page, 'CampaignScene');
   await tap(page, (await wgz(page)).map!.nodes[nodeIndex]);
   await page.waitForFunction(() => !!window.__WGZ__?.map?.stagePanel);
@@ -54,10 +53,20 @@ export async function sendAndWait(page: Page, nodeIndex = 0, team?: string[]) {
     }
   }
   await tap(page, (await wgz(page)).expeditionPanel!.confirmButton!);
-  await page.waitForFunction(
-    () => window.__WGZ__?.scene === 'LobbyScene' && !!window.__WGZ__.expedition,
-  );
-  await page.waitForFunction(() => window.__WGZ__?.expedition?.complete === true, null, {
-    timeout: 15_000,
-  });
+}
+
+/** 從主頁進出征地圖，打第 1 章某一關 */
+export async function startBattle(page: Page, nodeIndex = 0, team?: string[]) {
+  await tap(page, (await wgz(page)).lobby!.buttons.expedition);
+  await battleFromMap(page, nodeIndex, team);
+}
+
+/** 在主頁打開設定的「略過戰鬥畫面」 */
+export async function enableSkipBattle(page: Page) {
+  await tap(page, (await wgz(page)).lobby!.buttons.account);
+  await page.waitForFunction(() => !!window.__WGZ__?.settings);
+  await tap(page, (await wgz(page)).settings!.rects.skipBattle);
+  await page.waitForFunction(() => window.__WGZ__?.settings?.values.skipBattle === true);
+  await tap(page, (await wgz(page)).settings!.rects.close);
+  await page.waitForFunction(() => !window.__WGZ__?.settings);
 }

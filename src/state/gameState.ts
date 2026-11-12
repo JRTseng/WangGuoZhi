@@ -30,32 +30,15 @@ export interface DogProgress {
   drillDefense?: number;
 }
 
-/** 進行中的出征 */
-export interface Expedition {
-  id: string;
-  stageId: string;
-  /** 隊伍（狗狗 id，1 到 5 隻） */
-  dogIds: string[];
-  /** 出發當下隊伍的攻防等級；戰鬥用這份算，之後升級也不會改變這一仗的結果與重播 */
-  team: BattleDog[];
-  /** 開始時間（毫秒時間戳） */
-  startedAt: number;
-  /** 預計結束時間（毫秒時間戳） */
-  endsAt: number;
-  /** 戰鬥亂數種子：出征開始時就決定，重開頁面、略過與否結果都一樣，不能重抽 */
-  seed: number;
-}
-
-/** 已收成的出征紀錄 */
+/** 一次出征的紀錄（T019 起出征當下就結算，沒有等待時間） */
 export interface ExpeditionRecord {
   id: string;
   stageId: string;
   dogIds: string[];
   /** 出發當下隊伍的攻防等級（重播戰鬥用） */
   team: BattleDog[];
-  startedAt: number;
-  endsAt: number;
-  collectedAt: number;
+  /** 出征時間（毫秒時間戳） */
+  at: number;
   /** 實際拿到的獎勵（敗北時只有一部分） */
   reward: Resources;
   /** 這一仗有沒有打贏 */
@@ -64,6 +47,48 @@ export interface ExpeditionRecord {
   seed: number;
   /** 隊伍每隻狗這次拿到的經驗與升級成長（打輸只有一半經驗） */
   gains: DogExpGain[];
+  /** 是不是自動出征打的 */
+  auto?: boolean;
+}
+
+/** 體力（T019）：只存數值與上次結算時間，要用時才依經過的時間補算 */
+export interface StaminaState {
+  value: number;
+  /** 上次結算恢復的時間（毫秒時間戳） */
+  updatedAt: number;
+}
+
+/** 每日額度（T019），每天 05:00 重置 */
+export interface DailyState {
+  /** 這份額度屬於哪一天（以 05:00 為界的日期字串） */
+  day: string;
+  /** 各關今天已出征幾次 */
+  runs: Record<string, number>;
+  /** 各關今天加購了幾次 */
+  extraRuns: Record<string, number>;
+  /** 今天買了幾次體力 */
+  staminaBuys: number;
+  /** 今天買了幾次出征次數（所有關卡合計） */
+  runBuys: number;
+}
+
+/** 自動出征累積的結果摘要，玩家看過就清掉 */
+export interface AutoSummary {
+  runs: number;
+  wins: number;
+  reward: Resources;
+  /** 各關打了幾場 */
+  stages: Record<string, number>;
+  /** 每隻狗累積拿到的經驗與升了幾級 */
+  dogs: Record<string, { exp: number; levels: number }>;
+}
+
+/** 自動出征（T019） */
+export interface AutoState {
+  enabled: boolean;
+  /** 上次處理到的時間；下次從這裡補算到現在 */
+  lastAt: number;
+  summary: AutoSummary | null;
 }
 
 export type Quality = 'low' | 'medium' | 'high';
@@ -74,7 +99,7 @@ export interface Settings {
   music: boolean;
   push: boolean;
   quality: Quality;
-  /** 略過戰鬥畫面：開啟後收成直接看結算 */
+  /** 略過戰鬥畫面：開啟後開戰直接看結算 */
   skipBattle: boolean;
   /** 戰鬥播放倍速，下次戰鬥沿用 */
   battleSpeed: 1 | 2 | 3 | 4;
@@ -82,7 +107,7 @@ export interface Settings {
 
 export interface GameState {
   resources: Resources;
-  expeditions: Expedition[];
+  /** 最近的出征紀錄（只留最後幾筆） */
   history: ExpeditionRecord[];
   /** 下一個出征編號，用來產生不重複的 id */
   nextExpeditionNo: number;
@@ -103,12 +128,17 @@ export interface GameState {
   /** 已兌換的優惠碼（大寫） */
   redeemedCodes: string[];
   settings: Settings;
+  stamina: StaminaState;
+  daily: DailyState;
+  auto: AutoState;
 }
 
-export function createInitialState(): GameState {
+/** 體力上限；新遊戲從滿體力開始 */
+export const STAMINA_MAX = 100;
+
+export function createInitialState(now: number = Date.now()): GameState {
   return {
     resources: { ...INITIAL_RESOURCES },
-    expeditions: [],
     history: [],
     nextExpeditionNo: 1,
     owned: [...STARTER_DOG_IDS],
@@ -129,5 +159,9 @@ export function createInitialState(): GameState {
       skipBattle: false,
       battleSpeed: 1,
     },
+    stamina: { value: STAMINA_MAX, updatedAt: now },
+    // day 留空：第一次結算時會換成當天
+    daily: { day: '', runs: {}, extraRuns: {}, staminaBuys: 0, runBuys: 0 },
+    auto: { enabled: false, lastAt: now, summary: null },
   };
 }

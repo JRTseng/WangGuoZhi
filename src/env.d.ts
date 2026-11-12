@@ -36,17 +36,31 @@ interface WgzDebugState {
       WgzRect
     >;
   };
-  /** 主頁下方的出征狀態按鈕 */
+  /** 主頁出征卡底部的體力條（點了補體力） */
   status?: { label: string; enabled: boolean } & WgzRect;
-  /** 主頁顯示中的出征，沒有為 null */
-  expedition?: {
-    id: string;
-    stageId: string;
-    dogIds: string[];
-    remainingMs: number;
-    complete: boolean;
+  /** 目前體力（T019） */
+  stamina?: { value: number; max: number };
+  /** 主頁的自動出征：勾選框、累積了幾場還沒看、提示條（沒有結果為 null） */
+  auto?: { enabled: boolean; runs: number; toggle: WgzRect; banner: WgzRect | null };
+  /** 自動出征結果摘要視窗，沒開為 null */
+  autoSummary?: {
+    runs: number;
+    wins: number;
+    food: number;
+    bones: number;
+    stages: Record<string, number>;
   } | null;
-  /** 收成結算面板顯示的獎勵與勝負，沒開為 null */
+  /** 補體力／加購次數的小視窗，沒開為 null */
+  shop?: {
+    kind: 'stamina' | 'runs';
+    enabled: boolean;
+    message: string;
+    /** 今天還能買幾次 */
+    left: number;
+    ok: WgzRect;
+    cancel: WgzRect;
+  } | null;
+  /** 結算面板顯示的獎勵與勝負，沒開為 null */
   result?: { food: number; bones: number; win: boolean } | null;
   /** 結算面板上每隻狗的經驗與升級（T005），沒開為 null */
   growth?:
@@ -174,6 +188,10 @@ interface WgzDebugState {
     stages: never[];
     teamCards: ({ id: string; busy: boolean; selected: boolean } & WgzRect)[];
     confirmButton: ({ label: string; enabled: boolean } & WgzRect) | null;
+    /** 體力不夠／次數用完時出現的「補體力／加次數」 */
+    buyButton: ({ kind: 'stamina' | 'runs' } & WgzRect) | null;
+    /** 這一關今天還剩幾次 */
+    runsLeft: number;
   };
 
   /** 劇情 */

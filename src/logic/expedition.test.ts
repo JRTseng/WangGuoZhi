@@ -1,338 +1,216 @@
 import { describe, expect, it } from 'vitest';
 import { createInitialState, type GameState } from '../state/gameState';
 import {
+  HISTORY_MAX,
   busyDogIds,
-  collectExpedition,
   expeditionBattle,
-  expeditionGrowth,
   expeditionReward,
   idleDogIds,
-  isComplete,
-  progress,
-  remainingMs,
-  startExpedition,
+  runExpedition,
 } from './expedition';
+import { STAMINA_COST, STAMINA_MAX, runsLeft } from './stamina';
 import { dogPower } from './team';
-import { FAST_MINUTE_MS, MINUTE_MS } from './timeScale';
 
 const T0 = 1_800_000_000_000; // 固定的「現在」
+const TZ = { tzOffsetMin: -480 }; // 台北時間
 const TEAM = ['daer', 'heixuan', 'changxu'];
+const ALL = ['daer', 'heixuan', 'changxu', 'xiaosuan', 'abai'];
 
-function started(state: GameState = createInitialState(), now = T0): GameState {
-  const r = startExpedition(state, 'luoyepo-1', TEAM, now);
+const fresh = () => createInitialState(T0);
+
+function run(
+  state: GameState = fresh(),
+  stageId = 'luoyepo-1',
+  team = TEAM,
+  now = T0,
+  seed?: number,
+) {
+  const r = runExpedition(state, stageId, team, now, { ...TZ, seed });
   if (!r.ok) throw new Error(r.error);
-  return r.state;
+  return r;
 }
 
-describe('startExpedition', () => {
-  it('建立出征：記錄開始、結束時間、隊伍、關卡', () => {
-    const s = started();
-    expect(s.expeditions).toHaveLength(1);
-    const e = s.expeditions[0];
-    expect(e).toMatchObject({ stageId: 'luoyepo-1', dogIds: TEAM, startedAt: T0 });
-    expect(e.endsAt).toBe(T0 + 5 * MINUTE_MS);
-    expect(s.nextExpeditionNo).toBe(2);
-  });
-
-  it('戰鬥種子在出發時就定下來：可指定，沒指定就由時間與編號算出', () => {
-    const s = createInitialState();
-    const a = startExpedition(s, 'luoyepo-1', TEAM, T0, MINUTE_MS, 777);
-    expect(a.ok && a.state.expeditions[0].seed).toBe(777);
-    const b = started(s);
-    const c = started(s);
-    expect(b.expeditions[0].seed).toBe(c.expeditions[0].seed);
-    expect(started(s, T0 + 1).expeditions[0].seed).not.toBe(b.expeditions[0].seed);
+describe('runExpedition', () => {
+  it('按下去就打完：扣體力與次數、加資源、記為通過、寫一筆紀錄', () => {
+    const s = fresh();
+    const { state, record } = run(s);
+    expect(state.stamina.value).toBe(STAMINA_MAX - STAMINA_COST);
+    expect(runsLeft(state, 'luoyepo-1', T0, TZ)).toBe(2);
+    expect(state.resources).toEqual({ food: 1200 + 120, bones: 50 + 5 });
+    expect(state.cleared).toEqual(['luoyepo-1']);
+    expect(state.nextExpeditionNo).toBe(2);
+    expect(state.history).toEqual([record]);
+    expect(record).toMatchObject({
+      id: 'exp-1',
+      stageId: 'luoyepo-1',
+      dogIds: TEAM,
+      at: T0,
+      reward: { food: 120, bones: 5 },
+      win: true,
+    });
+    expect(record.auto).toBeUndefined();
   });
 
   it('不改動原本的狀態', () => {
-    const before = createInitialState();
+    const before = fresh();
     const snapshot = JSON.stringify(before);
-    started(before);
+    run(before);
     expect(JSON.stringify(before)).toBe(snapshot);
   });
 
-  it('測試模式：分鐘換成秒', () => {
-    const s = { ...createInitialState(), cleared: ['luoyepo-1', 'luoyepo-2'] };
-    const r = startExpedition(s, 'luoyepo-3', TEAM, T0, FAST_MINUTE_MS);
-    expect(r.ok && r.state.expeditions[0].endsAt).toBe(T0 + 20 * 1000);
+  it('戰鬥種子可指定，沒指定就由時間與編號算出', () => {
+    const s = fresh();
+    expect(run(s, 'luoyepo-1', TEAM, T0, 777).record.seed).toBe(777);
+    expect(run(s).record.seed).toBe(run(s).record.seed);
+    expect(run(s, 'luoyepo-1', TEAM, T0 + 1).record.seed).not.toBe(run(s).record.seed);
   });
 
-  it('已出征的狗不可再被選', () => {
-    const s = started();
-    expect([...busyDogIds(s)].sort()).toEqual([...TEAM].sort());
-    expect(idleDogIds(s)).toEqual(['xiaosuan', 'abai']);
-    const r = startExpedition(s, 'luoyepo-1', ['daer', 'xiaosuan', 'abai'], T0);
-    expect(r).toEqual({ ok: false, error: 'dog-busy' });
+  it('沒有狗會出征中，打完馬上可以再打；下一關也開放了', () => {
+    const a = run();
+    expect([...busyDogIds(a.state)]).toEqual([]);
+    expect(idleDogIds(a.state)).toEqual(ALL);
+    const b = run(a.state, 'luoyepo-2');
+    expect(b.record.id).toBe('exp-2');
+    expect(b.state.stamina.value).toBe(STAMINA_MAX - STAMINA_COST * 2);
   });
 
   it('隊伍可帶 1 到 5 隻，0 隻或超過 5 隻不行；不重複、要存在', () => {
-    const s = createInitialState();
-    const all = ['daer', 'heixuan', 'changxu', 'xiaosuan', 'abai'];
+    const s = fresh();
+    const tz = TZ;
     for (let n = 1; n <= 5; n++) {
-      const r = startExpedition(s, 'luoyepo-1', all.slice(0, n), T0);
-      expect(r.ok && r.state.expeditions[0].dogIds).toEqual(all.slice(0, n));
+      expect(run(s, 'luoyepo-1', ALL.slice(0, n)).record.dogIds).toEqual(ALL.slice(0, n));
     }
-    expect(startExpedition(s, 'luoyepo-1', [], T0)).toEqual({
+    expect(runExpedition(s, 'luoyepo-1', [], T0, tz)).toEqual({
       ok: false,
       error: 'wrong-team-size',
     });
     const six = { ...s, owned: [...s.owned, 'tieya'] };
-    expect(startExpedition(six, 'luoyepo-1', [...all, 'tieya'], T0)).toEqual({
+    expect(runExpedition(six, 'luoyepo-1', [...ALL, 'tieya'], T0, tz)).toEqual({
       ok: false,
       error: 'wrong-team-size',
     });
-    expect(startExpedition(s, 'luoyepo-1', ['daer', 'daer', 'abai'], T0)).toEqual({
+    expect(runExpedition(s, 'luoyepo-1', ['daer', 'daer', 'abai'], T0, tz)).toEqual({
       ok: false,
       error: 'duplicate-dog',
     });
-    expect(startExpedition(s, 'luoyepo-1', ['daer', 'ghost', 'abai'], T0)).toEqual({
+    expect(runExpedition(s, 'luoyepo-1', ['daer', 'ghost', 'abai'], T0, tz)).toEqual({
       ok: false,
       error: 'dog-not-found',
     });
-    expect(startExpedition(s, 'nope', TEAM, T0)).toEqual({
-      ok: false,
-      error: 'stage-not-found',
-    });
+    expect(runExpedition(s, 'nope', TEAM, T0, tz)).toEqual({ ok: false, error: 'stage-not-found' });
   });
 
   it('沒擁有的狗不能出征，未解鎖的關卡不能去', () => {
-    const s = createInitialState();
-    expect(startExpedition(s, 'luoyepo-1', ['daer', 'tieya', 'abai'], T0)).toEqual({
+    const s = fresh();
+    expect(runExpedition(s, 'luoyepo-1', ['daer', 'tieya', 'abai'], T0, TZ)).toEqual({
       ok: false,
       error: 'dog-not-owned',
     });
-    expect(startExpedition(s, 'luoyepo-2', TEAM, T0)).toEqual({
+    expect(runExpedition(s, 'luoyepo-2', TEAM, T0, TZ)).toEqual({
       ok: false,
       error: 'stage-locked',
     });
-    expect(idleDogIds(s)).toEqual(['daer', 'heixuan', 'changxu', 'xiaosuan', 'abai']);
-  });
-});
-
-describe('計時', () => {
-  const exp = started().expeditions[0];
-  const total = 5 * MINUTE_MS;
-
-  it('剛開始：剩餘 = 總耗時，未完成', () => {
-    expect(remainingMs(exp, T0)).toBe(total);
-    expect(isComplete(exp, T0)).toBe(false);
-    expect(progress(exp, T0)).toBe(0);
   });
 
-  it('過一半', () => {
-    expect(remainingMs(exp, T0 + total / 2)).toBe(total / 2);
-    expect(progress(exp, T0 + total / 2)).toBeCloseTo(0.5);
+  it('同一關一天 3 次，用完就不能打，狀態不變', () => {
+    let s = fresh();
+    for (let i = 0; i < 3; i++) s = run(s).state;
+    expect(runsLeft(s, 'luoyepo-1', T0, TZ)).toBe(0);
+    expect(runExpedition(s, 'luoyepo-1', TEAM, T0, TZ)).toEqual({ ok: false, error: 'no-runs' });
+    // 別關不受影響
+    expect(run(s, 'luoyepo-2').state.stamina.value).toBe(20);
   });
 
-  it('時間剛好到：完成', () => {
-    expect(remainingMs(exp, T0 + total - 1)).toBe(1);
-    expect(isComplete(exp, T0 + total - 1)).toBe(false);
-    expect(remainingMs(exp, T0 + total)).toBe(0);
-    expect(isComplete(exp, T0 + total)).toBe(true);
+  it('體力不夠不能打', () => {
+    const s = { ...fresh(), stamina: { value: 19, updatedAt: T0 } };
+    expect(runExpedition(s, 'luoyepo-1', TEAM, T0, TZ)).toEqual({ ok: false, error: 'no-stamina' });
+    // 過 5 分鐘回 1 點就夠了
+    expect(runExpedition(s, 'luoyepo-1', TEAM, T0 + 5 * 60_000, TZ).ok).toBe(true);
   });
 
-  it('離線很久再回來：以時間戳計算，直接完成', () => {
-    const later = T0 + 8 * 3_600_000;
-    expect(remainingMs(exp, later)).toBe(0);
-    expect(isComplete(exp, later)).toBe(true);
-    expect(progress(exp, later)).toBe(1);
-  });
-
-  it('系統時間被調快：立即可收成，但只能收成一次', () => {
-    const jumped = T0 + 365 * 24 * 3_600_000;
-    expect(isComplete(exp, jumped)).toBe(true);
-    const s = started();
-    const r1 = collectExpedition(s, exp.id, jumped);
-    expect(r1.ok).toBe(true);
-    const r2 = collectExpedition(r1.ok ? r1.state : s, exp.id, jumped);
-    expect(r2).toEqual({ ok: false, error: 'expedition-not-found' });
-  });
-
-  it('系統時間被調慢到開始之前：剩餘不會超過總耗時', () => {
-    const before = T0 - 3_600_000;
-    expect(remainingMs(exp, before)).toBe(total);
-    expect(isComplete(exp, before)).toBe(false);
-    expect(progress(exp, before)).toBe(0);
-  });
-});
-
-describe('collectExpedition', () => {
-  it('時間未到不能收成，狀態不變', () => {
-    const s = started();
-    const r = collectExpedition(s, 'exp-1', T0 + 1000);
-    expect(r).toEqual({ ok: false, error: 'not-ready' });
-  });
-
-  it('收成：加資源、釋放狗狗、記一筆歷史、記為通過', () => {
-    const s = started();
-    const now = T0 + 5 * MINUTE_MS + 30_000;
-    const r = collectExpedition(s, 'exp-1', now);
-    if (!r.ok) throw new Error(r.error);
-    expect(r.state.resources).toEqual({ food: 1200 + 120, bones: 50 + 5 });
-    expect(r.state.expeditions).toHaveLength(0);
-    expect(idleDogIds(r.state)).toHaveLength(5);
-    expect(r.state.cleared).toEqual(['luoyepo-1']);
-    expect(r.state.history).toEqual([
-      {
-        id: 'exp-1',
-        stageId: 'luoyepo-1',
-        dogIds: TEAM,
-        team: s.expeditions[0].team,
-        gains: r.state.history[0].gains,
-        startedAt: T0,
-        endsAt: T0 + 5 * MINUTE_MS,
-        collectedAt: now,
-        reward: { food: 120, bones: 5 },
-        win: true,
-        seed: s.expeditions[0].seed,
-      },
-    ]);
-  });
-
-  it('收成後狗狗可以再出征，下一關也開放了', () => {
-    const s = started();
-    const r = collectExpedition(s, 'exp-1', T0 + 5 * MINUTE_MS);
-    if (!r.ok) throw new Error(r.error);
-    const again = startExpedition(r.state, 'luoyepo-2', TEAM, T0 + 5 * MINUTE_MS);
-    expect(again.ok && again.state.expeditions[0].id).toBe('exp-2');
-  });
-
-  it('打輸：只拿 30% 獎勵、不算通過、狗狗一樣回家、歷史記敗', () => {
+  it('打輸：只拿 30% 獎勵、不算通過、一樣扣體力與次數、紀錄記敗', () => {
     // 阿白一隻（戰力 70）打建議戰力 150 的關卡，一定輸
-    const r0 = startExpedition(createInitialState(), 'luoyepo-1', ['abai'], T0);
-    if (!r0.ok) throw new Error(r0.error);
-    expect(expeditionBattle(r0.state.expeditions[0]).win).toBe(false);
-    const r = collectExpedition(r0.state, 'exp-1', T0 + 5 * MINUTE_MS);
-    if (!r.ok) throw new Error(r.error);
-    expect(r.state.resources).toEqual({ food: 1200 + 36, bones: 50 + 1 });
-    expect(r.state.cleared).toEqual([]);
-    expect(idleDogIds(r.state)).toHaveLength(5);
-    expect(r.state.history[0]).toMatchObject({ win: false, reward: { food: 36, bones: 1 } });
+    const { state, record } = run(fresh(), 'luoyepo-1', ['abai']);
+    expect(record).toMatchObject({ win: false, reward: { food: 36, bones: 1 } });
+    expect(state.resources).toEqual({ food: 1200 + 36, bones: 50 + 1 });
+    expect(state.cleared).toEqual([]);
+    expect(state.stamina.value).toBe(80);
+    expect(runsLeft(state, 'luoyepo-1', T0, TZ)).toBe(2);
     // 沒通過，下一關還是鎖著
-    expect(startExpedition(r.state, 'luoyepo-2', TEAM, T0)).toEqual({
+    expect(runExpedition(state, 'luoyepo-2', TEAM, T0, TZ)).toEqual({
       ok: false,
       error: 'stage-locked',
     });
   });
 
-  it('結果不可重抽：同一筆出征不管算幾次、存檔還原後再算，勝負與紀錄都一樣', () => {
+  it('結果不可重抽：同一個種子算幾次都一樣，用紀錄（存檔還原後）也能重播出同一場', () => {
     // 兩邊實力接近（勝負要看運氣）的關卡，換很多種子都要穩定
-    const base = { ...createInitialState(), cleared: ['luoyepo-1', 'luoyepo-2'] };
+    const base = { ...fresh(), cleared: ['luoyepo-1', 'luoyepo-2'] };
     const outcomes = new Set<boolean>();
     for (let seed = 1; seed <= 40; seed++) {
-      const r = startExpedition(base, 'luoyepo-3', TEAM, T0, MINUTE_MS, seed);
-      if (!r.ok) throw new Error(r.error);
-      const exp = r.state.expeditions[0];
-      const battle = expeditionBattle(exp);
-      expect(expeditionBattle(exp)).toEqual(battle);
-      const restored = JSON.parse(JSON.stringify(r.state)) as GameState;
-      const done = collectExpedition(restored, exp.id, exp.endsAt);
-      if (!done.ok) throw new Error(done.error);
-      const rec = done.state.history[0];
-      expect(rec.win).toBe(battle.win);
-      expect(rec.reward).toEqual(expeditionReward(exp, battle.win));
-      // 收成後用歷史紀錄也能重播出同一場
-      expect(expeditionBattle(rec)).toEqual(battle);
-      expect(done.state.cleared.includes('luoyepo-3')).toBe(battle.win);
+      const a = run(base, 'luoyepo-3', TEAM, T0, seed);
+      const b = run(base, 'luoyepo-3', TEAM, T0, seed);
+      expect(b.record).toEqual(a.record);
+      const battle = expeditionBattle(a.record);
+      expect(a.record.win).toBe(battle.win);
+      expect(a.record.reward).toEqual(expeditionReward(a.record, battle.win));
+      const restored = JSON.parse(JSON.stringify(a.state)) as GameState;
+      expect(expeditionBattle(restored.history[0])).toEqual(battle);
+      expect(a.state.cleared.includes('luoyepo-3')).toBe(battle.win);
       outcomes.add(battle.win);
     }
     expect(outcomes.size).toBe(2);
   });
 
-  it('出發時記下隊伍當下的攻防等級（含升級成長）', () => {
-    const e = started().expeditions[0];
-    expect(e.team.map((d) => d.id)).toEqual(TEAM);
+  it('紀錄記下隊伍當下的攻防等級（含升級成長），不是升級後的', () => {
+    const { record } = run();
+    expect(record.team.map((d) => d.id)).toEqual(TEAM);
     // 大耳 3 級：攻 42+7、防 48+7
-    expect(e.team[0]).toMatchObject({ attack: 49, defense: 55, level: 3 });
+    expect(record.team[0]).toMatchObject({ attack: 49, defense: 55, level: 3 });
   });
 
-  it('收成：隊伍每隻狗都拿到經驗，滿了自動升級，沒出征的不變', () => {
-    const s = started();
-    const r = collectExpedition(s, 'exp-1', T0 + 5 * MINUTE_MS);
-    if (!r.ok) throw new Error(r.error);
-    const gains = r.state.history[0].gains;
-    expect(gains.map((g) => g.dogId)).toEqual(TEAM);
-    // 第 1 關每隻 30 經驗：3 級的大耳（需要 104）還沒升，2 級的黑旋、長鬚（需要 57）也還沒升
-    for (const g of gains) expect(g).toMatchObject({ exp: 30, toLevel: g.fromLevel });
-    for (const id of TEAM) expect(r.state.dogs[id].exp).toBe(30);
-    expect(r.state.dogs.abai).toEqual(s.dogs.abai);
-    expect(r.state.dogs.xiaosuan).toEqual(s.dogs.xiaosuan);
+  it('隊伍每隻狗都拿到經驗，滿了自動升級，沒出征的不變', () => {
+    const s = fresh();
+    const { state, record } = run(s);
+    expect(record.gains.map((g) => g.dogId)).toEqual(TEAM);
+    // 第 1 關每隻 90 經驗：3 級的大耳（需要 104）還沒升；2 級的黑旋、長鬚（需要 57）升到 3 級
+    for (const g of record.gains) expect(g.exp).toBe(90);
+    expect(record.gains[0]).toMatchObject({ fromLevel: 3, toLevel: 3 });
+    expect(record.gains[1]).toMatchObject({ fromLevel: 2, toLevel: 3 });
+    expect(state.dogs.daer.exp).toBe(90);
+    expect(state.dogs.heixuan).toMatchObject({ level: 3, exp: 33 });
+    expect(state.dogs.abai).toEqual(s.dogs.abai);
+    expect(state.dogs.xiaosuan).toEqual(s.dogs.xiaosuan);
     // 原本的狀態沒被改動
     expect(s.dogs.daer.exp).toBe(0);
   });
 
-  it('升級結果寫進狀態與紀錄：1 級的狗打贏第 1 關升到 2 級，多的經驗保留', () => {
-    const r0 = startExpedition(
-      createInitialState(),
-      'luoyepo-1',
-      ['daer', 'heixuan', 'changxu', 'xiaosuan', 'abai'],
-      T0,
-      MINUTE_MS,
-      5,
-    );
-    if (!r0.ok) throw new Error(r0.error);
-    const r = collectExpedition(r0.state, 'exp-1', T0 + 5 * MINUTE_MS);
-    if (!r.ok) throw new Error(r.error);
-    const g = r.state.history[0].gains.find((x) => x.dogId === 'abai')!;
-    expect(g).toMatchObject({ exp: 30, fromLevel: 1, toLevel: 2 });
-    const p = r.state.dogs.abai;
-    expect(p).toMatchObject({ level: 2, exp: 10, rolls: 1 });
+  it('升級結果寫進狀態與紀錄：1 級的狗打贏第 1 關連升到 3 級，多的經驗保留', () => {
+    const { state, record } = run(fresh(), 'luoyepo-1', ALL, T0, 5);
+    const g = record.gains.find((x) => x.dogId === 'abai')!;
+    expect(g).toMatchObject({ exp: 90, fromLevel: 1, toLevel: 3 });
+    const p = state.dogs.abai;
+    // 90 - 20（1→2）- 57（2→3）= 13
+    expect(p).toMatchObject({ level: 3, exp: 13, rolls: 2 });
     expect(p.growthAttack).toBe(g.attack.fixed + g.attack.bonus);
     expect(p.growthDefense).toBe(g.defense.fixed + g.defense.bonus);
-    expect(g.attack.fixed + g.defense.fixed).toBe(5);
-    expect(dogPower(r.state, 'abai')).toBe(70 + p.growthAttack + p.growthDefense);
+    expect(g.attack.fixed + g.defense.fixed).toBe(10);
+    expect(dogPower(state, 'abai')).toBe(70 + p.growthAttack + p.growthDefense);
   });
 
   it('打輸拿一半經驗', () => {
-    const r0 = startExpedition(createInitialState(), 'luoyepo-1', ['abai'], T0);
-    if (!r0.ok) throw new Error(r0.error);
-    const r = collectExpedition(r0.state, 'exp-1', T0 + 5 * MINUTE_MS);
-    if (!r.ok) throw new Error(r.error);
-    expect(r.state.history[0].win).toBe(false);
-    expect(r.state.history[0].gains).toEqual([
-      {
-        dogId: 'abai',
-        exp: 15,
-        fromLevel: 1,
-        toLevel: 1,
-        attack: { fixed: 0, bonus: 0 },
-        defense: { fixed: 0, bonus: 0 },
-      },
-    ]);
-    expect(r.state.dogs.abai).toMatchObject({ level: 1, exp: 15 });
+    const { record } = run(fresh(), 'luoyepo-1', ['abai']);
+    expect(record.win).toBe(false);
+    expect(record.gains[0].exp).toBe(45);
   });
 
-  it('升級不能重抽：同一筆出征存檔還原後再收成，成長值一模一樣', () => {
-    const all = ['daer', 'heixuan', 'changxu', 'xiaosuan', 'abai'];
-    const r0 = startExpedition(createInitialState(), 'luoyepo-1', all, T0, MINUTE_MS, 99);
-    if (!r0.ok) throw new Error(r0.error);
-    const a = collectExpedition(r0.state, 'exp-1', T0 + 5 * MINUTE_MS);
-    const restored = JSON.parse(JSON.stringify(r0.state)) as GameState;
-    const b = collectExpedition(restored, 'exp-1', T0 + 9 * MINUTE_MS);
-    if (!a.ok || !b.ok) throw new Error('收成失敗');
-    expect(b.state.dogs).toEqual(a.state.dogs);
-    expect(b.state.history[0].gains).toEqual(a.state.history[0].gains);
-    expect(expeditionGrowth(r0.state, r0.state.expeditions[0], true)).toEqual({
-      dogs: a.state.dogs,
-      gains: a.state.history[0].gains,
-    });
-  });
-
-  it('滿級的狗出征不再拿經驗', () => {
-    const s0 = createInitialState();
-    const maxed = { ...s0, dogs: { ...s0.dogs, daer: { ...s0.dogs.daer, level: 100, exp: 0 } } };
-    const r0 = startExpedition(maxed, 'luoyepo-1', ['daer'], T0);
-    if (!r0.ok) throw new Error(r0.error);
-    const r = collectExpedition(r0.state, 'exp-1', T0 + 5 * MINUTE_MS);
-    if (!r.ok) throw new Error(r.error);
-    expect(r.state.dogs.daer).toEqual(maxed.dogs.daer);
-    expect(r.state.history[0].gains[0]).toMatchObject({ exp: 0, fromLevel: 100, toLevel: 100 });
-  });
-
-  it('狀態可 JSON 序列化後還原（給 T006 存檔）', () => {
-    const s = started();
-    const restored = JSON.parse(JSON.stringify(s)) as GameState;
-    expect(restored).toEqual(s);
-    expect(collectExpedition(restored, 'exp-1', T0 + 5 * MINUTE_MS).ok).toBe(true);
+  it(`紀錄只留最近 ${HISTORY_MAX} 筆`, () => {
+    let s: GameState = { ...fresh(), stamina: { value: 100_000, updatedAt: T0 } };
+    for (let i = 0; i < HISTORY_MAX + 5; i++) {
+      // 每次換一天，不受每日次數限制
+      s = run(s, 'luoyepo-1', TEAM, T0 + i * 86_400_000).state;
+    }
+    expect(s.history).toHaveLength(HISTORY_MAX);
+    expect(s.history[HISTORY_MAX - 1].id).toBe(`exp-${HISTORY_MAX + 5}`);
   });
 });

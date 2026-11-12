@@ -6,9 +6,9 @@ describe('regions', () => {
     expect(REGIONS.map((r) => r.chapter)).toEqual([1, 2, 3]);
     for (const r of REGIONS) expect(r.stages).toHaveLength(5);
   });
-  it('落葉坡前 3 關沿用 5 / 10 / 20 分鐘', () => {
+  it('第 1 章是落葉坡，難度由低到高', () => {
     expect(REGIONS[0].name).toBe('落葉坡');
-    expect(REGIONS[0].stages.slice(0, 3).map((s) => s.durationMin)).toEqual([5, 10, 20]);
+    expect(REGIONS[0].stages.map((s) => s.difficulty)).toEqual([1, 2, 3, 3, 4]);
   });
   it('每章只有最後一關是 Boss', () => {
     for (const r of REGIONS) {

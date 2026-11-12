@@ -1,20 +1,36 @@
 import Phaser from 'phaser';
 import { COLORS, FONT_FAMILY } from '../config';
 import { DOGS } from '../data/dogs';
+import { BACKGROUNDS } from '../data/backgrounds';
 import { findStage, type StageData } from '../data/regions';
 import { skillBonusOf, winChance } from '../logic/battle';
-import { TEAM_MIN, TEAM_SIZE, battleDogOf, busyDogIds, startExpedition } from '../logic/expedition';
+import { TEAM_MIN, TEAM_SIZE, battleDogOf, busyDogIds, runExpedition } from '../logic/expedition';
+import { formatCountdown } from '../logic/format';
 import { autoTeam } from '../logic/dogFilter';
 import type { Rect } from '../logic/layout';
 import { SIDE_WIDTH } from '../logic/pickerLayout';
+import { newStoriesAfter, unlockedBackgrounds } from '../logic/progress';
+import {
+  STAMINA_COST,
+  STAMINA_MAX,
+  runBlock,
+  runsLeft,
+  runsTotal,
+  type RunBlock,
+} from '../logic/stamina';
 import { dogContext, teamPower } from '../logic/team';
-import { minuteMsFromSearch } from '../logic/timeScale';
-import { getState, setState } from '../state/store';
+import { getState, setState, tick, timeOptions } from '../state/store';
 import { Button } from './components/Button';
 import { DogPicker } from './components/DogPicker';
+import { ResultPanel } from './components/ResultPanel';
+import { StaminaShop, type ShopKind } from './components/StaminaShop';
 import { drawHeader, patchDebug, resetDebug, viewOf } from './ui';
 
 const BAR_HEIGHT = 56;
+/** 多久更新一次體力與倒數顯示 */
+const REFRESH_MS = 500;
+/** 體力不夠／次數用完時，開戰按鈕旁邊「補體力／加次數」的寬度 */
+const BUY_WIDTH = 96;
 
 interface ExpeditionData {
   stageId: string;
@@ -24,7 +40,8 @@ interface ExpeditionData {
 
 /**
  * 出征選隊伍：從地圖點關卡進來。
- * 預設帶入「組隊編排」的隊伍（出征中的除外），可再點卡片調整，選 1 到 5 隻出發。
+ * 預設帶入「組隊編排」的隊伍，可再點卡片調整，選 1 到 5 隻，按「開戰」直接進戰鬥（T019：不用等）。
+ * 開戰要花體力與今日次數；不夠時按鈕變灰並顯示還要等多久，旁邊可以用骨頭幣補。
  * T015 改版：上方 5 個隊伍格、篩選與排序、可捲動的卡片格、一鍵自動編隊。
  * 只列出擁有的狗；出發按鈕在下方，單手拇指按得到。
  */
@@ -38,6 +55,14 @@ export class ExpeditionScene extends Phaser.Scene {
   private confirmRect!: Rect;
   private confirmLabel = '';
   private confirmReady = false;
+  private confirmButton: Button | null = null;
+  private buyRect: Rect | null = null;
+  private buyKind: ShopKind | null = null;
+  private statusText!: Phaser.GameObjects.Text;
+  /** 目前按鈕是依哪種狀態畫的；狀態變了才整個重畫 */
+  private blockKey = '';
+  private shop: StaminaShop | null = null;
+  private result: ResultPanel | null = null;
 
   constructor() {
     super('ExpeditionScene');
@@ -46,9 +71,12 @@ export class ExpeditionScene extends Phaser.Scene {
   init(data: ExpeditionData): void {
     this.stage = findStage(data?.stageId ?? '') ?? null;
     this.chapter = data?.chapter ?? 0;
-    const st = getState();
+    const st = tick();
     const busy = busyDogIds(st);
     this.selected = st.team.filter((id) => st.owned.includes(id) && !busy.has(id));
+    this.shop = null;
+    this.result = null;
+    this.confirmButton = null;
   }
 
   create(): void {
@@ -60,7 +88,7 @@ export class ExpeditionScene extends Phaser.Scene {
     const stage = this.stage;
     const { w, h, landscape } = viewOf(this);
     this.add.rectangle(0, 0, w, h, COLORS.background).setOrigin(0, 0);
-    const brief = `${stage.durationMin} 分鐘・建議戰力 ${stage.recommendedPower}`;
+    const brief = `體力 ${STAMINA_COST}・建議戰力 ${stage.recommendedPower}`;
     // 橫式高度不夠，關卡資訊併進標題列
     this.back = drawHeader(
       this,
@@ -80,12 +108,20 @@ export class ExpeditionScene extends Phaser.Scene {
     this.confirmRect = landscape
       ? { x: 16, y: h - 66, width: SIDE_WIDTH, height: 54 }
       : { x: 24, y: h - 96, width: w - 48, height: 64 };
+    // 目前體力與今日次數：直式放在戰力那一行上面，橫式放標題列右邊
+    this.statusText = landscape
+      ? this.text(w - 14, BAR_HEIGHT / 2, '', 15, COLORS.barText, true)
+          .setOrigin(1, 0.5)
+          .setDepth(51)
+      : this.text(w / 2, this.confirmRect.y - 42, '', 15, COLORS.inkSoft, true)
+          .setOrigin(0.5)
+          .setDepth(1);
     // 放在卡片格上面，捲動時出發按鈕不會被卡片擋住
     this.layer = this.add.container(0, 0).setDepth(1);
     this.picker = new DogPicker(this, {
       mode: 'expedition',
       top: landscape ? BAR_HEIGHT + 6 : BAR_HEIGHT + 40,
-      bottom: landscape ? h - 12 : this.confirmRect.y - 42,
+      bottom: landscape ? h - 12 : this.confirmRect.y - 62,
       slotsBottom: landscape ? this.confirmRect.y - 48 : undefined,
       dogs: () => DOGS.filter((d) => getState().owned.includes(d.id)),
       selected: () => this.selected,
@@ -101,6 +137,43 @@ export class ExpeditionScene extends Phaser.Scene {
       onUpdate: () => this.publish(),
     });
     this.render();
+    this.time.addEvent({ delay: REFRESH_MS, loop: true, callback: () => this.refresh() });
+  }
+
+  /** 現在能不能開戰（體力、今日次數） */
+  private block(): RunBlock {
+    return runBlock(tick(), this.stage!.id, Date.now(), timeOptions());
+  }
+
+  /** 定時更新體力與倒數；能不能開戰的狀態變了才整個重畫 */
+  private refresh(): void {
+    if (this.result) return;
+    const b = this.block();
+    if ((b.ok ? 'ok' : b.reason) !== this.blockKey) {
+      this.render();
+      return;
+    }
+    this.updateStatus(b);
+    this.publish();
+  }
+
+  private updateStatus(b: RunBlock): void {
+    const st = getState();
+    const now = Date.now();
+    const o = timeOptions();
+    const id = this.stage!.id;
+    this.statusText.setText(
+      `體力 ${st.stamina.value}/${STAMINA_MAX}・今日剩 ${runsLeft(st, id, now, o)}/${runsTotal(st, id, now, o)} 次`,
+    );
+    const ready = this.selected.length >= TEAM_MIN && this.selected.length <= TEAM_SIZE;
+    if (!b.ok) {
+      const wait = formatCountdown(b.waitMs);
+      this.confirmLabel = b.reason === 'no-runs' ? `次數用完 ${wait}` : `體力不足 ${wait}`;
+    } else {
+      this.confirmLabel = ready ? '開戰！' : `開戰（已選 ${this.selected.length}/${TEAM_SIZE}）`;
+    }
+    this.confirmReady = b.ok && ready;
+    this.confirmButton?.setText(this.confirmLabel).setEnabled(this.confirmReady);
   }
 
   /** 下方（橫式在左欄下方）的戰力、勝率與出發按鈕，再重畫選狗區 */
@@ -132,12 +205,35 @@ export class ExpeditionScene extends Phaser.Scene {
       );
     }
 
-    const ready = this.selected.length >= TEAM_MIN && this.selected.length <= TEAM_SIZE;
-    this.confirmLabel = ready ? '出發！' : `出發（已選 ${this.selected.length}/${TEAM_SIZE}）`;
-    this.confirmReady = ready;
-    const btn = new Button(this, confirm, this.confirmLabel, () => this.confirm());
-    btn.setEnabled(ready);
-    this.layer.add(btn);
+    // 體力不夠或次數用完：開戰按鈕縮短，右邊多一顆「補體力／加次數」
+    const b = this.block();
+    this.blockKey = b.ok ? 'ok' : b.reason;
+    this.buyKind = b.ok ? null : b.reason === 'no-runs' ? 'runs' : 'stamina';
+    // 橫式左欄比較窄，按鈕與字都小一點
+    const buyW = landscape ? 76 : BUY_WIDTH;
+    const main: Rect = b.ok ? confirm : { ...confirm, width: confirm.width - buyW - 8 };
+    this.buyRect = b.ok ? null : { ...confirm, x: confirm.x + confirm.width - buyW, width: buyW };
+    this.confirmButton = new Button(
+      this,
+      main,
+      '',
+      () => this.confirm(),
+      b.ok ? 24 : landscape ? 13 : 19,
+    );
+    this.layer.add(this.confirmButton);
+    if (this.buyRect && this.buyKind) {
+      const kind = this.buyKind;
+      const buy = new Button(
+        this,
+        this.buyRect,
+        kind === 'runs' ? '加次數' : '補體力',
+        () => this.openShop(kind),
+        19,
+      );
+      buy.setColor(COLORS.harvest);
+      this.layer.add(buy);
+    }
+    this.updateStatus(b);
 
     this.picker.render();
   }
@@ -163,9 +259,21 @@ export class ExpeditionScene extends Phaser.Scene {
         confirmButton: {
           label: this.confirmLabel,
           enabled: this.confirmReady,
-          ...this.confirmRect,
+          ...(this.confirmButton?.rect ?? this.confirmRect),
         },
+        buyButton: this.buyRect && this.buyKind ? { kind: this.buyKind, ...this.buyRect } : null,
+        runsLeft: runsLeft(getState(), this.stage!.id, Date.now(), timeOptions()),
       },
+      stamina: { value: getState().stamina.value, max: STAMINA_MAX },
+      resources: { ...getState().resources },
+    });
+  }
+
+  private openShop(kind: ShopKind): void {
+    if (this.shop || this.result || this.picker.wasDragged) return;
+    this.shop = new StaminaShop(this, kind, this.stage!.id, () => {
+      this.shop = null;
+      this.render();
     });
   }
 
@@ -181,20 +289,57 @@ export class ExpeditionScene extends Phaser.Scene {
     this.render();
   }
 
+  /** 開戰：扣體力與次數，當下就結算；預設進戰鬥畫面照著播，設定開了略過就直接看結算 */
   private confirm(): void {
-    if (!this.stage || this.picker.wasDragged) return;
-    const r = startExpedition(
-      getState(),
-      this.stage.id,
-      this.selected,
-      Date.now(),
-      minuteMsFromSearch(window.location.search),
-      // 這一仗的亂數種子：出發時就定下來，之後不能重抽
-      Math.floor(Math.random() * 0x100000000),
-    );
-    if (!r.ok) return;
+    if (!this.stage || this.shop || this.result || this.picker.wasDragged) return;
+    const stage = this.stage;
+    const before = tick();
+    const r = runExpedition(before, stage.id, this.selected, Date.now(), {
+      ...timeOptions(),
+      // 這一仗的亂數種子：開戰時就定下來，之後不能重抽
+      seed: Math.floor(Math.random() * 0x100000000),
+    });
+    if (!r.ok) {
+      this.render();
+      return;
+    }
     setState(r.state);
-    this.scene.start('LobbyScene');
+    const record = r.record;
+
+    const extra: string[] = [];
+    if (!record.win) extra.push('只帶回三成物資，關卡還沒通過');
+    else if (!before.cleared.includes(stage.id)) extra.push('通過關卡！下一關已開放');
+    const newBgs = unlockedBackgrounds(r.state).filter(
+      (b) => !unlockedBackgrounds(before).includes(b),
+    );
+    for (const b of newBgs)
+      extra.push(`獲得主頁背景「${BACKGROUNDS.find((x) => x.id === b)?.name}」`);
+    const storyId = newStoriesAfter(r.state, stage.id)[0]?.id;
+
+    if (!before.settings.skipBattle) {
+      this.scene.start('BattleScene', { recordId: record.id, extra, storyId });
+      return;
+    }
+    // 設定開了「略過戰鬥畫面」：直接看結算，關掉後回地圖
+    this.result = new ResultPanel(
+      this,
+      stage.name,
+      record.reward,
+      record.win,
+      () => {
+        patchDebug({ result: null, growth: null });
+        if (storyId) this.scene.start('StoryScene', { mode: 'play', storyId });
+        else this.scene.start('CampaignScene', { chapter: this.chapter });
+      },
+      extra,
+      record.gains,
+    );
+    patchDebug({
+      result: { ...record.reward, win: record.win },
+      growth: record.gains,
+      resources: { ...r.state.resources },
+      stamina: { value: r.state.stamina.value, max: STAMINA_MAX },
+    });
   }
 
   // ---- 小工具 ----

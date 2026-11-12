@@ -20,27 +20,13 @@ describe('組隊編排', () => {
     expect(toggleTeamMember(s, 'tieya')).toBe(s);
     expect(setLobbyDog(s, 'tieya')).toBe(s);
   });
-  it('自動編隊：戰力最高的 5 隻可出征狗狗，出征中的跳過', () => {
+  it('自動編隊：擁有的狗裡戰力最高的 5 隻', () => {
     const s0 = createInitialState();
     expect(autoFillTeam(s0).team).toEqual(['changxu', 'daer', 'heixuan', 'xiaosuan', 'abai']);
-    const busy = {
-      ...s0,
-      owned: [...s0.owned, 'tieya'],
-      expeditions: [
-        {
-          id: 'e1',
-          stageId: 'luoyepo-1',
-          dogIds: ['changxu'],
-          team: [],
-          startedAt: 0,
-          endsAt: 1,
-          seed: 1,
-        },
-      ],
-    };
-    expect(autoFillTeam(busy).team).toEqual(['tieya', 'daer', 'heixuan', 'xiaosuan', 'abai']);
-    const allBusy = { ...s0, expeditions: [{ ...busy.expeditions[0], dogIds: [...s0.owned] }] };
-    expect(autoFillTeam(allBusy)).toBe(allBusy);
+    const six = { ...s0, owned: [...s0.owned, 'tieya'] };
+    expect(autoFillTeam(six).team).toEqual(['tieya', 'changxu', 'daer', 'heixuan', 'xiaosuan']);
+    const none = { ...s0, owned: [] };
+    expect(autoFillTeam(none)).toBe(none);
   });
   it('設定主頁角色', () => {
     expect(setLobbyDog(createInitialState(), 'abai').lobbyDogId).toBe('abai');
