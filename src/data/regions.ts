@@ -24,6 +24,8 @@ export interface StageData {
   reward: Resources;
   /** 有值代表這一關是 Boss 關 */
   boss?: BossData;
+  /** 第一次打贏這一關送的狗狗 id（已經擁有就不再送） */
+  firstClearDog?: string;
 }
 
 /** 主頁背景與地圖配色主題 */
@@ -48,6 +50,7 @@ const stage = (
   food: number,
   bones: number,
   boss?: BossData,
+  firstClearDog?: string,
 ): StageData => ({
   id,
   name,
@@ -55,6 +58,7 @@ const stage = (
   recommendedPower,
   reward: { food, bones },
   ...(boss ? { boss } : {}),
+  ...(firstClearDog ? { firstClearDog } : {}),
 });
 
 export const REGIONS: readonly RegionData[] = [
@@ -69,12 +73,17 @@ export const REGIONS: readonly RegionData[] = [
       stage('luoyepo-2', '紅葉林', 2, 250, 260, 12),
       stage('luoyepo-3', '坡頂哨站', 3, 350, 560, 25),
       stage('luoyepo-4', '山風隘口', 3, 400, 640, 30),
-      stage('luoyepo-5', '高山犬・雷吼', 4, 480, 1000, 60, {
-        name: '雷吼',
-        breed: '高山犬',
-        color: 0x2a2421,
-        accent: 0xc9773a,
-      }),
+      stage(
+        'luoyepo-5',
+        '高山犬・雷吼',
+        4,
+        480,
+        1000,
+        60,
+        { name: '雷吼', breed: '高山犬', color: 0x2a2421, accent: 0xc9773a },
+        // 第 1 章通關獎勵：補血狗（T017）
+        'nuantong',
+      ),
     ],
   },
   {

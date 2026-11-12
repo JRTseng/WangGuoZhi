@@ -49,6 +49,8 @@ export interface ExpeditionRecord {
   gains: DogExpGain[];
   /** 是不是自動出征打的 */
   auto?: boolean;
+  /** 這一仗第一次通關送的狗狗 id（T017） */
+  newDogId?: string;
 }
 
 /** 體力（T019）：只存數值與上次結算時間，要用時才依經過的時間補算 */
