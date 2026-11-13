@@ -165,8 +165,8 @@ describe('runExpedition', () => {
   it('紀錄記下隊伍當下的攻防等級（含升級成長），不是升級後的', () => {
     const { record } = run();
     expect(record.team.map((d) => d.id)).toEqual(TEAM);
-    // 大耳 3 級：攻 42+7、防 48+7
-    expect(record.team[0]).toMatchObject({ attack: 49, defense: 55, level: 3 });
+    // 大耳 3 級、稀有度 R（每級多 1 點）：攻 42+8、防 48+8
+    expect(record.team[0]).toMatchObject({ attack: 50, defense: 56, level: 3 });
   });
 
   it('隊伍每隻狗都拿到經驗，滿了自動升級，沒出征的不變', () => {

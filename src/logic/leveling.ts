@@ -1,4 +1,4 @@
-import { findDog, type DogData } from '../data/dogs';
+import { findDog, type DogData, type DogRarity } from '../data/dogs';
 import type { StageData } from '../data/regions';
 import type { DogProgress, GameState } from '../state/gameState';
 import { calcPower } from './power';
@@ -8,6 +8,7 @@ import { calcPower } from './power';
  *
  * 每升一級：
  * - 固定成長：主屬性 +3、副屬性 +2（突擊攻擊為主、守護防禦為主；其餘定位攻防輪流 +3／+2）
+ * - 稀有度加成（T007，Jimmy 2026-11-13）：越稀有每級多加越多，R +1、SR +2、SSR +3，算在固定成長裡
  * - 隨機加成：攻擊、防禦各自再加 0、+1 或 +2（平均 +1）
  * - 同一隻狗累積的隨機加成和平均（每級 +1）的差距不會超過 ±BONUS_DRIFT_LIMIT
  * 結果在升級當下就寫進狀態，之後不會重抽。
@@ -90,15 +91,29 @@ export function expNeeded(level: number, cap: number = MAX_LEVEL): number {
   return Math.round(EXP_BASE * lv ** EXP_CURVE);
 }
 
-/** 升到 toLevel 那一級的固定成長 */
+/**
+ * 稀有度讓每級的固定成長多幾點（攻防合計，暫定）。
+ * 低稀有度前期一樣好用，等級越高差距越大：60 級時 SSR 比 N 多約 180 戰力。
+ */
+export const RARITY_GROWTH: Readonly<Record<DogRarity, number>> = { N: 0, R: 1, SR: 2, SSR: 3 };
+
+/** 升到 toLevel 那一級的固定成長（含稀有度加成；沒給稀有度當成 N） */
 export function fixedGrowth(
   role: DogData['role'],
   toLevel: number,
+  rarity?: DogRarity,
 ): { attack: number; defense: number } {
-  if (role.includes('突擊')) return { attack: 3, defense: 2 };
-  if (role.includes('守護')) return { attack: 2, defense: 3 };
   // 後排與隊長：攻防各 +2.5，輪流給 +3／+2
-  return toLevel % 2 === 0 ? { attack: 3, defense: 2 } : { attack: 2, defense: 3 };
+  const attackMain = role.includes('突擊')
+    ? true
+    : role.includes('守護')
+      ? false
+      : toLevel % 2 === 0;
+  // 稀有度多的點數：主屬性拿多的那一半
+  const extra = rarity ? RARITY_GROWTH[rarity] : 0;
+  const main = 3 + Math.ceil(extra / 2);
+  const sub = 2 + Math.floor(extra / 2);
+  return attackMain ? { attack: main, defense: sub } : { attack: sub, defense: main };
 }
 
 /**
@@ -121,7 +136,7 @@ export function bonusDrift(p: DogProgress): { attack: number; defense: number } 
 }
 
 /** 新拿到的狗的養成進度：資料檔的等級若大於 1，之前的等級用固定成長 + 平均加成補上 */
-export function initialProgress(dog: Pick<DogData, 'role' | 'level'>): DogProgress {
+export function initialProgress(dog: Pick<DogData, 'role' | 'level' | 'rarity'>): DogProgress {
   const level = Math.min(MAX_LEVEL, Math.max(1, Math.floor(dog.level)));
   const p: DogProgress = {
     level,
@@ -133,7 +148,7 @@ export function initialProgress(dog: Pick<DogData, 'role' | 'level'>): DogProgre
     rolls: 0,
   };
   for (let lv = 2; lv <= level; lv++) {
-    const f = fixedGrowth(dog.role, lv);
+    const f = fixedGrowth(dog.role, lv, dog.rarity);
     p.growthAttack += f.attack + BONUS_AVERAGE;
     p.growthDefense += f.defense + BONUS_AVERAGE;
     p.bonusAttack += BONUS_AVERAGE;
@@ -148,10 +163,11 @@ export function levelUp(
   p: DogProgress,
   role: DogData['role'],
   rng: () => number,
+  rarity?: DogRarity,
 ): { progress: DogProgress; up: LevelUp | null } {
   if (p.level >= levelCapOf(p)) return { progress: p, up: null };
   const level = p.level + 1;
-  const fixed = fixedGrowth(role, level);
+  const fixed = fixedGrowth(role, level, rarity);
   const drift = bonusDrift(p);
   const attack: StatGain = { fixed: fixed.attack, bonus: rollBonus(drift.attack, rng) };
   const defense: StatGain = { fixed: fixed.defense, bonus: rollBonus(drift.defense, rng) };
@@ -179,13 +195,14 @@ export function addExp(
   role: DogData['role'],
   amount: number,
   rng: () => number,
+  rarity?: DogRarity,
 ): { progress: DogProgress; gained: number; ups: LevelUp[] } {
   const cap = levelCapOf(p);
   const gained = p.level >= cap ? 0 : Math.max(0, Math.floor(amount));
   let cur: DogProgress = { ...p, exp: p.level >= cap ? 0 : p.exp + gained };
   const ups: LevelUp[] = [];
   while (cur.level < cap && cur.exp >= expNeeded(cur.level, cap)) {
-    const r = levelUp({ ...cur, exp: cur.exp - expNeeded(cur.level, cap) }, role, rng);
+    const r = levelUp({ ...cur, exp: cur.exp - expNeeded(cur.level, cap) }, role, rng, rarity);
     cur = r.progress;
     if (r.up) ups.push(r.up);
   }

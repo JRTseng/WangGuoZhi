@@ -120,7 +120,12 @@ function gain(
   let levels = 0;
   while (cur.level < cap && cur.exp >= expNeeded(cur.level, cap)) {
     const rng = createRng(mixSeed(since, cur.level + 1, salt));
-    cur = levelUp({ ...cur, exp: cur.exp - expNeeded(cur.level, cap) }, dog.role, rng).progress;
+    cur = levelUp(
+      { ...cur, exp: cur.exp - expNeeded(cur.level, cap) },
+      dog.role,
+      rng,
+      dog.rarity,
+    ).progress;
     levels++;
   }
   if (cur.level >= cap) cur = { ...cur, exp: 0 };

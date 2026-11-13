@@ -125,7 +125,8 @@ export function expeditionGrowth(
     const d = findDog(id);
     if (!d) return;
     const before = progressOf(state, d);
-    const r = addExp(before, d.role, amount, createRng(mixSeed(exp.seed, i + 1, LEVEL_SEED_SALT)));
+    const rng = createRng(mixSeed(exp.seed, i + 1, LEVEL_SEED_SALT));
+    const r = addExp(before, d.role, amount, rng, d.rarity);
     dogs[id] = r.progress;
     gains.push({
       dogId: id,

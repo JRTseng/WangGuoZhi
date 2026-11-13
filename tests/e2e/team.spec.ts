@@ -11,9 +11,9 @@ test('組隊：全部角色、未擁有變暗、編隊與設定主頁角色', as
   expect(t.dogs).toHaveLength(19);
   // 預設：全部、戰力高到低，擁有的排前面
   const unowned = [
+    'nuantong',
     'xiongyue',
     'xueling',
-    'nuantong',
     'tieya',
     'jiying',
     'shanlan',

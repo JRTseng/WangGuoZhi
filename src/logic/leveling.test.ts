@@ -173,11 +173,12 @@ describe('addExp', () => {
 describe('初始進度與數字', () => {
   it('1 級沒有成長；資料檔等級較高的用固定成長 + 平均加成補上，運氣為 0', () => {
     expect(baseStats(findDog('abai')!)).toMatchObject({ level: 1, attack: 34, defense: 36 });
-    const daer = baseStats(findDog('daer')!); // 3 級、隊長
-    expect(daer).toMatchObject({ level: 3, attack: 42 + 5 + 2, defense: 48 + 5 + 2, luck: 0 });
-    expect(daer.power).toBe(104);
-    const heixuan = baseStats(findDog('heixuan')!); // 2 級、突擊
-    expect(heixuan).toMatchObject({ attack: 64 + 4, defense: 30 + 3, power: 101 });
+    // 大耳 3 級、隊長、稀有度 R：兩級固定成長各多 1 點（2 級加在攻、3 級加在防）
+    const daer = baseStats(findDog('daer')!);
+    expect(daer).toMatchObject({ level: 3, attack: 42 + 6 + 2, defense: 48 + 6 + 2, luck: 0 });
+    expect(daer.power).toBe(106);
+    const heixuan = baseStats(findDog('heixuan')!); // 2 級、突擊、R
+    expect(heixuan).toMatchObject({ attack: 64 + 5, defense: 30 + 3, power: 102 });
   });
 
   it('dogStats：攻防 = 基礎值 + 成長值，戰力 = 攻 + 防', () => {
@@ -188,9 +189,30 @@ describe('初始進度與數字', () => {
     expect(s.expNeed).toBe(expNeeded(5));
   });
 
-  it('滿級估算：固定成長攻防合計 495，隨機約 198 上下不超過 8', () => {
+  it('越稀有每級固定成長越多：R +1、SR +2、SSR +3，主屬性拿多的那一半', () => {
+    expect(fixedGrowth(ATTACKER, 2)).toEqual({ attack: 3, defense: 2 });
+    expect(fixedGrowth(ATTACKER, 2, 'N')).toEqual({ attack: 3, defense: 2 });
+    expect(fixedGrowth(ATTACKER, 2, 'R')).toEqual({ attack: 4, defense: 2 });
+    expect(fixedGrowth(ATTACKER, 2, 'SR')).toEqual({ attack: 4, defense: 3 });
+    expect(fixedGrowth(ATTACKER, 2, 'SSR')).toEqual({ attack: 5, defense: 3 });
+    expect(fixedGrowth(GUARD, 2, 'SSR')).toEqual({ attack: 3, defense: 5 });
+    expect(fixedGrowth(LEADER, 2, 'SSR')).toEqual({ attack: 5, defense: 3 });
+    expect(fixedGrowth(LEADER, 3, 'SSR')).toEqual({ attack: 3, defense: 5 });
+    // 升級時寫進成長值，結算畫面的「固定成長」也是這個數字
+    const up = levelUp(fresh(), ATTACKER, createRng(1), 'SSR').up!;
+    expect(up.attack.fixed + up.defense.fixed).toBe(8);
+    // 同樣練到 60 級，SSR 的固定成長比 N 多 3 ×（60 - 1）
+    const total = (rarity: 'N' | 'SSR') => {
+      const p = addExp(fresh(), GUARD, 1e9, createRng(4), rarity).progress;
+      return p.growthAttack + p.growthDefense - p.bonusAttack - p.bonusDefense;
+    };
+    expect(total('SSR') - total('N')).toBe(3 * 59);
+  });
+
+  it('滿級估算：固定成長攻防合計 495（N），隨機約 198 上下不超過 8', () => {
     for (const d of DOGS) {
       const start = { ...initialProgress({ ...d, level: 1 }), star: STAR_MAX };
+      // 不帶稀有度：這裡只看基本的固定成長
       const r = addExp(start, d.role, 1e9, createRng(11));
       const p = r.progress;
       const fixed = p.growthAttack + p.growthDefense - p.bonusAttack - p.bonusDefense;
