@@ -126,8 +126,8 @@ test('組隊：篩選、排序、自動編隊', async ({ page }) => {
     'heixuan',
     'xiaosuan',
     'abai',
+    'nuantong',
     'xiongyue',
-    'xueling',
   ]);
   await tap(page, p.sortChip);
   expect((await wgz(page)).picker!.sort).toBe('power');

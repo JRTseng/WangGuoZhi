@@ -110,7 +110,7 @@ describe('pickDog', () => {
     const seen = new Set<string>();
     const rng = createRng(3);
     for (let i = 0; i < 200; i++) seen.add(pickDog(pool, 'SSR', rng)!.id);
-    expect([...seen].sort()).toEqual(['xiongyue', 'xueling']);
+    expect([...seen].sort()).toEqual(['nuantong', 'xiongyue', 'xueling']);
     const noSSR = pool.filter((d) => d.rarity !== 'SSR');
     expect(pickDog(noSSR, 'SSR', () => 0)!.rarity).toBe('SR');
     expect(pickDog([], 'N', () => 0)).toBeUndefined();
