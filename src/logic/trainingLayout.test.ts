@@ -39,7 +39,7 @@ describe('trainingLayout', () => {
     expect(l.scrollMax).toBe(0);
   });
 
-  it('特訓按鈕：兩顆並排在卡片底部、不重疊、不超出卡片，直式至少 40 高', () => {
+  it('特訓與升星按鈕：三顆並排在卡片底部、不重疊、不超出卡片，直式至少 40 高', () => {
     for (const [w, h, landscape] of [
       [390, 844, false],
       [844, 390, true],
@@ -56,6 +56,12 @@ describe('trainingLayout', () => {
         // 經驗條畫到卡片頂端往下約 88，按鈕要在它下面
         expect(b.attack.y - r.y).toBeGreaterThanOrEqual(88);
         expect(b.attack.width).toBeGreaterThanOrEqual(120);
+        // 升星按鈕（T007）排在最右邊，同一列、不重疊、不超出卡片
+        expect(b.star.x).toBeGreaterThanOrEqual(b.defense.x + b.defense.width);
+        expect(b.star.x + b.star.width).toBeLessThanOrEqual(r.x + r.width);
+        expect(b.star.y).toBe(b.attack.y);
+        expect(b.star.height).toBe(b.attack.height);
+        expect(b.star.width).toBeGreaterThanOrEqual(70);
       }
       if (!landscape) expect(l.buttonHeight).toBeGreaterThanOrEqual(40);
     }

@@ -78,6 +78,7 @@ test('升級：打完拿經驗、1 級的狗連升到 3 級，訓練場與角色
     exp: 13,
     expNeed: 104,
     power: abai.power,
+    star: 1,
   });
   await page.screenshot({ path: 'artifacts/screenshots/portrait/dog-info-level.png' });
 });

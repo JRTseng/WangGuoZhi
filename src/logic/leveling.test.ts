@@ -5,10 +5,15 @@ import { createRng } from './battle';
 import {
   BONUS_DRIFT_LIMIT,
   MAX_LEVEL,
+  STAR_MAX,
+  dogStats,
+  levelCapForStar,
+  levelCapOf,
+  starBonus,
+  starOf,
   addExp,
   baseStats,
   bonusDrift,
-  dogStats,
   expNeeded,
   expeditionExp,
   fixedGrowth,
@@ -21,6 +26,8 @@ import {
 } from './leveling';
 
 const fresh = (): DogProgress => initialProgress({ role: '前排／突擊', level: 1 });
+/** 滿星的狗：等級上限才是 MAX_LEVEL（T007） */
+const maxStar = (): DogProgress => ({ ...fresh(), star: STAR_MAX });
 const ATTACKER = '前排／突擊' as const;
 const GUARD = '前排／守護' as const;
 const LEADER = '隊長／補給' as const;
@@ -71,7 +78,7 @@ describe('rollBonus', () => {
 describe('levelUp', () => {
   it('固定成長正確，隨機加成在 0 到 +2 之間', () => {
     const rng = createRng(7);
-    let p = fresh();
+    let p = maxStar();
     for (let i = 0; i < 99; i++) {
       const r = levelUp(p, ATTACKER, rng);
       expect(r.up!.attack.fixed).toBe(3);
@@ -90,7 +97,7 @@ describe('levelUp', () => {
   it('跑 1000 次從 1 級練到滿級，累積隨機加成和平均的差距都在 ±4 內', () => {
     for (let seed = 1; seed <= 1000; seed++) {
       const rng = createRng(seed);
-      let p = fresh();
+      let p = maxStar();
       while (p.level < MAX_LEVEL) {
         p = levelUp(p, seed % 2 ? ATTACKER : LEADER, rng).progress;
         const d = bonusDrift(p);
@@ -112,7 +119,7 @@ describe('levelUp', () => {
   });
 
   it('滿級不再升', () => {
-    const p = { ...fresh(), level: MAX_LEVEL };
+    const p = { ...maxStar(), level: MAX_LEVEL };
     const r = levelUp(p, ATTACKER, createRng(1));
     expect(r.up).toBeNull();
     expect(r.progress).toBe(p);
@@ -146,7 +153,7 @@ describe('addExp', () => {
   });
 
   it('到 100 級就停，經驗不再累積', () => {
-    const r = addExp(fresh(), ATTACKER, 100_000_000, createRng(3));
+    const r = addExp(maxStar(), ATTACKER, 100_000_000, createRng(3));
     expect(r.progress).toMatchObject({ level: MAX_LEVEL, exp: 0 });
     expect(r.ups).toHaveLength(MAX_LEVEL - 1);
     const again = addExp(r.progress, ATTACKER, 500, createRng(3));
@@ -183,7 +190,8 @@ describe('初始進度與數字', () => {
 
   it('滿級估算：固定成長攻防合計 495，隨機約 198 上下不超過 8', () => {
     for (const d of DOGS) {
-      const r = addExp(initialProgress({ ...d, level: 1 }), d.role, 1e9, createRng(11));
+      const start = { ...initialProgress({ ...d, level: 1 }), star: STAR_MAX };
+      const r = addExp(start, d.role, 1e9, createRng(11));
       const p = r.progress;
       const fixed = p.growthAttack + p.growthDefense - p.bonusAttack - p.bonusDefense;
       expect(fixed).toBe(495);
@@ -206,5 +214,50 @@ describe('formatGain', () => {
     expect(formatGain({ attack: { fixed: 3, bonus: 1 }, defense: { fixed: 2, bonus: 0 } })).toBe(
       '攻 +3（+1）\u3000防 +2（+0）',
     );
+  });
+});
+
+describe('星數與等級上限（T007）', () => {
+  it('沒有星數欄位就是 1 星；星數夾在 1～5', () => {
+    expect(starOf(fresh())).toBe(1);
+    expect(starOf({ star: 3 })).toBe(3);
+    expect(starOf({ star: 99 })).toBe(STAR_MAX);
+    expect(starOf({ star: 0 })).toBe(1);
+  });
+
+  it('等級上限：1 星 60，每星 +10，滿星 100', () => {
+    expect([1, 2, 3, 4, 5].map(levelCapForStar)).toEqual([60, 70, 80, 90, 100]);
+    expect(levelCapOf(fresh())).toBe(60);
+    expect(levelCapOf(maxStar())).toBe(MAX_LEVEL);
+  });
+
+  it('1 星練到 60 級就停，升星後可以繼續升', () => {
+    const r = addExp(fresh(), ATTACKER, 100_000_000, createRng(3));
+    expect(r.progress).toMatchObject({ level: 60, exp: 0 });
+    expect(addExp(r.progress, ATTACKER, 500, createRng(3)).gained).toBe(0);
+    expect(levelUp(r.progress, ATTACKER, createRng(1)).up).toBeNull();
+    const two = addExp({ ...r.progress, star: 2 }, ATTACKER, 100_000_000, createRng(3));
+    expect(two.progress).toMatchObject({ level: 70, exp: 0 });
+    expect(expNeeded(60, 60)).toBe(0);
+    expect(expNeeded(60, 70)).toBeGreaterThan(0);
+  });
+
+  it('每升一星攻防各多基礎值的 10%，算進攻防與戰力', () => {
+    expect(starBonus(50, 1)).toBe(0);
+    expect(starBonus(50, 2)).toBe(5);
+    expect(starBonus(74, 5)).toBe(30);
+    const dog = findDog('daer')!;
+    const one = dogStats({ dogs: {} }, dog);
+    const three = dogStats({ dogs: { daer: { ...initialProgress(dog), star: 3 } } }, dog);
+    expect(one).toMatchObject({ star: 1, levelCap: 60, starAttack: 0, starDefense: 0 });
+    expect(three).toMatchObject({ star: 3, levelCap: 80, starAttack: 8, starDefense: 10 });
+    expect(three.attack).toBe(one.attack + 8);
+    expect(three.power).toBe(one.power + 18);
+  });
+
+  it('到等級上限時經驗顯示為 0、不需要經驗', () => {
+    const dog = findDog('daer')!;
+    const s = dogStats({ dogs: { daer: { ...initialProgress(dog), level: 60, exp: 0 } } }, dog);
+    expect(s).toMatchObject({ level: 60, exp: 0, expNeed: 0 });
   });
 });

@@ -83,7 +83,7 @@ describe('board / checkBoard', () => {
     expect(board(one, 'xiaosuan', NOW)).toEqual({ state: one, block: 'boarding' });
     const maxed = {
       ...s0,
-      dogs: { ...s0.dogs, abai: { ...s0.dogs.abai, level: MAX_LEVEL, exp: 0 } },
+      dogs: { ...s0.dogs, abai: { ...s0.dogs.abai, star: 5, level: MAX_LEVEL, exp: 0 } },
     };
     expect(checkBoard(maxed, 'abai')).toBe('max-level');
     // 兩個位子放滿後，第三隻放不進去；通過第 1 章 Boss 後就可以
@@ -168,7 +168,7 @@ describe('settleBoarding', () => {
     const s0 = fresh();
     const near = {
       ...s0,
-      dogs: { ...s0.dogs, abai: { ...s0.dogs.abai, level: MAX_LEVEL - 1, exp: 0 } },
+      dogs: { ...s0.dogs, abai: { ...s0.dogs.abai, star: 5, level: MAX_LEVEL - 1, exp: 0 } },
     };
     const s1 = settleBoarding(boarded(near, 'abai'), NOW + PERIOD * 100_000);
     expect(s1.dogs.abai).toMatchObject({ level: MAX_LEVEL, exp: 0 });

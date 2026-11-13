@@ -1,9 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { createInitialState, type GameState } from '../state/gameState';
 import { setAuto } from './auto';
+import { createRng } from './battle';
 import { runExpedition } from './expedition';
+import { pull } from './gacha';
 import { SAVE_VERSION, deserialize, sanitizeState, serialize, type SaveFile } from './save';
 import { buyStamina, settle } from './stamina';
+import { starUp } from './star';
 import { drill } from './training';
 
 const NOW = Date.UTC(2026, 10, 12, 4, 0, 0);
@@ -202,5 +205,61 @@ describe('sanitizeState', () => {
   it('完全不是物件就給新遊戲', () => {
     expect(sanitizeState(null, NOW)).toEqual(createInitialState(NOW));
     expect(sanitizeState([1, 2], NOW)).toEqual(createInitialState(NOW));
+  });
+});
+
+describe('召募、碎片與星數（T007）', () => {
+  it('抽過卡、升過星的進度存了再讀，完全一樣', () => {
+    const pulled = pull(playedState(), 10, createRng(8)).state;
+    const st = starUp({ ...pulled, shards: { ...pulled.shards, daer: 25 } }, 'daer').state;
+    expect(st.dogs.daer.star).toBe(2);
+    expect(st.gacha.pulls).toBe(10);
+    expect(st.owned.length).toBeGreaterThan(6);
+    const r = deserialize(serialize(st, NOW), NOW);
+    expect(r.status).toBe('ok');
+    expect(r.state).toEqual(st);
+  });
+
+  it('T007 之前的舊存檔：沒有碎片、召募紀錄與星數，補成預設值，其他進度留著', () => {
+    const st = playedState();
+    const old: Record<string, unknown> = JSON.parse(JSON.stringify(st));
+    delete old.shards;
+    delete old.gacha;
+    const out = sanitizeState(old, NOW);
+    expect(out.shards).toEqual({});
+    expect(out.gacha).toEqual({ pulls: 0, sinceSSR: 0 });
+    expect(out.dogs.daer.star).toBeUndefined();
+    expect(out.dogs).toEqual(st.dogs);
+    expect(out.owned).toEqual(st.owned);
+  });
+
+  it('怪怪的值會被修正：星數夾在 1～5、碎片只留認得的狗與正整數、保底計數不超過門檻', () => {
+    const st = createInitialState(NOW);
+    const out = sanitizeState(
+      {
+        ...st,
+        dogs: {
+          ...st.dogs,
+          daer: { ...st.dogs.daer, star: 99 },
+          abai: { ...st.dogs.abai, star: -2 },
+          heixuan: { ...st.dogs.heixuan, star: 'five' },
+          changxu: { ...st.dogs.changxu, star: 2, level: 80, exp: 50 },
+        },
+        shards: { daer: 20.9, abai: -5, nobody: 30, tieya: 'x', heixuan: 0 },
+        gacha: { pulls: -3, sinceSSR: 9999 },
+      },
+      NOW,
+    );
+    expect(out.dogs.daer.star).toBe(5);
+    expect(out.dogs.abai.star).toBeUndefined();
+    expect(out.dogs.heixuan.star).toBeUndefined();
+    // 等級超過這個星數的上限：等級留著，但經驗歸零（不會再升）
+    expect(out.dogs.changxu).toMatchObject({ star: 2, level: 80, exp: 0 });
+    expect(out.shards).toEqual({ daer: 20 });
+    expect(out.gacha).toEqual({ pulls: 0, sinceSSR: 49 });
+    expect(sanitizeState({ ...st, shards: [1, 2], gacha: 'x' }, NOW)).toMatchObject({
+      shards: {},
+      gacha: { pulls: 0, sinceSSR: 0 },
+    });
   });
 });

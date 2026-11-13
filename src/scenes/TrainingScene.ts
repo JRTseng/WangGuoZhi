@@ -1,11 +1,12 @@
 import Phaser from 'phaser';
-import { COLORS } from '../config';
+import { COLORS, rarityHex } from '../config';
 import { DOGS, type DogData } from '../data/dogs';
 import { boardingSlotCount } from '../logic/boarding';
 import { busyDogIds } from '../logic/expedition';
 import { formatAmount } from '../logic/format';
 import type { Rect } from '../logic/layout';
-import { dogStats } from '../logic/leveling';
+import { MAX_LEVEL, STAR_MAX, dogStats } from '../logic/leveling';
+import { checkStarUp, starUp, type StarCheck } from '../logic/star';
 import {
   DRILL_LABELS,
   DRILL_MAX,
@@ -31,14 +32,17 @@ const BAR = 56;
 /** 多久結算一次寄宿經驗並更新數字（T021） */
 const REFRESH_MS = 500;
 const STATS: readonly DrillStat[] = ['attack', 'defense'];
+/** 升星按鈕的顏色（金色系，和特訓的橘色分開） */
+const STAR_BUTTON_COLOR = 0xc98a12;
 /** 手指移動超過這個距離就當成捲動，不算點按鈕 */
 const TAP_SLOP = 8;
 /** 按鈕的點擊範圍上下各多留一點，手機比較好按 */
 const TAP_PAD = 3;
 
 /**
- * 訓練場（T005、T020、T021）：看每隻狗的等級、經驗條、攻防與升級累積的成長，
- * 並可以花糧草做攻擊或防禦特訓（每次永久 +1）。右上角進「板凳寄宿」。
+ * 訓練場（T005、T020、T021、T007）：看每隻狗的等級、經驗條、攻防與升級累積的成長，
+ * 可以花糧草做攻擊或防禦特訓（每次永久 +1），也可以花碎片升星（提高攻防與等級上限）。
+ * 右上角進「板凳寄宿」。
  * 進場時依等級高到低排，特訓後順序不變；狗多了可以上下捲動。
  */
 export class TrainingScene extends Phaser.Scene {
@@ -139,7 +143,7 @@ export class TrainingScene extends Phaser.Scene {
     const busy = busyDogIds(st);
     this.seenDogs = st.dogs;
     this.boardingLabel.setText(`寄宿 ${st.boarding.length}/${boardingSlotCount(st)} ›`);
-    this.hint.setText(`花糧草特訓，攻擊或防禦永久 +1・糧草 ${formatAmount(st.resources.food)}`);
+    this.hint.setText(`糧草特訓永久 +1・碎片升星・糧草 ${formatAmount(st.resources.food)}`);
     this.rows.removeAll(true);
 
     this.ids.forEach((id, i) => {
@@ -160,10 +164,48 @@ export class TrainingScene extends Phaser.Scene {
       const right = r.width - 14;
       const maxed = s.expNeed === 0;
       drawExpBar(g, tx, top + gapY * 2 + 22, right - tx, 8, s.exp / (s.expNeed || 1), maxed);
+      let lv: Phaser.GameObjects.Text;
+      let stars: Phaser.GameObjects.Text;
       c.add([
         g,
         addText(this, tx, top, d.name, 18, COLORS.ink, true),
-        addText(this, tx + 18 * d.name.length + 8, top + 2, `Lv.${s.level}`, 16, '#b5651d', true),
+        (lv = addText(
+          this,
+          tx + 18 * d.name.length + 8,
+          top + 2,
+          `Lv.${s.level}`,
+          16,
+          '#b5651d',
+          true,
+        )),
+        // 星數：亮的幾顆是金色，其餘灰色（空心星在手機字型上看起來和實心一樣，所以用顏色分）
+        (stars = addText(
+          this,
+          lv.x + lv.width + 8,
+          top + 3,
+          '★'.repeat(s.star),
+          13,
+          '#d99a1c',
+          true,
+        )),
+        addText(
+          this,
+          stars.x + stars.width,
+          top + 3,
+          '★'.repeat(STAR_MAX - s.star),
+          13,
+          '#d9cdbb',
+          true,
+        ),
+        addText(
+          this,
+          16 + hr,
+          top + gapY + 12 + hr + 4,
+          d.rarity ?? '',
+          12,
+          d.rarity ? rarityHex(d.rarity) : COLORS.inkSoft,
+          true,
+        ).setOrigin(0.5, 0),
         addText(this, right, top + 2, `戰力 ${s.power}`, 15, COLORS.ink, true).setOrigin(1, 0),
         addText(this, tx, top + gapY, `攻擊 ${s.attack}\u3000防禦 ${s.defense}`, 14, COLORS.ink),
         addText(
@@ -187,7 +229,9 @@ export class TrainingScene extends Phaser.Scene {
           this,
           right,
           top + gapY * 2,
-          expLabel(s.exp, s.expNeed),
+          maxed && s.levelCap < MAX_LEVEL
+            ? `等級上限 ${s.levelCap}・升星可提高`
+            : expLabel(s.exp, s.expNeed),
           13,
           COLORS.inkSoft,
         ).setOrigin(1, 0),
@@ -216,6 +260,20 @@ export class TrainingScene extends Phaser.Scene {
           addText(this, cx, by + b.height / 2 + 9, drillNote(check), 12, '#fff6e8').setOrigin(0.5),
         ]);
       }
+      // 升星按鈕（T007）：上面「升星」，下面碎片「有幾個／要幾個」
+      {
+        const b = buttons.star;
+        const bx = b.x - r.x;
+        const by = b.y - r.y;
+        const check = checkStarUp(st, id);
+        g.fillStyle(check.ok ? STAR_BUTTON_COLOR : COLORS.buttonDisabled, 1);
+        g.fillRoundedRect(bx, by, b.width, b.height, 10);
+        const cx = bx + b.width / 2;
+        c.add([
+          addText(this, cx, by + b.height / 2 - 8, '升星', 14, '#ffffff', true).setOrigin(0.5),
+          addText(this, cx, by + b.height / 2 + 9, starNote(check), 12, '#fff6e8').setOrigin(0.5),
+        ]);
+      }
       this.rows.add(c);
     });
   }
@@ -236,12 +294,23 @@ export class TrainingScene extends Phaser.Scene {
         this.publish();
         return;
       }
+      if (hit(buttons.star)) {
+        const r = starUp(tick(), this.ids[i], Date.now());
+        if (!r.check.ok) return;
+        setState(r.state);
+        this.renderRows();
+        this.floatText(buttons.star, `升星！★${r.check.star + 1}`, '#b8860b');
+        this.publish();
+        return;
+      }
     }
   }
 
   /** 特訓成功的回饋：按鈕上方飄一行「攻擊 +1」 */
-  private floatText(b: Rect, text: string): void {
-    const t = addText(this, b.x + b.width / 2, b.y - 6, text, 18, '#2f7d32', true).setOrigin(0.5);
+  private floatText(b: Rect, text: string, color = '#2f7d32'): void {
+    // 靠右的按鈕（升星）字比較長，往左收一點免得超出卡片
+    const x = Math.min(b.x + b.width / 2, viewOf(this).w - 16 - text.length * 9);
+    const t = addText(this, x, b.y - 6, text, 18, color, true).setOrigin(0.5);
     t.setStroke('#ffffff', 4);
     this.rows.add(t);
     this.tweens.add({
@@ -293,6 +362,17 @@ export class TrainingScene extends Phaser.Scene {
             defense: s.defense,
             power: s.power,
             drill: { attack: info('attack'), defense: info('defense') },
+            star: (() => {
+              const c = checkStarUp(st, id);
+              return {
+                ...shift(buttons.star),
+                star: c.star,
+                shards: c.shards,
+                cost: c.cost,
+                enabled: c.ok,
+              };
+            })(),
+            levelCap: s.levelCap,
             ...shift(trainingRow(this.layout, i)),
           };
         }),
@@ -304,6 +384,11 @@ export class TrainingScene extends Phaser.Scene {
 /** 按鈕第二行：花費、還差多少，或已滿 */
 function drillNote(c: DrillCheck): string {
   if (c.reason === 'maxed') return '已滿';
-  if (c.reason === 'food') return `糧草 ${formatAmount(c.cost)}（還差 ${formatAmount(c.short)}）`;
+  if (c.reason === 'food') return `糧草 ${formatAmount(c.cost)}・差 ${formatAmount(c.short)}`;
   return `糧草 ${formatAmount(c.cost)}`;
+}
+
+/** 升星按鈕第二行：手上的碎片／需要的碎片，或已滿星 */
+function starNote(c: StarCheck): string {
+  return c.reason === 'maxed' ? '已滿星' : `碎片 ${c.shards}/${c.cost}`;
 }

@@ -21,3 +21,16 @@ export const COLORS = {
   harvest: 0x4f8a3c,
   overlay: 0x000000,
 } as const;
+
+/** 稀有度的代表色（T007）：卡片外框與標籤用 */
+export const RARITY_COLORS = {
+  N: 0x8f979e,
+  R: 0x3f7fa8,
+  SR: 0x8e44ad,
+  SSR: 0xd99a1c,
+} as const;
+
+/** 稀有度代表色的文字版（'#rrggbb'） */
+export function rarityHex(rarity: keyof typeof RARITY_COLORS): string {
+  return `#${RARITY_COLORS[rarity].toString(16).padStart(6, '0')}`;
+}

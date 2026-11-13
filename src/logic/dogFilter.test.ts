@@ -15,10 +15,25 @@ const ctx = { owned: STARTER_DOG_IDS, busy: new Set<string>() };
 const ids = (dogs: readonly DogData[]) => dogs.map((d) => d.id);
 const dog = (id: string, patch: Partial<DogData> = {}): DogData => ({
   ...DOGS[0],
+  rarity: undefined,
+  size: undefined,
   id,
   name: id,
   ...patch,
 });
+/** T007 之前的 9 隻：排序與編隊的測試用固定名單，之後再加狗也不用改 */
+const OLD_IDS = [
+  'daer',
+  'heixuan',
+  'changxu',
+  'xiaosuan',
+  'abai',
+  'tieya',
+  'duantui',
+  'shuangyan',
+  'nuantong',
+];
+const OLD = DOGS.filter((d) => OLD_IDS.includes(d.id));
 
 describe('選狗篩選', () => {
   it('預設（全部）顯示所有狗狗', () => {
@@ -31,7 +46,7 @@ describe('選狗篩選', () => {
 
   it('依定位篩選', () => {
     const by = (role: (typeof ALL_FILTER)['role']) =>
-      ids(filterDogs(DOGS, { ...ALL_FILTER, role }, ctx));
+      ids(filterDogs(OLD, { ...ALL_FILTER, role }, ctx));
     expect(by('突擊')).toEqual(['heixuan']);
     expect(by('守護')).toEqual(['changxu', 'tieya']);
     expect(by('謀略')).toEqual(['xiaosuan', 'shuangyan']);
@@ -74,7 +89,7 @@ describe('選狗篩選', () => {
 
 describe('選狗排序', () => {
   it('預設戰力高到低，擁有的排前面', () => {
-    expect(ids(listDogs(DOGS, ALL_FILTER, 'power', ctx))).toEqual([
+    expect(ids(listDogs(OLD, ALL_FILTER, 'power', ctx))).toEqual([
       'changxu', // 114
       'daer', // 108
       'heixuan', // 103
@@ -114,7 +129,8 @@ describe('選狗排序', () => {
   });
 
   it('稀有度排序要等有資料才出現；按鈕輪流切換', () => {
-    expect(sortOptions(DOGS)).toEqual(['power', 'level']);
+    expect(sortOptions([dog('a'), dog('b')])).toEqual(['power', 'level']);
+    expect(sortOptions(DOGS)).toEqual(['power', 'level', 'rarity']);
     expect(sortOptions([dog('a', { rarity: 'R' })])).toEqual(['power', 'level', 'rarity']);
     expect(nextSort('power', ['power', 'level'])).toBe('level');
     expect(nextSort('level', ['power', 'level'])).toBe('power');
@@ -123,8 +139,8 @@ describe('選狗排序', () => {
 
 describe('自動編隊', () => {
   it('挑可出征中戰力最高的 5 隻', () => {
-    const owned = DOGS.map((d) => d.id);
-    expect(autoTeam(DOGS, { owned, busy: [] })).toEqual([
+    const owned = OLD.map((d) => d.id);
+    expect(autoTeam(OLD, { owned, busy: [] })).toEqual([
       'nuantong',
       'tieya',
       'changxu',
@@ -134,8 +150,8 @@ describe('自動編隊', () => {
   });
 
   it('出征中、未擁有的不會被選', () => {
-    const owned = DOGS.map((d) => d.id).filter((id) => id !== 'tieya');
-    expect(autoTeam(DOGS, { owned, busy: ['changxu'] })).toEqual([
+    const owned = OLD.map((d) => d.id).filter((id) => id !== 'tieya');
+    expect(autoTeam(OLD, { owned, busy: ['changxu'] })).toEqual([
       'nuantong',
       'daer',
       'heixuan',

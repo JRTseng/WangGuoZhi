@@ -15,7 +15,8 @@ import {
 } from '../state/gameState';
 import { boardingSlotCount } from './boarding';
 import { HISTORY_MAX, TEAM_SIZE } from './expedition';
-import { MAX_LEVEL, expNeeded, initialProgress } from './leveling';
+import { PITY_SSR } from './gacha';
+import { MAX_LEVEL, STAR_MAX, expNeeded, initialProgress, levelCapForStar } from './leveling';
 import { DRILL_MAX } from './training';
 
 /**
@@ -96,7 +97,9 @@ function resources(v: unknown, fallback: Resources): Resources {
 function dogProgress(v: unknown, fallback: DogProgress): DogProgress {
   if (!isObj(v)) return fallback;
   const level = int(v.level, fallback.level, 1, MAX_LEVEL);
-  const need = expNeeded(level);
+  // 星數是後來才加的欄位（T007），沒有就是 1 星；等級上限看星數
+  const star = int(v.star, 1, 1, STAR_MAX);
+  const need = expNeeded(level, levelCapForStar(star));
   const p: DogProgress = {
     level,
     exp: int(v.exp, 0, 0, Math.max(0, need - 1)),
@@ -109,6 +112,7 @@ function dogProgress(v: unknown, fallback: DogProgress): DogProgress {
   // 特訓次數是後來才加的欄位（T020），沒練過的狗可以沒有
   if (isNum(v.drillAttack)) p.drillAttack = int(v.drillAttack, 0, 0, DRILL_MAX);
   if (isNum(v.drillDefense)) p.drillDefense = int(v.drillDefense, 0, 0, DRILL_MAX);
+  if (star > 1) p.star = star;
   return p;
 }
 
@@ -276,6 +280,14 @@ export function sanitizeState(raw: unknown, now: number): GameState {
     }
   }
 
+  // 召募紀錄（T007）：保底計數不能超過保底門檻
+  const gacha = isObj(raw.gacha)
+    ? {
+        pulls: int(raw.gacha.pulls, 0),
+        sinceSSR: int(raw.gacha.sinceSSR, 0, 0, PITY_SSR - 1),
+      }
+    : base.gacha;
+
   return {
     resources: resources(raw.resources, base.resources),
     history,
@@ -293,6 +305,9 @@ export function sanitizeState(raw: unknown, now: number): GameState {
     daily,
     auto,
     boarding,
+    // 碎片（T007）：只留認得的狗、正整數
+    shards: countMap(raw.shards, isDog),
+    gacha,
   };
 }
 

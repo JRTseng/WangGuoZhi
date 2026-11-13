@@ -7,31 +7,42 @@ test('組隊：全部角色、未擁有變暗、編隊與設定主頁角色', as
   await waitScene(page, 'TeamScene');
 
   let t = (await wgz(page)).team!;
-  expect(t.dogs).toHaveLength(9);
+  // T007 起共 19 隻
+  expect(t.dogs).toHaveLength(19);
   // 預設：全部、戰力高到低，擁有的排前面
+  const unowned = [
+    'xiongyue',
+    'xueling',
+    'nuantong',
+    'tieya',
+    'jiying',
+    'shanlan',
+    'yuandun',
+    'modian',
+    'zhuifeng',
+    'shuangyan',
+    'duantui',
+    'chanbi',
+    'changgong',
+    'douding',
+  ];
   expect(t.dogs.map((d) => d.id)).toEqual([
     'changxu',
     'daer',
     'heixuan',
     'xiaosuan',
     'abai',
-    'nuantong',
-    'tieya',
-    'shuangyan',
-    'duantui',
+    ...unowned,
   ]);
-  expect(t.dogs.filter((d) => !d.owned).map((d) => d.id)).toEqual([
-    'nuantong',
-    'tieya',
-    'shuangyan',
-    'duantui',
-  ]);
+  expect(t.dogs.filter((d) => !d.owned).map((d) => d.id)).toEqual(unowned);
   const cell = async (id: string) => (await wgz(page)).team!.dogs.find((d) => d.id === id)!;
   expect(t.slots.map((s) => s.id)).toEqual(['daer', 'heixuan', 'changxu', null, null]);
   for (const slot of t.slots) expect(slot.x + slot.width).toBeLessThanOrEqual(390);
+  // 狗多了卡片格可以捲動：看得到的都在畫面內，擁有的 5 隻一進來就看得到
   for (const d of t.dogs) {
     expect(d.x + d.width).toBeLessThanOrEqual(390);
-    expect(d.y + d.height).toBeLessThanOrEqual(844);
+    if (d.visible) expect(d.y + d.height).toBeLessThanOrEqual(844);
+    if (d.owned) expect(d.visible).toBe(true);
   }
   await page.screenshot({ path: 'artifacts/screenshots/portrait/team.png' });
 
@@ -76,13 +87,13 @@ test('組隊：篩選、排序、自動編隊', async ({ page }) => {
   let p = (await wgz(page)).picker!;
   expect(p.filter).toEqual({ role: 'all', status: 'all' });
   expect(p.sort).toBe('power');
-  expect(p.cells).toHaveLength(9);
+  expect(p.cells).toHaveLength(19);
 
-  // 定位：守護
+  // 定位：守護（擁有的排前面，其餘依戰力）
   await tap(page, await chip('roleChips', '守護'));
-  expect(await ids()).toEqual(['changxu', 'tieya']);
+  expect(await ids()).toEqual(['changxu', 'xiongyue', 'tieya', 'yuandun']);
   await page.screenshot({ path: 'artifacts/screenshots/portrait/team-filter.png' });
-  // 再疊狀態：可出征（未擁有的鐵牙不算）
+  // 再疊狀態：可出征（未擁有的不算）
   await tap(page, await chip('statusChips', 'idle'));
   expect(await ids()).toEqual(['changxu']);
   // 出征中：目前沒有
@@ -92,7 +103,7 @@ test('組隊：篩選、排序、自動編隊', async ({ page }) => {
   // 回到全部
   await tap(page, await chip('statusChips', 'all'));
   await tap(page, await chip('roleChips', 'all'));
-  expect(await ids()).toHaveLength(9);
+  expect(await ids()).toHaveLength(19);
 
   // 排序：等級
   await tap(page, (await wgz(page)).picker!.sortChip);
@@ -104,6 +115,19 @@ test('組隊：篩選、排序、自動編隊', async ({ page }) => {
     'heixuan',
     'xiaosuan',
     'abai',
+  ]);
+  // 排序：稀有度（T007）。擁有的排前面：R 三隻、N 兩隻；接著是沒擁有的 SSR
+  await tap(page, p.sortChip);
+  p = (await wgz(page)).picker!;
+  expect(p.sort).toBe('rarity');
+  expect(p.cells.slice(0, 7).map((c) => c.id)).toEqual([
+    'changxu',
+    'daer',
+    'heixuan',
+    'xiaosuan',
+    'abai',
+    'xiongyue',
+    'xueling',
   ]);
   await tap(page, p.sortChip);
   expect((await wgz(page)).picker!.sort).toBe('power');

@@ -1,8 +1,9 @@
 import Phaser from 'phaser';
-import { COLORS } from '../../config';
+import { COLORS, rarityHex } from '../../config';
 import type { DogData } from '../../data/dogs';
 import type { Rect } from '../../logic/layout';
 import type { DogStats } from '../../logic/leveling';
+import { MAX_LEVEL } from '../../logic/leveling';
 import { addText, openModal, viewOf } from '../ui';
 import { drawDogHead } from './dogArt';
 import { drawExpBar, expLabel } from './ExpBar';
@@ -30,7 +31,7 @@ export interface DogInfoOptions {
 export class DogInfoPanel {
   readonly layer: Phaser.GameObjects.Container;
   readonly buttons: { team?: Rect; lobby?: Rect } = {};
-  readonly stats: { level: number; exp: number; expNeed: number; power: number };
+  readonly stats: { level: number; exp: number; expNeed: number; power: number; star: number };
 
   constructor(scene: Phaser.Scene, dog: DogData, o: DogInfoOptions) {
     const { landscape } = viewOf(scene);
@@ -42,7 +43,7 @@ export class DogInfoPanel {
     );
     this.layer = layer;
     const s = o.stats;
-    this.stats = { level: s.level, exp: s.exp, expNeed: s.expNeed, power: s.power };
+    this.stats = { level: s.level, exp: s.exp, expNeed: s.expNeed, power: s.power, star: s.star };
 
     const head = scene.add.graphics();
     const hr = 40;
@@ -50,6 +51,13 @@ export class DogInfoPanel {
     const hy = box.y + 34 + hr;
     drawDogHead(head, hx, hy, hr, dog.color, dog.accent, { dark: !o.owned });
     layer.add(head);
+    // 頭像下面：稀有度・體型・星數（T007）
+    if (dog.rarity) {
+      const tag = [dog.rarity, dog.size, o.owned ? `★${s.star}` : ''].filter(Boolean).join('・');
+      layer.add(
+        addText(scene, hx, hy + hr + 6, tag, 13, rarityHex(dog.rarity), true).setOrigin(0.5, 0),
+      );
+    }
 
     const tx = hx + hr + 20;
     const textW = box.x + box.width - tx - 16;
@@ -83,7 +91,16 @@ export class DogInfoPanel {
       drawExpBar(bar, tx, box.y + 98, barW, 8, s.exp / (s.expNeed || 1), s.expNeed === 0);
       layer.add([
         bar,
-        addText(scene, tx, box.y + 110, expLabel(s.exp, s.expNeed), 13, COLORS.inkSoft),
+        addText(
+          scene,
+          tx,
+          box.y + 110,
+          s.expNeed === 0 && s.levelCap < MAX_LEVEL
+            ? `等級上限 ${s.levelCap}・升星可提高`
+            : expLabel(s.exp, s.expNeed),
+          13,
+          COLORS.inkSoft,
+        ),
       ]);
     }
     const left = box.x + 24;
@@ -124,7 +141,7 @@ export class DogInfoPanel {
           scene,
           box.x + box.width / 2,
           by + 24,
-          '招募功能開放後就能取得',
+          dog.rewardOnly ? '打贏第 1 章 Boss 就會加入' : '到主頁的「召募」抽抽看',
           16,
           COLORS.inkSoft,
         ).setOrigin(0.5),

@@ -29,6 +29,8 @@ export interface DogProgress {
   /** 訓練場特訓的次數（T020），每次該屬性永久 +1；沒有這個欄位當成 0 */
   drillAttack?: number;
   drillDefense?: number;
+  /** 星數（T007）：1～5，升星提高攻防與等級上限；沒有這個欄位當成 1 星 */
+  star?: number;
 }
 
 /** 一次出征的紀錄（T019 起出征當下就結算，沒有等待時間） */
@@ -108,6 +110,14 @@ export interface BoardingSlot {
   levels: number;
 }
 
+/** 召募（抽卡，T007）的累計紀錄 */
+export interface GachaState {
+  /** 總共抽了幾次 */
+  pulls: number;
+  /** 連續幾抽沒出 SSR（保底用；抽到 SSR 歸零） */
+  sinceSSR: number;
+}
+
 export type Quality = 'low' | 'medium' | 'high';
 
 /** 帳號設定（語音／音樂／推播目前只記住開關，還沒有實際功能） */
@@ -150,6 +160,10 @@ export interface GameState {
   auto: AutoState;
   /** 訓練場寄宿中的狗（T021） */
   boarding: BoardingSlot[];
+  /** 各隻狗的碎片（T007）：重複抽到就換碎片，升星時花掉；以狗狗 id 為鍵 */
+  shards: Record<string, number>;
+  /** 召募的累計紀錄（T007） */
+  gacha: GachaState;
 }
 
 /** 體力上限；新遊戲從滿體力開始 */
@@ -183,5 +197,7 @@ export function createInitialState(now: number = Date.now()): GameState {
     daily: { day: '', runs: {}, extraRuns: {}, staminaBuys: 0, runBuys: 0 },
     auto: { enabled: false, lastAt: now, summary: null },
     boarding: [],
+    shards: {},
+    gacha: { pulls: 0, sinceSSR: 0 },
   };
 }
