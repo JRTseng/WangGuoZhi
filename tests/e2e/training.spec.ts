@@ -50,9 +50,14 @@ test('升級：打完拿經驗、1 級的狗連升到 3 級，訓練場與角色
     expect(r.x + r.width).toBeLessThanOrEqual(390);
     expect(r.y + r.height).toBeLessThanOrEqual(844);
   }
-  // 等級高的排前面
-  for (let i = 1; i < rows.length; i++)
-    expect(rows[i].level).toBeLessThanOrEqual(rows[i - 1].level);
+  // 預設依稀有度排（R 的大耳、黑旋、長鬚在 N 的小算、阿白前面），同稀有度等級高的在前
+  expect(s.training!.sort).toBe('rarity');
+  expect(
+    rows
+      .map((r) => r.id)
+      .slice(3)
+      .sort(),
+  ).toEqual(['abai', 'xiaosuan']);
   const abai = rows.find((r) => r.id === 'abai')!;
   const g = by('abai');
   expect(abai).toMatchObject({ level: 3, exp: 13 });
@@ -285,4 +290,39 @@ test.describe('手機橫放：特訓', () => {
     await page.waitForTimeout(150);
     expect((await row(page, last.id)).drill.defense.count).toBe(0);
   });
+});
+
+test('排序：點按鈕輪流換條件，重開遊戲還記得', async ({ page }) => {
+  await openTraining(page);
+  let t = (await wgz(page)).training!;
+  expect(t.sort).toBe('rarity');
+  // 按鈕在說明列裡、列表上面，不超出畫面
+  expect(t.sortChip.x + t.sortChip.width).toBeLessThanOrEqual(390);
+  expect(t.sortChip.y + t.sortChip.height).toBeLessThanOrEqual(t.list.y);
+
+  // 稀有度 → 等級 → 戰力
+  for (const sort of ['level', 'power'] as const) {
+    await tap(page, t.sortChip);
+    await page.waitForFunction((s) => window.__WGZ__?.training?.sort === s, sort);
+    t = (await wgz(page)).training!;
+    expect(t.rows).toHaveLength(5);
+    for (let i = 1; i < t.rows.length; i++)
+      expect(t.rows[i][sort]).toBeLessThanOrEqual(t.rows[i - 1][sort]);
+  }
+  await page.waitForTimeout(200);
+  await page.screenshot({ path: 'artifacts/screenshots/portrait/training-sort.png' });
+
+  // → 可升星 → 定位：突擊的黑旋排第一
+  await tap(page, t.sortChip);
+  await page.waitForFunction(() => window.__WGZ__?.training?.sort === 'star');
+  await tap(page, t.sortChip);
+  await page.waitForFunction(() => window.__WGZ__?.training?.sort === 'role');
+  t = (await wgz(page)).training!;
+  expect(t.rows.map((r) => r.id)).toEqual(['heixuan', 'changxu', 'xiaosuan', 'abai', 'daer']);
+
+  // 重開遊戲：沿用上次選的排序
+  await openTraining(page);
+  t = (await wgz(page)).training!;
+  expect(t.sort).toBe('role');
+  expect(t.rows[0].id).toBe('heixuan');
 });

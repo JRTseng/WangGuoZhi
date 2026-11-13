@@ -82,6 +82,9 @@ interface WgzDebugState {
     /** 右上角進板凳寄宿的按鈕（T021）：幾隻在寄宿／幾個位子 */
     boardingButton: { count: number; slots: number } & WgzRect;
     list: WgzRect;
+    /** 目前的排序條件，以及說明列右邊的排序按鈕 */
+    sort: 'rarity' | 'level' | 'power' | 'star' | 'role';
+    sortChip: WgzRect;
     scrollY: number;
     scrollMax: number;
     /** 目前糧草 */
@@ -191,6 +194,7 @@ interface WgzDebugState {
       quality: string;
       skipBattle: boolean;
       battleSpeed: number;
+      trainingSort: string;
     };
     rects: Record<string, WgzRect>;
     input: WgzRect;
