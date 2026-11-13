@@ -10,11 +10,12 @@ import {
   type DogProgress,
   type ExpeditionRecord,
   type GameState,
+  type PendingBattle,
   type Quality,
   type Settings,
 } from '../state/gameState';
 import { boardingSlotCount } from './boarding';
-import { HISTORY_MAX, TEAM_SIZE } from './expedition';
+import { HISTORY_MAX, TEAM_SIZE, battleTeamOf } from './expedition';
 import { PITY_SSR } from './gacha';
 import { MAX_LEVEL, STAR_MAX, expNeeded, initialProgress, levelCapForStar } from './leveling';
 import { cleanSkillLine } from './skillShow';
@@ -164,6 +165,10 @@ function historyRecord(v: unknown): ExpeditionRecord | null {
       return null;
     }
   }
+  // 放招時機（T023）：手動放招的紀錄才有，要是一串不是負數的整數
+  if (v.ultTurns !== undefined) {
+    if (!Array.isArray(v.ultTurns) || !v.ultTurns.every((n) => isNum(n) && n >= 0)) return null;
+  }
   return v as unknown as ExpeditionRecord;
 }
 
@@ -200,6 +205,7 @@ function settings(v: unknown, fallback: Settings): Settings {
     skipBattle: bool(v.skipBattle, fallback.skipBattle),
     battleSpeed:
       speed === 1 || speed === 2 || speed === 3 || speed === 4 ? speed : fallback.battleSpeed,
+    autoUlt: bool(v.autoUlt, fallback.autoUlt),
     trainingSort: isTrainingSort(v.trainingSort) ? v.trainingSort : fallback.trainingSort,
   };
 }
@@ -307,6 +313,35 @@ export function sanitizeState(raw: unknown, now: number): GameState {
     }
   }
 
+  // 陣型（T023）：只留認得的狗，排只能是 0、1、2；沒記的上場時照定位排
+  const formation: Record<string, number> = {};
+  if (isObj(raw.formation)) {
+    for (const [id, v] of Object.entries(raw.formation)) {
+      if (isDog(id) && (v === 0 || v === 1 || v === 2)) formation[id] = v;
+    }
+  }
+
+  // 開戰到一半的仗（T023）：關卡與隊伍要認得，隊伍的攻防與站位用現在的資料重新排
+  let pending: PendingBattle | null = null;
+  if (isObj(raw.pending) && typeof raw.pending.stageId === 'string') {
+    const p = raw.pending;
+    const ids = stringList(p.dogIds, isOwned);
+    if (
+      isStage(p.stageId as string) &&
+      ids.length >= 1 &&
+      ids.length <= TEAM_SIZE &&
+      isNum(p.seed)
+    ) {
+      pending = {
+        stageId: p.stageId as string,
+        dogIds: ids,
+        team: battleTeamOf({ dogs, formation }, ids),
+        seed: Math.floor(p.seed) >>> 0,
+        at: Math.min(now, int(p.at, now)),
+      };
+    }
+  }
+
   return {
     resources: resources(raw.resources, base.resources),
     history,
@@ -328,6 +363,8 @@ export function sanitizeState(raw: unknown, now: number): GameState {
     shards: countMap(raw.shards, isDog),
     gacha,
     skillLines,
+    formation,
+    pending,
   };
 }
 

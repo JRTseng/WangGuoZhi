@@ -14,10 +14,14 @@ export interface BattleLayout {
   speed: Rect;
   /** 略過按鈕 */
   skip: Rect;
+  /** 「自動放招」勾選框（T023）：直式在略過按鈕左邊，橫式在標題列速度按鈕左邊 */
+  auto: Rect;
   /** 雙方站位的範圍 */
   field: Rect;
   team: BattleSlot[];
   enemies: BattleSlot[];
+  /** 雙方前排、中排、後排那一直行的 x 座標（畫「前中後」小標用） */
+  rowX: { team: number[]; enemy: number[] };
 }
 
 export const BATTLE_BAR_HEIGHT = 56;
@@ -31,68 +35,96 @@ export function slotBounds(s: BattleSlot): Rect {
   return { x: s.x - halfW, y: s.y - s.r * 1.35, width: halfW * 2, height: s.r * 2.35 + 30 };
 }
 
-/**
- * 一方的站位。直式排成一直排（前後錯開一點）；
- * 橫式高度不夠，超過 3 隻就分前後兩排。facing：我方在左（1），敵方在右（-1）。
- */
-function sideSlots(count: number, field: Rect, landscape: boolean, facing: 1 | -1): BattleSlot[] {
-  if (count <= 0) return [];
-  const mid = field.x + field.width / 2;
-  const columns: number[][] =
-    landscape && count > 3
-      ? [
-          Array.from({ length: Math.ceil(count / 2) }, (_, i) => i),
-          Array.from({ length: Math.floor(count / 2) }, (_, i) => Math.ceil(count / 2) + i),
-        ]
-      : [Array.from({ length: count }, (_, i) => i)];
-  const rows = columns[0].length;
-  const spacing = field.height / rows;
-  const solo = count === 1;
-  const r = Math.round(
-    Math.max(14, Math.min(MAX_R * (solo ? BOSS_SCALE : 1), spacing * 0.27, field.width * 0.11)),
-  );
-  // 前排離中線的距離、兩排之間的距離
-  const front = landscape ? field.width * 0.16 : field.width * 0.22;
-  const colGap = field.width * 0.2;
-  const slots: BattleSlot[] = [];
-  columns.forEach((col, ci) => {
-    const colSpacing = field.height / col.length;
-    col.forEach((unit, row) => {
-      const stagger = landscape || solo ? 0 : (row % 2 === 0 ? 1 : -1) * 14;
-      slots[unit] = {
-        x: Math.round(mid - facing * (front + ci * colGap + stagger)),
-        // 把名字與血條算進去，整塊在格子裡上下置中
-        y: Math.round(field.y + colSpacing * (row + 0.5) - 14 + r * 0.17),
-        r,
-      };
-    });
-  });
-  return slots;
+/** 前排、中排、後排離中線多遠 */
+function rowOffsets(field: Rect, landscape: boolean): number[] {
+  return landscape
+    ? [field.width * 0.15, field.width * 0.27, field.width * 0.39]
+    : [field.width * 0.12, field.width * 0.255, field.width * 0.39];
 }
 
-/** 戰鬥畫面版面（直式 390 x 844、橫式 844 x 390 都適用） */
+/**
+ * 一方的站位（T023 三排）：前排最靠近中線，中排、後排依序往外。facing：我方在左（1），敵方在右（-1）。
+ * - 直式寬度不夠三排並肩，所以每隻各佔一條橫的「跑道」（由上而下照隊伍順序），
+ *   站哪一排決定牠在跑道上靠中線多近。
+ * - 橫式每一排是一直行，同一排的由上而下排開。
+ */
+function sideSlots(
+  rows: readonly number[],
+  field: Rect,
+  landscape: boolean,
+  facing: 1 | -1,
+): BattleSlot[] {
+  const count = rows.length;
+  if (count <= 0) return [];
+  const mid = field.x + field.width / 2;
+  const offsets = rowOffsets(field, landscape);
+  const solo = count === 1;
+  const inRow = [0, 1, 2].map((r) => rows.filter((x) => x === r).length);
+  const lanes = landscape ? Math.max(...inRow) : count;
+  const spacing = field.height / lanes;
+  const r = Math.round(
+    Math.max(
+      14,
+      Math.min(
+        MAX_R * (solo ? BOSS_SCALE : 1),
+        spacing * 0.27,
+        field.width * 0.11,
+        // 前排的名字與血條不能壓到中線
+        solo ? Infinity : (offsets[0] - 1) / 1.3,
+      ),
+    ),
+  );
+  const seen = [0, 0, 0];
+  return rows.map((row, i) => {
+    const lane = landscape ? seen[row]++ : i;
+    const laneCount = landscape ? inRow[row] : count;
+    const laneSpacing = field.height / laneCount;
+    return {
+      // 單獨一隻畫得比較大，站前排時往外挪一點才不會壓到中線
+      x: Math.round(mid - facing * Math.max(offsets[row], solo ? r * 1.3 + 6 : 0)),
+      // 把名字與血條算進去，整塊在跑道裡上下置中
+      y: Math.round(field.y + laneSpacing * (lane + 0.5) - 14 + r * 0.17),
+      r,
+    };
+  });
+}
+
+/**
+ * 戰鬥畫面版面（直式 390 x 844、橫式 844 x 390 都適用）。
+ * teamRows／enemyRows：雙方每一隻站第幾排（0 前、1 中、2 後）。
+ */
 export function battleLayout(
   w: number,
   h: number,
   landscape: boolean,
-  teamCount: number,
-  enemyCount: number,
+  teamRows: readonly number[],
+  enemyRows: readonly number[],
 ): BattleLayout {
   const bar = BATTLE_BAR_HEIGHT;
   const speed: Rect = { x: w - 84, y: 8, width: 76, height: bar - 16 };
   const skip: Rect = landscape
     ? { x: w / 2 - 70, y: h - 60, width: 140, height: 48 }
-    : { x: 24, y: h - 84, width: w - 48, height: 60 };
-  const top = bar + (landscape ? 30 : 44);
+    : { x: 172, y: h - 84, width: w - 196, height: 60 };
+  const auto: Rect = landscape
+    ? { x: speed.x - 8 - 136, y: 8, width: 136, height: bar - 16 }
+    : { x: 24, y: h - 84, width: 140, height: 60 };
+  const top = bar + (landscape ? 34 : 52);
   const field: Rect = landscape
     ? { x: 16, y: top, width: w - 32, height: h - top - 8 }
     : { x: 8, y: top, width: w - 16, height: skip.y - 12 - top };
+  const mid = field.x + field.width / 2;
+  const offsets = rowOffsets(field, landscape);
   return {
     barHeight: bar,
     speed,
     skip,
+    auto,
     field,
-    team: sideSlots(teamCount, field, landscape, 1),
-    enemies: sideSlots(enemyCount, field, landscape, -1),
+    team: sideSlots(teamRows, field, landscape, 1),
+    enemies: sideSlots(enemyRows, field, landscape, -1),
+    rowX: {
+      team: offsets.map((o) => Math.round(mid - o)),
+      enemy: offsets.map((o) => Math.round(mid + o)),
+    },
   };
 }

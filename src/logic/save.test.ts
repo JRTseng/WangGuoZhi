@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { createInitialState, type GameState } from '../state/gameState';
 import { setAuto } from './auto';
 import { createRng } from './battle';
-import { runExpedition } from './expedition';
+import { beginExpedition, completeExpedition, runExpedition, settlePending } from './expedition';
+import { setDogRow, teamRows } from './formation';
 import { pull } from './gacha';
 import { SAVE_VERSION, deserialize, sanitizeState, serialize, type SaveFile } from './save';
 import { SKILL_LINE_MAX, setSkillLine } from './skillShow';
@@ -300,5 +301,82 @@ describe('招式台詞（T017）', () => {
     );
     expect(out.skillLines).toEqual({ daer: '汪'.repeat(SKILL_LINE_MAX), heixuan: 'A B' });
     expect(sanitizeState({ ...st, skillLines: ['x'] }, NOW).skillLines).toEqual({});
+  });
+});
+
+describe('陣型與開戰中的仗（T023）', () => {
+  const TEAM = ['daer', 'heixuan', 'changxu'];
+
+  it('排過陣型、關掉自動放招的進度存了再讀，完全一樣', () => {
+    let st = setDogRow(playedState(), TEAM, 'changxu', 2);
+    st = { ...st, settings: { ...st.settings, autoUlt: false } };
+    const out = deserialize(serialize(st, NOW), NOW);
+    expect(out.status).toBe('ok');
+    expect(out.state.formation).toEqual({ daer: 1, heixuan: 0, changxu: 2 });
+    expect(out.state.settings.autoUlt).toBe(false);
+    expect(teamRows(out.state, TEAM)).toEqual([1, 0, 2]);
+    expect(out.state).toEqual(st);
+  });
+
+  it('T023 之前的舊存檔：沒有陣型，自動照定位排好；自動放招預設打勾', () => {
+    const st = playedState();
+    const old: Record<string, unknown> = JSON.parse(JSON.stringify(st));
+    delete old.formation;
+    delete old.pending;
+    delete (old.settings as Record<string, unknown>).autoUlt;
+    const out = sanitizeState(old, NOW);
+    expect(out.formation).toEqual({});
+    expect(out.pending).toBeNull();
+    expect(out.settings.autoUlt).toBe(true);
+    expect(teamRows(out, TEAM)).toEqual([1, 0, 0]);
+    expect(out.dogs).toEqual(st.dogs);
+    // 舊的出征紀錄（隊伍資料沒有定位與站位）照樣留著
+    expect(out.history).toHaveLength(st.history.length);
+  });
+
+  it('怪怪的陣型會被修正：只留認得的狗與 0、1、2', () => {
+    const st = createInitialState(NOW);
+    const out = sanitizeState(
+      { ...st, formation: { daer: 2, heixuan: 3, changxu: '0', abai: -1, nobody: 1 } },
+      NOW,
+    );
+    expect(out.formation).toEqual({ daer: 2 });
+    expect(sanitizeState({ ...st, formation: [1, 2] }, NOW).formation).toEqual({});
+  });
+
+  it('開戰到一半存檔：讀回來那一仗還在，可以用自動放招算完', () => {
+    const begun = beginExpedition(settle(createInitialState(NOW), NOW, O), 'luoyepo-1', TEAM, NOW, {
+      ...O,
+      seed: 11,
+    });
+    if (!begun.ok) throw new Error('應該可以開戰');
+    const out = deserialize(serialize(begun.state, NOW), NOW);
+    expect(out.state.pending).toEqual(begun.state.pending);
+    const done = settlePending(out.state);
+    expect(done.pending).toBeNull();
+    expect(done.history).toHaveLength(1);
+    expect(done.history[0]).toMatchObject({ stageId: 'luoyepo-1', seed: 11, win: true });
+  });
+
+  it('開戰中的仗資料怪怪的就丟掉；手動放招的紀錄存得回來', () => {
+    const st = createInitialState(NOW);
+    for (const pending of [
+      { stageId: 'nowhere', dogIds: TEAM, seed: 1, at: NOW },
+      { stageId: 'luoyepo-1', dogIds: [], seed: 1, at: NOW },
+      { stageId: 'luoyepo-1', dogIds: ['tieya'], seed: 1, at: NOW },
+      { stageId: 'luoyepo-1', dogIds: TEAM, seed: 'x', at: NOW },
+      'battle',
+    ]) {
+      expect(sanitizeState({ ...st, pending }, NOW).pending).toBeNull();
+    }
+    const begun = beginExpedition(settle(st, NOW, O), 'luoyepo-1', TEAM, NOW, { ...O, seed: 3 });
+    if (!begun.ok) throw new Error('應該可以開戰');
+    const done = completeExpedition(begun.state, [])!;
+    expect(done.record.ultTurns).toEqual([]);
+    const out = deserialize(serialize(done.state, NOW), NOW);
+    expect(out.state.history).toEqual(done.state.history);
+    const broken = JSON.parse(JSON.stringify(done.state));
+    broken.history[0].ultTurns = ['a'];
+    expect(sanitizeState(broken, NOW).history).toHaveLength(0);
   });
 });

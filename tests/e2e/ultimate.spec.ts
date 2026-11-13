@@ -25,7 +25,7 @@ async function waitUlt(page: Page, n: number) {
 test('訓練場填台詞，戰鬥中放大絕招會喊招式名與台詞；勝負不變', async ({ page }) => {
   // 流程長（訓練場、重新整理、看兩次大絕招），CI 上超過預設的 60 秒
   test.setTimeout(150_000);
-  // &battle=slow：戰鬥放慢，來得及截圖；&seed=5：固定種子，每次都是同一場（三隻都會放到招）
+  // &battle=slow：戰鬥放慢，來得及截圖；&seed=5：固定種子，每次都是同一場
   await openLobby(page, '?fast=1&battle=slow&seed=5');
   await tap(page, (await wgz(page)).lobby!.buttons.train);
   await waitScene(page, 'TrainingScene');
@@ -70,40 +70,48 @@ test('訓練場填台詞，戰鬥中放大絕招會喊招式名與台詞；勝�
   await tap(page, (await wgz(page)).backButton!);
   await waitScene(page, 'LobbyScene');
 
-  // 開戰：我方有 EN 條（從 0 開始），野犬沒有
-  await startBattle(page);
+  // 開戰（大耳＋小算，打得久一點才集得滿 EN）：我方有 EN 條（從 0 開始），野犬沒有
+  await startBattle(page, 0, ['daer', 'xiaosuan']);
   await waitScene(page, 'BattleScene');
   let b = await battle(page);
   expect(b.ults).toBe(0);
   expect(b.ult).toBeNull();
-  expect(b.ultTotal).toBeGreaterThanOrEqual(1);
-  expect(b.team.map((u) => u.en)).toEqual([0, 0, 0]);
+  expect(b.autoUlt).toBe(true);
+  expect(b.enMax).toBe(100);
+  expect(b.ultTotal).toBeGreaterThanOrEqual(2);
+  expect(b.team.map((u) => u.en)).toEqual([0, 0]);
   expect(b.enemies.map((u) => u.en)).toEqual([null, null, null]);
   await speedTwo(page);
 
-  // 第一招是大耳（第 3 次出手）：喊「結義」與剛填的台詞；語音掛點有收到提示
+  // 第一招是大耳（EN 集滿 100）：喊「結義」與剛填的台詞；語音掛點有收到提示
   b = await waitUlt(page, 1);
   expect(b.ult).toEqual({ id: 'daer', side: 'team', skill: '結義', line: LINE, kind: 'buff' });
   expect(b.voiceCue).toBe('daer.ultimate');
   expect(b.phase).toBe('playing');
   await page.screenshot({ path: 'artifacts/screenshots/portrait/ultimate-buff.png' });
-
-  // 第二招是黑旋（突擊，穿透），用預設台詞
-  b = await waitUlt(page, 2);
-  expect(b.ult).toMatchObject({ id: 'heixuan', skill: '怒吼', kind: 'pierce' });
-  expect(b.ult!.line.length).toBeGreaterThan(0);
-  await page.screenshot({ path: 'artifacts/screenshots/portrait/ultimate-pierce.png' });
-  // 字卡滑走、打下去的那一下
+  // 放完 EN 歸零
   const hitIndex = b.index;
   await page.waitForFunction((i) => (window.__WGZ__?.battle?.index ?? 0) > i, hitIndex);
-  await page.screenshot({ path: 'artifacts/screenshots/portrait/ultimate-pierce-hit.png' });
+  expect((await battle(page)).team[0].en).toBeLessThan(100);
+
+  // 小算（謀略，整排），用預設台詞
+  await page.waitForFunction(
+    () =>
+      window.__WGZ__?.battle?.ult?.id === 'xiaosuan' || window.__WGZ__?.battle?.phase === 'result',
+    null,
+    { timeout: 60_000 },
+  );
   b = await battle(page);
+  expect(b.ult).toMatchObject({ id: 'xiaosuan', skill: '借箭', kind: 'row' });
+  expect(b.ult!.line.length).toBeGreaterThan(0);
+  await page.waitForTimeout(450);
+  await page.screenshot({ path: 'artifacts/screenshots/portrait/ultimate-row.png' });
   for (const u of b.team) {
     expect(u.en).toBeGreaterThanOrEqual(0);
     expect(u.en).toBeLessThanOrEqual(b.enMax);
   }
 
-  // 演出途中略過：結果和原本一模一樣（勝，獎勵 120／5）
+  // 演出途中略過：剩下的用自動放招算完（這個種子是勝，獎勵 120／5）
   await tap(page, b.skipButton);
   await page.waitForFunction(() => window.__WGZ__?.battle?.phase === 'result');
   b = await battle(page);
@@ -118,44 +126,23 @@ test.describe('手機橫放', () => {
 
   test('橫式大絕招演出；整場看完，每一招都有播', async ({ page }) => {
     test.setTimeout(150_000);
-    await openLobby(page, '?fast=1&battle=slow&seed=5');
-    await startBattle(page, 0, ['daer', 'heixuan', 'changxu', 'xiaosuan', 'abai']);
+    // 大耳＋黑旋、種子 2：黑旋（突擊）會放一次穿透
+    await openLobby(page, '?fast=1&battle=slow&seed=2');
+    await startBattle(page, 0, ['daer', 'heixuan']);
     await waitScene(page, 'BattleScene');
     await speedTwo(page);
     let b = await waitUlt(page, 1);
-    expect(b.ult).toMatchObject({ id: 'daer', side: 'team' });
-    await page.screenshot({ path: 'artifacts/screenshots/landscape/ultimate-buff.png' });
-    // 小算是謀略：整排
-    await page.waitForFunction(
-      () =>
-        window.__WGZ__?.battle?.ult?.id === 'xiaosuan' ||
-        window.__WGZ__?.battle?.phase === 'result',
-      null,
-      { timeout: 40_000 },
-    );
-    b = await battle(page);
-    expect(b.ult?.id).toBe('xiaosuan');
-    if (b.ult) {
-      expect(b.ult.kind).toBe('row');
-      await page.waitForTimeout(450);
-      await page.screenshot({ path: 'artifacts/screenshots/landscape/ultimate-row.png' });
-    }
-    // 種子固定時小算一定會放招；保險起見，萬一已經打完就不用再調速度
-    for (const speed of [3, 4]) {
-      if ((await battle(page)).phase === 'result') break;
-      await tap(page, b.speedButton);
-      await page.waitForFunction(
-        (s) => window.__WGZ__?.battle?.speed === s || window.__WGZ__?.battle?.phase === 'result',
-        speed,
-      );
-    }
+    expect(b.ult).toMatchObject({ id: 'heixuan', side: 'team', skill: '怒吼', kind: 'pierce' });
+    await page.screenshot({ path: 'artifacts/screenshots/landscape/ultimate-pierce.png' });
+    // 剩下的照 ×2 看完。這裡不再點倍速：戰鬥可能剛好在這時結束，
+    // 點下去會按到結算畫面的按鈕而離開戰鬥（CI 上發生過）
     await page.waitForFunction(() => window.__WGZ__?.battle?.phase === 'result', null, {
-      timeout: 40_000,
+      timeout: 100_000,
     });
     b = await battle(page);
     expect(b).toMatchObject({ win: true, skipped: false, ult: null });
     expect(b.ults).toBe(b.ultTotal);
-    expect(b.ultTotal).toBe(5);
+    expect(b.ultTotal).toBe(1);
     expect((await wgz(page)).result).toEqual({ food: 120, bones: 5, win: true });
   });
 });

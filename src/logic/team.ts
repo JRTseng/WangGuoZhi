@@ -2,6 +2,7 @@ import { DOGS, findDog } from '../data/dogs';
 import type { GameState } from '../state/gameState';
 import { autoTeam, type DogContext } from './dogFilter';
 import { TEAM_SIZE, busyDogIds } from './expedition';
+import { resetFormation } from './formation';
 import { dogStats } from './leveling';
 
 /**
@@ -27,11 +28,13 @@ export function dogContext(state: GameState): DogContext {
   };
 }
 
-/** 一鍵自動編隊：換成可出征（擁有且沒在寄宿）裡戰力最高的 5 隻；沒有可出征的就不動 */
+/** 一鍵自動編隊：換成可出征（擁有且沒在寄宿）裡戰力最高的 5 隻，站位照定位排好；沒有可出征的就不動 */
 export function autoFillTeam(state: GameState): GameState {
   const team = autoTeam(DOGS, dogContext(state));
-  if (team.length === 0 || team.join() === state.team.join()) return state;
-  return { ...state, team };
+  if (team.length === 0) return state;
+  // 陣型也照定位重新排好（T023）：守護、突擊前排，補給中排，謀略、幸運、補血後排
+  const base = resetFormation(state, team);
+  return team.join() === state.team.join() ? base : { ...base, team };
 }
 
 /** 設定主頁角色（必須擁有） */

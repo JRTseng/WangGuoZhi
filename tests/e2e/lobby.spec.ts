@@ -57,6 +57,7 @@ test('帳號與設定：開關、畫質、優惠碼', async ({ page }) => {
     quality: 'high',
     skipBattle: false,
     battleSpeed: 1,
+    autoUlt: true,
     trainingSort: 'rarity',
   });
   for (const k of [

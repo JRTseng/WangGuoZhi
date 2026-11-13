@@ -4,6 +4,7 @@
  * 補血狗「暖桶」不靠召募，第一次打贏第 1 章 Boss 就送（見 regions.ts 的 firstClearDog）；
  * 拿到之後才會進召募池（重複抽到換碎片，才能升星）。
  * T007 新增的 10 隻犬種取自 docs/BREEDS.md，名字、性格、技能都是原創。
+ * 技能說明（T023）照定位寫出戰鬥中真正的效果，規則在 src/logic/battle.ts。
  * 純資料，不放公式；戰力由 src/logic/power.ts 計算。
  */
 export type DogRole =
@@ -40,6 +41,8 @@ export interface DogData {
   size?: DogSize;
   /** 屬性：等 T017 設計相剋時再填 */
   element?: string;
+  /** 攻擊後補血（暖桶專屬）：每次攻擊完接著補血量最低的兩位隊友 */
+  afterHeal?: boolean;
   /** 關卡通關送的狗：沒拿到之前不會出現在召募池 */
   rewardOnly?: boolean;
 }
@@ -56,7 +59,7 @@ export const DOGS: readonly DogData[] = [
     baseAttack: 42,
     baseDefense: 48,
     level: 3,
-    skill: { name: '結義', description: '出征隊伍全體士氣 +10%' },
+    skill: { name: '結義', description: '大絕招鼓舞全隊攻擊 +15%；同排隊友防禦 +10%' },
     rarity: 'R',
     size: '中型',
   },
@@ -71,7 +74,7 @@ export const DOGS: readonly DogData[] = [
     baseAttack: 64,
     baseDefense: 30,
     level: 2,
-    skill: { name: '怒吼', description: '首回合攻擊翻倍' },
+    skill: { name: '怒吼', description: '攻擊穿透兩排；大絕招前中後各打一隻' },
     rarity: 'R',
     size: '大型',
   },
@@ -86,7 +89,7 @@ export const DOGS: readonly DogData[] = [
     baseAttack: 46,
     baseDefense: 58,
     level: 2,
-    skill: { name: '單騎', description: '替隊友擋一次傷害' },
+    skill: { name: '單騎', description: '受傷 -15%；大絕招嘲諷，敵人都得打牠' },
     rarity: 'R',
     size: '大型',
   },
@@ -101,7 +104,7 @@ export const DOGS: readonly DogData[] = [
     baseAttack: 38,
     baseDefense: 34,
     level: 1,
-    skill: { name: '借箭', description: '掠奪資源 +20%' },
+    skill: { name: '借箭', description: '越過前排打中後排；大絕招打一整排' },
     rarity: 'N',
     size: '中型',
   },
@@ -116,7 +119,7 @@ export const DOGS: readonly DogData[] = [
     baseAttack: 34,
     baseDefense: 36,
     level: 1,
-    skill: { name: '天降', description: '有機率雙倍掉落' },
+    skill: { name: '天降', description: '亂打會爆擊、會閃躲；大絕招連打 3 次' },
     rarity: 'N',
     size: '中型',
   },
@@ -131,7 +134,7 @@ export const DOGS: readonly DogData[] = [
     baseAttack: 55,
     baseDefense: 60,
     level: 1,
-    skill: { name: '鐵壁', description: '隊伍受到的傷害 -15%' },
+    skill: { name: '鐵壁', description: '受傷 -15%；大絕招嘲諷，敵人都得打牠' },
     rarity: 'SR',
     size: '大型',
   },
@@ -146,7 +149,7 @@ export const DOGS: readonly DogData[] = [
     baseAttack: 40,
     baseDefense: 44,
     level: 1,
-    skill: { name: '急行軍', description: '出征時間 -10%' },
+    skill: { name: '急行軍', description: '大絕招鼓舞全隊攻擊 +15%；同排隊友防禦 +10%' },
     rarity: 'N',
     size: '小型',
   },
@@ -161,7 +164,7 @@ export const DOGS: readonly DogData[] = [
     baseAttack: 52,
     baseDefense: 38,
     level: 1,
-    skill: { name: '狼嚎', description: '敵方士氣 -10%' },
+    skill: { name: '狼嚎', description: '越過前排打中後排；大絕招打一整排' },
     rarity: 'R',
     size: '中型',
   },
@@ -177,7 +180,7 @@ export const DOGS: readonly DogData[] = [
     baseAttack: 40,
     baseDefense: 32,
     level: 1,
-    skill: { name: '虛張聲勢', description: '開戰時大吼，敵方有機率嚇到慢一拍' },
+    skill: { name: '虛張聲勢', description: '亂打會爆擊、會閃躲；大絕招連打 3 次' },
     rarity: 'N',
     size: '小型',
   },
@@ -192,7 +195,7 @@ export const DOGS: readonly DogData[] = [
     baseAttack: 38,
     baseDefense: 42,
     level: 1,
-    skill: { name: '聞香尋糧', description: '出征帶回的糧草 +10%' },
+    skill: { name: '聞香尋糧', description: '大絕招鼓舞全隊攻擊 +15%；同排隊友防禦 +10%' },
     rarity: 'N',
     size: '小型',
   },
@@ -207,7 +210,7 @@ export const DOGS: readonly DogData[] = [
     baseAttack: 50,
     baseDefense: 30,
     level: 1,
-    skill: { name: '掘地突襲', description: '從地底鑽出來，攻擊敵方後排' },
+    skill: { name: '掘地突襲', description: '攻擊穿透兩排；大絕招前中後各打一隻' },
     rarity: 'N',
     size: '小型',
   },
@@ -222,7 +225,7 @@ export const DOGS: readonly DogData[] = [
     baseAttack: 40,
     baseDefense: 58,
     level: 1,
-    skill: { name: '肉盾衝撞', description: '替血量最少的隊友擋下一次攻擊' },
+    skill: { name: '肉盾衝撞', description: '受傷 -15%；大絕招嘲諷，敵人都得打牠' },
     rarity: 'R',
     size: '小型',
   },
@@ -237,7 +240,7 @@ export const DOGS: readonly DogData[] = [
     baseAttack: 62,
     baseDefense: 36,
     level: 1,
-    skill: { name: '連環飛撲', description: '攻擊後有機率再追加一擊' },
+    skill: { name: '連環飛撲', description: '攻擊穿透兩排；大絕招前中後各打一隻' },
     rarity: 'R',
     size: '中型',
   },
@@ -252,7 +255,7 @@ export const DOGS: readonly DogData[] = [
     baseAttack: 54,
     baseDefense: 42,
     level: 1,
-    skill: { name: '牧陣', description: '重新整隊，隊伍防禦 +10%' },
+    skill: { name: '牧陣', description: '越過前排打中後排；大絕招打一整排' },
     rarity: 'R',
     size: '中型',
   },
@@ -267,7 +270,7 @@ export const DOGS: readonly DogData[] = [
     baseAttack: 56,
     baseDefense: 56,
     level: 1,
-    skill: { name: '識途', description: '帶路走捷徑，隊伍先攻' },
+    skill: { name: '識途', description: '大絕招鼓舞全隊攻擊 +15%；同排隊友防禦 +10%' },
     rarity: 'SR',
     size: '中型',
   },
@@ -282,7 +285,7 @@ export const DOGS: readonly DogData[] = [
     baseAttack: 74,
     baseDefense: 40,
     level: 1,
-    skill: { name: '影襲', description: '第一擊必定命中要害' },
+    skill: { name: '影襲', description: '攻擊穿透兩排；大絕招前中後各打一隻' },
     rarity: 'SR',
     size: '大型',
   },
@@ -297,7 +300,7 @@ export const DOGS: readonly DogData[] = [
     baseAttack: 58,
     baseDefense: 72,
     level: 1,
-    skill: { name: '不動如山', description: '血量越少防禦越高' },
+    skill: { name: '不動如山', description: '受傷 -15%；大絕招嘲諷多撐一回合' },
     rarity: 'SSR',
     size: '大型',
   },
@@ -312,7 +315,7 @@ export const DOGS: readonly DogData[] = [
     baseAttack: 76,
     baseDefense: 50,
     level: 1,
-    skill: { name: '雪上無痕', description: '看穿敵方陣形，隊伍攻擊 +15%' },
+    skill: { name: '雪上無痕', description: '越過前排打中後排；大絕招打兩整排' },
     rarity: 'SSR',
     size: '大型',
   },
@@ -330,11 +333,12 @@ export const DOGS: readonly DogData[] = [
     level: 5,
     skill: {
       name: '暖心桶',
-      description: '每次攻擊後，幫血量最低的兩位隊友各回血 25%，隊伍戰力 +10%',
+      description: '每次攻擊後，幫血量最低的兩位隊友各回血 25%；大絕招全隊回血',
     },
     rarity: 'SSR',
     size: '大型',
     rewardOnly: true,
+    afterHeal: true,
   },
 ];
 

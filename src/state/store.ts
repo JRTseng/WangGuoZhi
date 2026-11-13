@@ -1,5 +1,6 @@
 import { advanceAuto } from '../logic/auto';
 import { settleBoarding } from '../logic/boarding';
+import { settlePending } from '../logic/expedition';
 import { SAVE_BACKUP_KEY, SAVE_KEY, deserialize, serialize, type LoadStatus } from '../logic/save';
 import { regenMsFromSearch, settle, type TimeOptions } from '../logic/stamina';
 import { createInitialState, type GameState } from './gameState';
@@ -28,12 +29,14 @@ function writeStorage(key: string, value: string): boolean {
   }
 }
 
-function load(): { state: GameState; status: LoadStatus } {
+function load(): { state: GameState; status: LoadStatus; settled: boolean } {
   const raw = readStorage(SAVE_KEY);
   const r = deserialize(raw, Date.now());
   // 壞檔先搬到備份的位置再重置，需要時還救得回來
   if (r.status === 'reset' && raw !== null) writeStorage(SAVE_BACKUP_KEY, raw);
-  return r;
+  // 上次開戰到一半就關掉的仗（T023）：用自動放招直接算完
+  const state = settlePending(r.state);
+  return { state, status: r.status, settled: state !== r.state };
 }
 
 const loaded = load();
@@ -46,7 +49,7 @@ function save(): void {
 }
 
 // 新遊戲或剛重置：馬上存一份，之後重開就是「讀檔」
-if (loadStatus !== 'ok') save();
+if (loadStatus !== 'ok' || loaded.settled) save();
 
 export function getState(): GameState {
   return current;

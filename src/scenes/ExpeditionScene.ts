@@ -1,15 +1,23 @@
 import Phaser from 'phaser';
 import { COLORS, FONT_FAMILY } from '../config';
-import { DOGS, findDog } from '../data/dogs';
-import { BACKGROUNDS } from '../data/backgrounds';
+import { DOGS } from '../data/dogs';
 import { findStage, type StageData } from '../data/regions';
-import { battleSeedFromSearch, skillBonusOf, winChance } from '../logic/battle';
-import { TEAM_MIN, TEAM_SIZE, battleDogOf, busyDogIds, runExpedition } from '../logic/expedition';
+import { battleSeedFromSearch } from '../logic/battle';
+import {
+  TEAM_MIN,
+  TEAM_SIZE,
+  beginExpedition,
+  busyDogIds,
+  resultNotes,
+  runExpedition,
+  stageWinChance,
+} from '../logic/expedition';
+import { resetFormation } from '../logic/formation';
 import { formatCountdown } from '../logic/format';
-import { autoTeam, roleKeyOf } from '../logic/dogFilter';
+import { autoTeam } from '../logic/dogFilter';
 import type { Rect } from '../logic/layout';
 import { SIDE_WIDTH } from '../logic/pickerLayout';
-import { newStoriesAfter, unlockedBackgrounds } from '../logic/progress';
+import { newStoriesAfter } from '../logic/progress';
 import {
   STAMINA_COST,
   STAMINA_MAX,
@@ -22,6 +30,7 @@ import { dogContext, teamPower } from '../logic/team';
 import { getState, setState, tick, timeOptions } from '../state/store';
 import { Button } from './components/Button';
 import { DogPicker } from './components/DogPicker';
+import { FormationPanel } from './components/FormationPanel';
 import { ResultPanel } from './components/ResultPanel';
 import { StaminaShop, type ShopKind } from './components/StaminaShop';
 import { drawHeader, patchDebug, resetDebug, viewOf } from './ui';
@@ -63,6 +72,10 @@ export class ExpeditionScene extends Phaser.Scene {
   private blockKey = '';
   private shop: StaminaShop | null = null;
   private result: ResultPanel | null = null;
+  private formation: FormationPanel | null = null;
+  /** 勝率是模擬出來的，隊伍與陣型沒變就不重算 */
+  private chanceKey = '';
+  private chance = 0;
 
   constructor() {
     super('ExpeditionScene');
@@ -76,6 +89,8 @@ export class ExpeditionScene extends Phaser.Scene {
     this.selected = st.team.filter((id) => st.owned.includes(id) && !busy.has(id));
     this.shop = null;
     this.result = null;
+    this.formation = null;
+    this.chanceKey = '';
     this.confirmButton = null;
   }
 
@@ -131,9 +146,14 @@ export class ExpeditionScene extends Phaser.Scene {
       onAuto: () => {
         const st = getState();
         const team = autoTeam(DOGS, dogContext(st));
-        if (team.length > 0) this.selected = team;
+        if (team.length > 0) {
+          this.selected = team;
+          // 站位也照定位重新排好
+          setState(resetFormation(st, team));
+        }
         this.render();
       },
+      onFormation: () => this.openFormation(),
       onUpdate: () => this.publish(),
     });
     this.render();
@@ -184,11 +204,7 @@ export class ExpeditionScene extends Phaser.Scene {
     const confirm = this.confirmRect;
 
     const power = teamPower(getState(), this.selected);
-    const chance = winChance(
-      power,
-      stage.recommendedPower,
-      skillBonusOf(this.selected.flatMap((id) => battleDogOf(getState(), id) ?? [])),
-    );
+    const chance = this.winChance();
     const color = chance >= 0.6 ? '#4f8a3c' : chance > 0 ? COLORS.inkSoft : '#b0413e';
     const powerLine = `隊伍戰力 ${power}／建議 ${stage.recommendedPower}`;
     const chanceLine = `勝率約 ${Math.round(chance * 100)}%`;
@@ -238,6 +254,26 @@ export class ExpeditionScene extends Phaser.Scene {
     this.picker.render();
   }
 
+  /** 勝率約幾成：照目前的隊伍與陣型模擬很多場（自動放招） */
+  private winChance(): number {
+    const st = getState();
+    const key = JSON.stringify([this.selected, st.formation, st.dogs]);
+    if (key !== this.chanceKey) {
+      this.chanceKey = key;
+      this.chance = stageWinChance(st, this.stage!.id, this.selected);
+    }
+    return this.chance;
+  }
+
+  private openFormation(): void {
+    if (this.shop || this.result || this.formation || this.picker.wasDragged) return;
+    if (this.selected.length === 0) return;
+    this.formation = new FormationPanel(this, this.selected, () => {
+      this.formation = null;
+      this.render();
+    });
+  }
+
   private publish(): void {
     const p = this.picker.debug();
     patchDebug({
@@ -263,6 +299,7 @@ export class ExpeditionScene extends Phaser.Scene {
         },
         buyButton: this.buyRect && this.buyKind ? { kind: this.buyKind, ...this.buyRect } : null,
         runsLeft: runsLeft(getState(), this.stage!.id, Date.now(), timeOptions()),
+        winChance: this.chance,
       },
       stamina: { value: getState().stamina.value, max: STAMINA_MAX },
       resources: { ...getState().resources },
@@ -270,7 +307,7 @@ export class ExpeditionScene extends Phaser.Scene {
   }
 
   private openShop(kind: ShopKind): void {
-    if (this.shop || this.result || this.picker.wasDragged) return;
+    if (this.shop || this.result || this.formation || this.picker.wasDragged) return;
     this.shop = new StaminaShop(this, kind, this.stage!.id, () => {
       this.shop = null;
       this.render();
@@ -289,43 +326,37 @@ export class ExpeditionScene extends Phaser.Scene {
     this.render();
   }
 
-  /** 開戰：扣體力與次數，當下就結算；預設進戰鬥畫面照著播，設定開了略過就直接看結算 */
+  /**
+   * 開戰：扣體力與次數。預設進戰鬥畫面一步一步打，打完才結算；
+   * 設定開了「略過戰鬥畫面」就用自動放招當下算完，直接看結算。
+   */
   private confirm(): void {
-    if (!this.stage || this.shop || this.result || this.picker.wasDragged) return;
+    if (!this.stage || this.shop || this.result || this.formation || this.picker.wasDragged) return;
     const stage = this.stage;
     const before = tick();
-    const r = runExpedition(before, stage.id, this.selected, Date.now(), {
+    const opts = {
       ...timeOptions(),
       // 這一仗的亂數種子：開戰時就定下來，之後不能重抽（測試模式可用 &seed= 指定）
       seed: battleSeedFromSearch(window.location.search) ?? Math.floor(Math.random() * 0x100000000),
-    });
+    };
+    if (!before.settings.skipBattle) {
+      const b = beginExpedition(before, stage.id, this.selected, Date.now(), opts);
+      if (!b.ok) {
+        this.render();
+        return;
+      }
+      setState(b.state);
+      this.scene.start('BattleScene', { chapter: this.chapter });
+      return;
+    }
+    const r = runExpedition(before, stage.id, this.selected, Date.now(), opts);
     if (!r.ok) {
       this.render();
       return;
     }
     setState(r.state);
     const record = r.record;
-
-    const extra: string[] = [];
-    if (!record.win) extra.push('只帶回三成物資，關卡還沒通過');
-    else if (!before.cleared.includes(stage.id)) extra.push('通過關卡！下一關已開放');
-    const gift = record.newDogId ? findDog(record.newDogId) : undefined;
-    if (gift) extra.push(`新夥伴「${gift.name}」加入！（${gift.breed}・${roleKeyOf(gift)}）`);
-    if (record.giftShards) {
-      const name = findDog(record.giftShards.dogId)?.name ?? '';
-      extra.push(`已經有「${name}」了，改送碎片 ×${record.giftShards.amount}`);
-    }
-    const newBgs = unlockedBackgrounds(r.state).filter(
-      (b) => !unlockedBackgrounds(before).includes(b),
-    );
-    for (const b of newBgs)
-      extra.push(`獲得主頁背景「${BACKGROUNDS.find((x) => x.id === b)?.name}」`);
     const storyId = newStoriesAfter(r.state, stage.id)[0]?.id;
-
-    if (!before.settings.skipBattle) {
-      this.scene.start('BattleScene', { recordId: record.id, extra, storyId });
-      return;
-    }
     // 設定開了「略過戰鬥畫面」：直接看結算，關掉後回地圖
     this.result = new ResultPanel(
       this,
@@ -337,7 +368,7 @@ export class ExpeditionScene extends Phaser.Scene {
         if (storyId) this.scene.start('StoryScene', { mode: 'play', storyId });
         else this.scene.start('CampaignScene', { chapter: this.chapter });
       },
-      extra,
+      resultNotes(before, r.state, record),
       record.gains,
     );
     patchDebug({
