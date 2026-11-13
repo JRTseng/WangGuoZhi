@@ -51,12 +51,28 @@ export interface ExpeditionRecord {
   seed: number;
   /** 隊伍每隻狗這次拿到的經驗與升級成長（打輸只有一半經驗） */
   gains: DogExpGain[];
+  /** 我方在整場第幾次出手時放了大絕招（T023；玩家手動放招才有，沒有代表自動放招） */
+  ultTurns?: number[];
   /** 是不是自動出征打的 */
   auto?: boolean;
   /** 這一仗第一次通關送的狗狗 id（T017） */
   newDogId?: string;
   /** 第一次通關要送的狗已經先抽到了，改送的碎片 */
   giftShards?: { dogId: string; amount: number };
+}
+
+/**
+ * 已經開戰、還沒打完的一仗（T023）：體力與次數在開戰時就扣了，
+ * 戰鬥畫面打完才結算；中途關掉遊戲，下次開啟時用自動放招直接算完。
+ */
+export interface PendingBattle {
+  stageId: string;
+  dogIds: string[];
+  /** 開戰當下隊伍的攻防、定位與站位 */
+  team: BattleDog[];
+  seed: number;
+  /** 開戰時間（毫秒時間戳） */
+  at: number;
 }
 
 /** 體力（T019）：只存數值與上次結算時間，要用時才依經過的時間補算 */
@@ -133,6 +149,8 @@ export interface Settings {
   skipBattle: boolean;
   /** 戰鬥播放倍速，下次戰鬥沿用 */
   battleSpeed: 1 | 2 | 3 | 4;
+  /** 戰鬥中自動放大絕招（T023）：關掉後要自己點 EN 滿的狗才會放 */
+  autoUlt: boolean;
   /** 訓練場上次選的排序條件，下次進去沿用 */
   trainingSort: TrainingSortKey;
 }
@@ -171,6 +189,10 @@ export interface GameState {
   gacha: GachaState;
   /** 玩家替狗狗填的大絕招台詞（T017），以狗狗 id 為鍵；沒填的用預設台詞 */
   skillLines: Record<string, string>;
+  /** 陣型（T023）：每隻狗想站哪一排（0 前、1 中、2 後），以狗狗 id 為鍵；沒記的照定位預設 */
+  formation: Record<string, number>;
+  /** 已經開戰、還沒打完的一仗（T023）；沒有為 null */
+  pending: PendingBattle | null;
 }
 
 /** 體力上限；新遊戲從滿體力開始 */
@@ -198,6 +220,7 @@ export function createInitialState(now: number = Date.now()): GameState {
       quality: 'high',
       skipBattle: false,
       battleSpeed: 1,
+      autoUlt: true,
       trainingSort: DEFAULT_TRAINING_SORT,
     },
     stamina: { value: STAMINA_MAX, updatedAt: now },
@@ -208,5 +231,7 @@ export function createInitialState(now: number = Date.now()): GameState {
     shards: {},
     gacha: { pulls: 0, sinceSSR: 0 },
     skillLines: {},
+    formation: {},
+    pending: null,
   };
 }

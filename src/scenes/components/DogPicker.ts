@@ -16,7 +16,9 @@ import {
   type SortKey,
   type StatusKey,
 } from '../../logic/dogFilter';
+import { ROW_NAMES } from '../../logic/battle';
 import { busyDogIds } from '../../logic/expedition';
+import { teamRows } from '../../logic/formation';
 import type { Rect } from '../../logic/layout';
 import { dogStats } from '../../logic/leveling';
 import {
@@ -51,6 +53,8 @@ export interface DogPickerOptions {
   onSlotTap: (dogId: string) => void;
   onCellTap: (dog: DogData) => void;
   onAuto: () => void;
+  /** 點「陣型」按鈕（T023） */
+  onFormation: () => void;
   /** 每次重畫或捲動後呼叫，場景用來更新測試用的除錯資訊 */
   onUpdate?: () => void;
 }
@@ -63,6 +67,9 @@ export interface PickerCellInfo extends Rect {
   /** 整張卡片都在可見範圍內（沒被捲出去） */
   visible: boolean;
 }
+
+/** 前排、中排、後排小標的底色 */
+const ROW_BADGE = ['#b0413e', '#b5651d', '#3f7fa8'];
 
 /** 捲動超過這個距離才算拖曳，不然當成點擊 */
 const DRAG_THRESHOLD = 8;
@@ -161,7 +168,9 @@ export class DogPicker {
       ),
     );
     this.chip(l.autoButton, '⚡ 自動編隊', true, () => this.o.onAuto(), COLORS.harvest);
-    l.slots.forEach((r, i) => this.drawSlot(r, selected[i] ?? null, landscape));
+    this.chip(l.formationButton, '陣型', true, () => this.o.onFormation(), 0x3f7fa8);
+    const rows = teamRows(st, selected);
+    l.slots.forEach((r, i) => this.drawSlot(r, selected[i] ?? null, landscape, rows[i]));
 
     // ---- 篩選、排序 ----
     const roles: (RoleKey | 'all')[] = ['all', ...ROLE_KEYS];
@@ -242,7 +251,9 @@ export class DogPicker {
       statusChips: l.statusChips.map((r, i) => ({ key: statuses[i], ...r })),
       sortChip: l.sortChip,
       autoButton: l.autoButton,
+      formationButton: l.formationButton,
       slots: l.slots.map((r, i) => ({ id: this.o.selected()[i] ?? null, ...r })),
+      rows: teamRows(getState(), this.o.selected()),
       grid: l.grid,
       cells: this.cells,
       scrollY: this.scrollY,
@@ -309,7 +320,7 @@ export class DogPicker {
     this.layer.add(c);
   }
 
-  private drawSlot(r: Rect, id: string | null, landscape: boolean): void {
+  private drawSlot(r: Rect, id: string | null, landscape: boolean, row?: number): void {
     const c = this.scene.add.container(r.x, r.y);
     const g = this.scene.add.graphics();
     g.fillStyle(id ? COLORS.cardSelected : 0xefe3cf, 1);
@@ -344,6 +355,14 @@ export class DogPicker {
           hg,
           addText(this.scene, r.width / 2, 72, d.name, 16, COLORS.ink, true).setOrigin(0.5),
         ]);
+      }
+      // 站哪一排（T023）：左上角的小標
+      if (row !== undefined) {
+        c.add(
+          addText(this.scene, 4, 4, ROW_NAMES[row].slice(0, 1), 11, '#ffffff', true)
+            .setBackgroundColor(ROW_BADGE[row])
+            .setPadding(4, 1, 4, 1),
+        );
       }
       makeTapArea(c, r.width, r.height);
       c.on('pointerup', () => {

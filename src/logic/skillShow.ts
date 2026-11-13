@@ -1,12 +1,10 @@
-import type { BattleEvent, BattlePace, BattleSide } from './battle';
+import type { BattlePace, BattleSide } from './battle';
 
 /**
  * 技能／大絕招演出（T017）的規則，全部是純函式。
  *
- * 只管「畫面怎麼播」，不碰勝負：戰鬥紀錄照舊由 battle.ts 算好，
- * 這裡只是從紀錄裡挑出哪幾次出手要播成大絕招，以及每隻狗的 EN 條顯示到哪。
- * 真正的 EN 值（出手 +25、被打 +15、玩家點狗放招）與技能效果在 T023 才做，
- * 到時候把 planShow 換成讀真正的紀錄即可，動畫（UltimateShow）照樣沿用。
+ * 只管「畫面怎麼播」，不碰勝負。T023 起哪一次出手是大絕招、EN 值多少，
+ * 都直接寫在戰鬥紀錄裡（BattleAction.ult／en），這裡只剩演出種類、節奏與台詞。
  */
 
 /** 大絕招的演出種類，對應 T023 規格裡的出手種類 */
@@ -20,11 +18,9 @@ export function ultKindOfRole(role: string): UltKind {
   if (role.includes('謀略')) return 'row';
   if (role.includes('補血')) return 'heal';
   if (role.includes('補給') || role.includes('守護')) return 'buff';
+  if (role.includes('頭目')) return 'row';
   return 'single';
 }
-
-/** 出手幾次把 EN 條集滿；集滿後的下一次出手播成大絕招（所以是每隻狗的第 3 次出手） */
-export const ULT_CHARGE = 2;
 
 /** 一隻會放大絕招的角色（沒有技能的敵人小兵傳 null） */
 export interface ShowCaster {
@@ -43,53 +39,9 @@ export interface ShowUlt extends ShowCaster {
   index: number;
 }
 
-/** 對應一次出手：這一下是不是大絕招，以及播完後雙方每一隻的 EN 格數（0～ULT_CHARGE） */
-export interface ShowStep {
-  ult: ShowUlt | null;
-  en: { team: number[]; enemy: number[] };
-}
-
 export interface ShowCasters {
   team: readonly (ShowCaster | null)[];
   enemy: readonly (ShowCaster | null)[];
-}
-
-/**
- * 把戰鬥紀錄排成演出：回傳的陣列和 events 一一對應。
- * 規則：每次出手 EN +1 格，滿了之後的下一次出手播成大絕招並歸零。
- * 補血狗是「攻擊後接著補血」（紀錄裡補血那幾下標了 follow，不算另一次出手、不集氣）：
- * 牠的大絕招播在 EN 已滿的那一回、攻擊後的第一下補血；那一回沒人需要補就留著等下次。
- */
-export function planShow(events: readonly BattleEvent[], casters: ShowCasters): ShowStep[] {
-  const en = {
-    team: casters.team.map(() => 0),
-    enemy: casters.enemy.map(() => 0),
-  };
-  /** 補血狗這一回出手時 EN 已滿：等牠接下來的第一下補血播大絕招 */
-  const ready = new Set<string>();
-  return events.map((e) => {
-    const caster = casters[e.side][e.attacker] ?? null;
-    let ult: ShowUlt | null = null;
-    if (caster) {
-      const key = `${e.side}-${e.attacker}`;
-      const isHeal = e.heal !== undefined;
-      const full = en[e.side][e.attacker] >= ULT_CHARGE;
-      const fire = (): void => {
-        ult = { ...caster, kind: isHeal ? 'heal' : caster.kind, side: e.side, index: e.attacker };
-        en[e.side][e.attacker] = 0;
-        ready.delete(key);
-      };
-      if (e.follow) {
-        if (isHeal && ready.has(key)) fire();
-      } else {
-        ready.delete(key);
-        if (!full) en[e.side][e.attacker] += 1;
-        else if (caster.kind === 'heal' && !isHeal) ready.add(key);
-        else fire();
-      }
-    }
-    return { ult, en: { team: [...en.team], enemy: [...en.enemy] } };
-  });
 }
 
 // ---- 播放節奏 ----

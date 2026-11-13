@@ -28,7 +28,8 @@ async function closeResult(page: Page, story: boolean) {
 test('打贏第 1 章 Boss 送補血狗，之後可以帶牠出征', async ({ page }) => {
   test.setTimeout(120_000);
   // &battle=slow：戰鬥放慢，來得及按略過
-  await openLobby(page, '?fast=1&battle=slow');
+  // &seed=7：固定種子。T023 起勝負是真的打出來的，這個種子五隻新手狗可以一路打贏到 Boss
+  await openLobby(page, '?fast=1&battle=slow&seed=7');
   await tap(page, (await wgz(page)).lobby!.buttons.expedition);
 
   // 前 4 關：五隻全上，一路打過去（體力 100 剛好打 5 場）

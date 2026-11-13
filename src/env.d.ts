@@ -62,6 +62,17 @@ interface WgzDebugState {
     ok: WgzRect;
     cancel: WgzRect;
   } | null;
+  /** 陣型面板（T023），沒開為 null */
+  formation?: {
+    /** 隊伍裡每隻狗站第幾排（0 前、1 中、2 後）與那一格的位置 */
+    dogs: ({ id: string; row: number; selected: boolean } & WgzRect)[];
+    /** 三排各自的點擊範圍，索引就是第幾排 */
+    rows: WgzRect[];
+    selected: string | null;
+    message: string;
+    reset: WgzRect;
+    close: WgzRect;
+  } | null;
   /** 結算面板顯示的獎勵與勝負，沒開為 null */
   result?: { food: number; bones: number; win: boolean; newDogId?: string } | null;
   /** 結算面板上每隻狗的經驗與升級（T005），沒開為 null */
@@ -157,7 +168,8 @@ interface WgzDebugState {
   /** 戰鬥畫面（BattleScene） */
   battle?: {
     stageId: string;
-    win: boolean;
+    /** 打完才知道勝負（T023 起一步一步打），還在打的時候是 null */
+    win: boolean | null;
     /** playing：播放中；result：已顯示結算 */
     phase: 'playing' | 'result';
     /** 已經播過幾次補血（T017） */
@@ -173,15 +185,18 @@ interface WgzDebugState {
     ults: number;
     ultTotal: number;
     ult: { id: string; side: string; skill: string; line: string; kind: string } | null;
-    /** EN 條有幾格 */
+    /** EN 值滿是多少（100） */
     enMax: number;
+    /** 自動放招有沒有打勾，以及那顆勾選框的位置 */
+    autoUlt: boolean;
+    autoButton: WgzRect;
     /** 最後一次送給語音包掛點的提示 id（還沒有語音包，不會真的出聲） */
     voiceCue: string | null;
     round: number;
     skipped: boolean;
     skipButton: WgzRect;
     speedButton: WgzRect;
-    /** en：EN 條目前幾格，不會放大絕招的（野犬）為 null */
+    /** en：目前的 EN 值（0～100），不會放大絕招的（野犬）為 null */
     team: WgzBattleUnit[];
     enemies: WgzBattleUnit[];
   };
@@ -194,6 +209,7 @@ interface WgzDebugState {
       quality: string;
       skipBattle: boolean;
       battleSpeed: number;
+      autoUlt: boolean;
       trainingSort: string;
     };
     rects: Record<string, WgzRect>;
@@ -237,6 +253,9 @@ interface WgzDebugState {
     statusChips: ({ key: string } & WgzRect)[];
     sortChip: WgzRect;
     autoButton: WgzRect;
+    formationButton: WgzRect;
+    /** 隊伍每一隻站第幾排（0 前、1 中、2 後），和 slots 一一對應 */
+    rows: number[];
     slots: ({ id: string | null } & WgzRect)[];
     /** 卡片格可見範圍 */
     grid: WgzRect;
@@ -271,6 +290,8 @@ interface WgzDebugState {
     buyButton: ({ kind: 'stamina' | 'runs' } & WgzRect) | null;
     /** 這一關今天還剩幾次 */
     runsLeft: number;
+    /** 選隊伍畫面顯示的勝率（0～1，模擬出來的） */
+    winChance?: number;
   };
 
   /** 劇情 */
@@ -300,6 +321,9 @@ interface WgzBattleUnit {
   hp: number;
   maxHp: number;
   en: number | null;
+  /** 站第幾排（0 前、1 中、2 後）；armed：玩家點了「輪到牠就放大絕招」 */
+  row: number;
+  armed: boolean;
   x: number;
   y: number;
   r: number;

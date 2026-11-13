@@ -4,29 +4,35 @@ import { findDog } from '../data/dogs';
 import { BOSS_SKILLS, BOSS_SKILL_FALLBACK, DEFAULT_SKILL_LINES } from '../data/skillLines';
 import { REGIONS, findRegionOfStage, findStage, type StageData } from '../data/regions';
 import {
+  EN_MAX,
+  autoUlt,
   battlePaceFromSearch,
-  type BattlePace,
+  createBattle,
+  finishBattle,
+  nextActor,
   nextBattleSpeed,
+  stepBattle,
   stepDelayMs,
-  type BattleEvent,
-  type BattleResult,
+  type BattleAction,
+  type BattleHit,
+  type BattlePace,
   type BattleSide,
+  type BattleState,
+  ROW_NAMES,
 } from '../logic/battle';
 import { battleLayout, type BattleLayout, type BattleSlot } from '../logic/battleLayout';
-import { expeditionBattle } from '../logic/expedition';
+import { battleInputOf, completeExpedition, resultNotes } from '../logic/expedition';
+import { newStoriesAfter } from '../logic/progress';
 import {
-  ULT_CHARGE,
   ULT_CUTIN_RATIO,
-  planShow,
   skillLineOf,
   ultDelayMs,
   ultKindOfRole,
   type ShowCasters,
-  type ShowStep,
   type ShowUlt,
 } from '../logic/skillShow';
 import { voiceCueId } from '../logic/voicePack';
-import type { ExpeditionRecord } from '../state/gameState';
+import type { ExpeditionRecord, GameState, PendingBattle } from '../state/gameState';
 import { getState, setState } from '../state/store';
 import { Button } from './components/Button';
 import { drawDogHead } from './components/dogArt';
@@ -38,12 +44,8 @@ import { playVoiceCue } from './components/voice';
 import { addText, patchDebug, resetDebug, viewOf } from './ui';
 
 export interface BattleSceneData {
-  /** 出征紀錄 id（開戰當下就結算，勝負與獎勵都已寫在裡面） */
-  recordId: string;
-  /** 結算面板的額外訊息（通過關卡、新背景…） */
-  extra?: string[];
-  /** 結算後要接著播的劇情 */
-  storyId?: string;
+  /** 打完回地圖時停在哪一章 */
+  chapter?: number;
 }
 
 /** 野犬（非 Boss 敵人）的佔位配色 */
@@ -65,41 +67,56 @@ interface UnitView {
   fierce: boolean;
   maxHp: number;
   hp: number;
-  /** 會不會放大絕招（會的才畫 EN 條）與目前 EN 格數（0～ULT_CHARGE） */
+  /** 站第幾排（0 前、1 中、2 後） */
+  row: number;
+  /** 會不會放大絕招（會的才畫 EN 條）與目前 EN 值（0～EN_MAX） */
   canUlt: boolean;
   en: number;
+  /** 玩家點了「輪到牠就放大絕招」（手動放招時） */
+  armed: boolean;
   box: Phaser.GameObjects.Container;
   head: Phaser.GameObjects.Graphics;
   bar: Phaser.GameObjects.Graphics;
+  mark: Phaser.GameObjects.Text;
 }
 
 /**
- * 戰鬥畫面：只是播放器。勝負與回合紀錄都由 src/logic/battle.ts 算好，
- * 這裡照著紀錄逐次播放（往前衝、閃一下、跳傷害、扣血、倒下變暗），不自己決定任何結果。
- * 大絕招（T017）也只是演出：哪幾下要播成大絕招由 src/logic/skillShow.ts 從紀錄排出來，
- * 血量變化仍然完全照紀錄。每隻狗血條下面的細條是 EN 條（T023 會接上真正的 EN 值）。
- * 右上角切換 ×1～×4 速度，隨時可按「略過」直接看結算。
+ * 戰鬥畫面（T023）：戰鬥一步一步往前推。每一步由 src/logic/battle.ts 算出「這次出手打到誰、扣多少」，
+ * 這裡只負責決定我方要不要放大絕招、照結果播動畫（往前衝、閃一下、跳傷害、扣血、倒下變暗）。
+ * - 「自動放招」打勾：EN 一滿、輪到牠就放。沒打勾：EN 滿的狗會亮起來，點牠一下，輪到牠時才放。
+ * - 敵方一律自動放招。按「略過」剩下的用自動放招一次算完。
+ * - 打完才結算（體力與次數開戰時就扣了）；我方放招的時機會寫進出征紀錄，之後重算結果一樣。
+ * 右上角切換 ×1～×4 速度。
  */
 export class BattleScene extends Phaser.Scene {
-  private payload: BattleSceneData = { recordId: '' };
+  private chapter: number | undefined;
+  private ticket: PendingBattle | null = null;
+  /** 開戰前的狀態（比對結算後多了什麼用） */
+  private before!: GameState;
   private record: ExpeditionRecord | null = null;
   private stage: StageData | null = null;
-  private battle!: BattleResult;
+  /** 戰鬥目前的狀態與已經算出來的每一次出手 */
+  private sim!: BattleState;
+  private actions: BattleAction[] = [];
+  /** 已經算出來、字卡還在播、還沒套到畫面上的那一次出手 */
+  private queued: BattleAction | null = null;
+  /** 開場時用自動放招預估整場有幾次出手（決定播放節奏用） */
+  private planned = 1;
   private layout!: BattleLayout;
   private units: Record<BattleSide, UnitView[]> = { team: [], enemy: [] };
   private index = 0;
   private round = 1;
+  private heals = 0;
   private phase: 'playing' | 'result' = 'playing';
   private skipped = false;
   private pace: BattlePace = 'normal';
   private speedLabel!: Phaser.GameObjects.Text;
   private roundLabel!: Phaser.GameObjects.Text;
+  private autoLabel!: Phaser.GameObjects.Text;
   private skipButton!: Button;
   private timer: Phaser.Time.TimerEvent | null = null;
   /** 還在飄的傷害數字，略過或結束時一起清掉 */
   private floating = new Set<Phaser.GameObjects.Text>();
-  /** 每一次出手對應的演出（是不是大絕招、EN 條到哪） */
-  private show: ShowStep[] = [];
   private casterList: ShowCasters = { team: [], enemy: [] };
   /** 大絕招演出產生的物件，下一次出手或略過時清掉 */
   private fx: Phaser.GameObjects.GameObject[] = [];
@@ -114,17 +131,21 @@ export class BattleScene extends Phaser.Scene {
   }
 
   init(data: BattleSceneData): void {
-    this.payload = { recordId: data?.recordId ?? '', extra: data?.extra, storyId: data?.storyId };
-    this.record = getState().history.find((r) => r.id === this.payload.recordId) ?? null;
-    this.stage = this.record ? (findStage(this.record.stageId) ?? null) : null;
+    this.chapter = data?.chapter;
+    this.before = getState();
+    this.ticket = this.before.pending;
+    this.stage = this.ticket ? (findStage(this.ticket.stageId) ?? null) : null;
+    this.record = null;
+    this.actions = [];
+    this.queued = null;
     this.index = 0;
     this.round = 1;
+    this.heals = 0;
     this.phase = 'playing';
     this.skipped = false;
     this.timer = null;
     this.units = { team: [], enemy: [] };
     this.floating = new Set();
-    this.show = [];
     this.fx = [];
     this.fxCaster = null;
     this.ult = null;
@@ -134,23 +155,22 @@ export class BattleScene extends Phaser.Scene {
 
   create(): void {
     resetDebug(this);
-    if (!this.record || !this.stage) {
+    if (!this.ticket || !this.stage) {
       this.scene.start('LobbyScene');
       return;
     }
     this.pace = battlePaceFromSearch(window.location.search);
-    // 同一份紀錄、同一個種子，重算出來和開戰時結算的一模一樣
-    this.battle = expeditionBattle(this.record);
+    this.sim = createBattle(battleInputOf(this.ticket));
+    this.planned = Math.max(1, finishBattle(this.sim).actions.length);
     this.casterList = this.casters();
-    this.show = planShow(this.battle.events, this.casterList);
 
     const { w, h, landscape } = viewOf(this);
     this.layout = battleLayout(
       w,
       h,
       landscape,
-      this.battle.team.length,
-      this.battle.enemies.length,
+      this.sim.team.map((u) => u.row),
+      this.sim.enemies.map((u) => u.row),
     );
     this.drawStage(w, h, landscape);
     this.drawUnits();
@@ -168,7 +188,7 @@ export class BattleScene extends Phaser.Scene {
   }
 
   private get stepMs(): number {
-    return stepDelayMs(this.battle.events.length, this.speed, this.pace);
+    return stepDelayMs(this.planned, this.speed, this.pace);
   }
 
   /** 誰會放大絕招：我方有技能的狗，以及章末 Boss；野犬小兵不會 */
@@ -177,9 +197,9 @@ export class BattleScene extends Phaser.Scene {
     const boss = this.stage!.boss;
     const bossSkill = boss ? (BOSS_SKILLS[boss.name] ?? BOSS_SKILL_FALLBACK) : null;
     return {
-      team: this.battle.team.map((u) => {
+      team: this.sim.team.map((u) => {
         const d = findDog(u.id);
-        if (!d?.skill) return null;
+        if (!d?.skill || !u.canUlt) return null;
         return {
           name: d.name,
           skill: d.skill.name,
@@ -187,9 +207,14 @@ export class BattleScene extends Phaser.Scene {
           line: skillLineOf(lines, DEFAULT_SKILL_LINES, d.id),
         };
       }),
-      enemy: this.battle.enemies.map((u) =>
-        bossSkill
-          ? { name: u.name, skill: bossSkill.name, kind: 'single', line: bossSkill.line }
+      enemy: this.sim.enemies.map((u) =>
+        bossSkill && u.canUlt
+          ? {
+              name: u.name,
+              skill: bossSkill.name,
+              kind: ultKindOfRole(u.role),
+              line: bossSkill.line,
+            }
           : null,
       ),
     };
@@ -221,7 +246,15 @@ export class BattleScene extends Phaser.Scene {
       .setPadding(12, 4, 12, 4);
 
     const f = this.layout.field;
-    const labelY = landscape ? f.y - 22 : f.y - 30;
+    const labelY = landscape ? f.y - 30 : f.y - 46;
+    // 前排、中排、後排的小標：前排最靠近中線
+    for (const side of ['team', 'enemy'] as const) {
+      this.layout.rowX[side].forEach((x, row) => {
+        addText(this, x, f.y - (landscape ? 8 : 22), ROW_NAMES[row], 12, '#fff3c4', true)
+          .setOrigin(0.5, 0)
+          .setStroke('#3b2a1a', 3);
+      });
+    }
     addText(this, f.x + f.width * 0.25, labelY, '我方', 15, '#ffffff', true)
       .setOrigin(0.5, 0)
       .setStroke('#3b2a1a', 4);
@@ -232,19 +265,24 @@ export class BattleScene extends Phaser.Scene {
 
   private drawUnits(): void {
     const boss = this.stage!.boss;
-    this.battle.team.forEach((u, i) => {
+    this.sim.team.forEach((u, i) => {
       const d = findDog(u.id);
-      this.units.team.push(
-        this.makeUnit('team', u.id, u.heal ? `✚ ${u.name}` : u.name, u.maxHp, this.layout.team[i], {
-          color: d?.color ?? 0xd9894a,
-          accent: d?.accent ?? 0xfff3e0,
-          fierce: false,
-        }),
-      );
+      const unit = this.makeUnit('team', i, u.heal ? `✚ ${u.name}` : u.name, this.layout.team[i], {
+        color: d?.color ?? 0xd9894a,
+        accent: d?.accent ?? 0xfff3e0,
+        fierce: false,
+      });
+      this.units.team.push(unit);
+      // 手動放招：點 EN 滿的狗，輪到牠就放大絕招；再點一次取消
+      const s = unit.slot;
+      const zone = this.add
+        .zone(s.x, s.y + 10, Math.max(72, s.r * 2.6), s.r * 2 + 44)
+        .setInteractive({ cursor: 'pointer' });
+      zone.on('pointerup', () => this.toggleArm(unit));
     });
-    this.battle.enemies.forEach((u, i) => {
+    this.sim.enemies.forEach((u, i) => {
       this.units.enemy.push(
-        this.makeUnit('enemy', u.id, u.name, u.maxHp, this.layout.enemies[i], {
+        this.makeUnit('enemy', i, u.name, this.layout.enemies[i], {
           color: boss?.color ?? MOB_LOOK.color,
           accent: boss?.accent ?? MOB_LOOK.accent,
           fierce: true,
@@ -255,12 +293,12 @@ export class BattleScene extends Phaser.Scene {
 
   private makeUnit(
     side: BattleSide,
-    id: string,
+    index: number,
     name: string,
-    maxHp: number,
     slot: BattleSlot,
     look: { color: number; accent: number; fierce: boolean },
   ): UnitView {
+    const data = (side === 'team' ? this.sim.team : this.sim.enemies)[index];
     const box = this.add.container(slot.x, slot.y);
     const shadow = this.add.ellipse(0, slot.r * 0.95, slot.r * 2, slot.r * 0.5, 0x000000, 0.2);
     const head = this.add.graphics();
@@ -268,23 +306,50 @@ export class BattleScene extends Phaser.Scene {
       .setOrigin(0.5, 0)
       .setStroke('#3b2a1a', 4);
     const bar = this.add.graphics();
-    box.add([shadow, head, label, bar]);
-    const canUlt = !!this.casterList[side][this.units[side].length];
+    const mark = addText(this, 0, -slot.r - 4, '', 13, '#3b2a1a', true)
+      .setOrigin(0.5, 1)
+      .setBackgroundColor('#ffd75e')
+      .setPadding(6, 2, 6, 2)
+      .setVisible(false);
+    box.add([shadow, head, label, bar, mark]);
     const unit: UnitView = {
       side,
-      id,
+      id: data.id,
       slot,
       ...look,
-      maxHp,
-      hp: maxHp,
-      canUlt,
+      maxHp: data.maxHp,
+      hp: data.maxHp,
+      row: data.row,
+      canUlt: !!this.casterList[side][index],
       en: 0,
+      armed: false,
       box,
       head,
       bar,
+      mark,
     };
     this.redrawUnit(unit);
     return unit;
+  }
+
+  /** 手動放招：點一下 EN 滿的狗，輪到牠就放；再點一次取消。自動放招時點了沒反應。 */
+  private toggleArm(u: UnitView): void {
+    if (this.phase !== 'playing' || getState().settings.autoUlt) return;
+    if (u.hp <= 0 || !u.canUlt || u.en < EN_MAX) return;
+    u.armed = !u.armed;
+    this.redrawUnit(u);
+    this.sync();
+  }
+
+  private toggleAuto(): void {
+    if (this.phase !== 'playing') return;
+    const st = getState();
+    setState({ ...st, settings: { ...st.settings, autoUlt: !st.settings.autoUlt } });
+    for (const u of this.units.team) {
+      u.armed = false;
+      this.redrawUnit(u);
+    }
+    this.sync();
   }
 
   /** 依目前血量重畫頭像（倒下變暗）與血條 */
@@ -308,16 +373,24 @@ export class BattleScene extends Phaser.Scene {
       u.bar.fillStyle(HP_COLOR[u.side], 1);
       u.bar.fillRoundedRect(-bw / 2, by, Math.max(6, bw * ratio), hpH, 3);
     }
+    const manual = u.side === 'team' && !getState().settings.autoUlt && this.phase === 'playing';
+    const ready = !down && u.canUlt && u.en >= EN_MAX;
+    u.mark.setVisible(manual && ready).setText(u.armed ? '放招！' : '點我放招');
+    u.mark.setBackgroundColor(u.armed ? '#ff8a5c' : '#ffd75e');
+    if (manual && ready) {
+      // EN 滿了：頭像外面一圈亮框，點了之後變粗
+      u.head.lineStyle(u.armed ? 5 : 3, u.armed ? 0xff8a5c : EN_COLOR.full, 1);
+      u.head.strokeCircle(0, 0, u.slot.r * 1.22);
+    }
     if (!u.canUlt) return;
-    // EN 條：一格一格的細條；集氣中是藍的，滿了變金色；倒下的不顯示集氣
+    // EN 條：集氣中是藍的，滿了變金色；倒下的不顯示集氣
     const ey = by + hpH + 1;
-    const full = !down && u.en >= ULT_CHARGE;
-    const gap = 2;
-    const cell = (bw - gap * (ULT_CHARGE - 1)) / ULT_CHARGE;
-    for (let i = 0; i < ULT_CHARGE; i++) {
-      const lit = !down && i < u.en;
-      u.bar.fillStyle(lit ? (full ? EN_COLOR.full : EN_COLOR.charging) : 0x6b5a4a, 1);
-      u.bar.fillRect(-bw / 2 + i * (cell + gap), ey, cell, 4);
+    const en = down ? 0 : Math.min(1, u.en / EN_MAX);
+    u.bar.fillStyle(0x6b5a4a, 1);
+    u.bar.fillRect(-bw / 2, ey, bw, 4);
+    if (en > 0) {
+      u.bar.fillStyle(en >= 1 ? EN_COLOR.full : EN_COLOR.charging, 1);
+      u.bar.fillRect(-bw / 2, ey, bw * en, 4);
     }
   }
 
@@ -337,6 +410,21 @@ export class BattleScene extends Phaser.Scene {
     makeTapArea(c, r.width, r.height);
     c.on('pointerup', () => this.cycleSpeed());
 
+    // 自動放招勾選框
+    const a = this.layout.auto;
+    const ac = this.add.container(a.x, a.y).setDepth(20);
+    const ag = this.add.graphics();
+    ag.fillStyle(0xfff6e8, 1);
+    ag.lineStyle(2, 0xd8a24a, 1);
+    ag.fillRoundedRect(0, 0, a.width, a.height, 12);
+    ag.strokeRoundedRect(0, 0, a.width, a.height, 12);
+    this.autoLabel = addText(this, a.width / 2, a.height / 2, '', 17, COLORS.ink, true).setOrigin(
+      0.5,
+    );
+    ac.add([ag, this.autoLabel]);
+    makeTapArea(ac, a.width, a.height);
+    ac.on('pointerup', () => this.toggleAuto());
+
     this.skipButton = new Button(this, this.layout.skip, '略過 ››', () => this.skip(), 22);
     this.skipButton.setColor(COLORS.bar).setDepth(20);
   }
@@ -353,27 +441,47 @@ export class BattleScene extends Phaser.Scene {
     this.sync();
   }
 
-  /** 播下一次出手；播完就進結算 */
+  /** 輪到的那一隻要不要放大絕招：敵方與自動放招照規則；手動時看玩家有沒有點牠 */
+  private decide(): boolean {
+    const next = nextActor(this.sim);
+    if (!next || !next.ultReady) return false;
+    if (next.side === 'enemy' || getState().settings.autoUlt) return autoUlt(this.sim);
+    return this.units.team[next.index].armed;
+  }
+
+  /** 往前推一步並播出來；打完就進結算 */
   private step(): void {
     if (this.phase !== 'playing') return;
-    const e = this.battle.events[this.index];
-    if (!e) {
+    this.clearUltimate();
+    if (this.sim.over) {
       this.finish();
       return;
     }
-    this.clearUltimate();
+    const r = stepBattle(this.sim, this.decide());
+    this.sim = r.state;
+    const e = r.action;
+    this.actions.push(e);
     this.round = e.round;
-    const ult = this.show[this.index]?.ult ?? null;
-    if (!ult) {
+    const actor = this.units[e.side][e.actor];
+    actor.armed = false;
+    const caster = e.ult ? this.casterList[e.side][e.actor] : null;
+    if (!caster) {
       this.hit(e, this.stepMs);
       return;
     }
-    // 大絕招：先播喊招字卡，字卡滑走後才真的打下去（扣血仍然照紀錄）
+    // 大絕招：先播喊招字卡，字卡滑走後才真的打下去
     const total = ultDelayMs(this.speed, this.pace);
     const cutIn = Math.round(total * ULT_CUTIN_RATIO);
+    const ult: ShowUlt = {
+      ...caster,
+      kind: e.kind === 'attack' ? caster.kind : e.kind,
+      side: e.side,
+      index: e.actor,
+    };
     this.ult = ult;
     this.ultCount++;
-    this.lastVoiceCue = voiceCueId(this.units[ult.side][ult.index].id, 'ultimate');
+    this.queued = e;
+    this.lastVoiceCue = voiceCueId(actor.id, 'ultimate');
     playVoiceCue(this.lastVoiceCue);
     if (this.pace !== 'fast') this.showUltimate(e, ult, total, cutIn);
     this.sync();
@@ -381,22 +489,21 @@ export class BattleScene extends Phaser.Scene {
   }
 
   /** 這一下真的打下去：動畫、扣血、EN 條，然後排下一次出手 */
-  private hit(e: BattleEvent, d: number, big = false): void {
+  private hit(e: BattleAction, d: number, big = false): void {
     if (this.phase !== 'playing') return;
+    this.queued = null;
     this.animate(e, d, big);
     this.apply(e);
-    this.index++;
     this.sync();
-    const last = this.index >= this.battle.events.length;
     // 最後一下之後多停一下，看清楚誰倒了
     this.timer = this.time.delayedCall(
-      last ? d + (this.pace === 'fast' ? 0 : 400 / this.speed) : d,
+      this.sim.over ? d + (this.pace === 'fast' ? 0 : 400 / this.speed) : d,
       () => this.step(),
     );
   }
 
   /** 開始播大絕招演出：施放者拉到遮罩上面，其餘交給 UltimateShow */
-  private showUltimate(e: BattleEvent, ult: ShowUlt, total: number, cutIn: number): void {
+  private showUltimate(e: BattleAction, ult: ShowUlt, total: number, cutIn: number): void {
     const { w, h, landscape } = viewOf(this);
     const caster = this.units[ult.side][ult.index];
     const alive = (list: UnitView[]) => list.filter((u) => u.hp > 0).map((u) => u.slot);
@@ -414,7 +521,7 @@ export class BattleScene extends Phaser.Scene {
       skill: ult.skill,
       line: ult.line,
       caster: { ...caster.slot, color: caster.color, accent: caster.accent, fierce: caster.fierce },
-      target: this.targetOf(e).slot,
+      target: (e.hits[0] ? this.units[e.hits[0].side][e.hits[0].target] : caster).slot,
       allies: alive(this.units[ult.side]),
       foes: alive(this.units[foeSide]),
       total,
@@ -436,30 +543,34 @@ export class BattleScene extends Phaser.Scene {
   }
 
   /** 把一次出手的結果套到血量與 EN 條上（略過時也用這個，不帶動畫） */
-  private apply(e: BattleEvent): void {
-    const target = this.targetOf(e);
-    target.hp = e.targetHp;
-    this.redrawUnit(target);
-    const actor = this.units[e.side][e.attacker];
-    const en = this.show[this.index]?.en[e.side][e.attacker] ?? actor.en;
-    if (en !== actor.en) {
-      actor.en = en;
-      this.redrawUnit(actor);
+  private apply(e: BattleAction): void {
+    for (const h of e.hits) {
+      this.units[h.side][h.target].hp = h.targetHp;
+      if (h.heal !== undefined) this.heals++;
     }
-  }
-
-  /** 這次出手的對象：攻擊是對面的，補血是自己這一方的 */
-  private targetOf(e: BattleEvent): UnitView {
-    const side = e.heal !== undefined ? e.side : e.side === 'team' ? 'enemy' : 'team';
-    return this.units[side][e.target];
+    for (const side of ['team', 'enemy'] as const) {
+      this.units[side].forEach((u, i) => {
+        u.en = e.en[side][i];
+        if (u.hp <= 0 || u.en < EN_MAX) u.armed = false;
+        this.redrawUnit(u);
+      });
+    }
+    this.index++;
   }
 
   /** 飄起來再淡掉的數字 */
-  private floatText(target: UnitView, s: string, size: number, color: string, d: number): void {
+  private floatText(
+    target: UnitView,
+    s: string,
+    size: number,
+    color: string,
+    d: number,
+    nth = 0,
+  ): void {
     const text = addText(
       this,
       target.slot.x,
-      target.slot.y - target.slot.r - 6,
+      target.slot.y - target.slot.r - 6 - nth * 20,
       s,
       size,
       color,
@@ -474,6 +585,7 @@ export class BattleScene extends Phaser.Scene {
       y: text.y - 34,
       alpha: 0,
       duration: Math.max(260, d * 1.4),
+      delay: nth * Math.min(120, d * 0.2),
       ease: 'Quad.easeOut',
       onComplete: () => {
         this.floating.delete(text);
@@ -483,33 +595,58 @@ export class BattleScene extends Phaser.Scene {
   }
 
   /** 純裝飾：攻擊方往前衝、被打的閃一下、跳出傷害數字；補血是原地跳一下、跳出綠色數字 */
-  private animate(e: BattleEvent, d: number, big = false): void {
-    const attacker = this.units[e.side][e.attacker];
-    const target = this.targetOf(e);
-    if (e.heal !== undefined) {
-      for (const u of new Set([attacker, target])) {
-        this.tweens.add({
-          targets: u.box,
-          y: u.slot.y - 10,
-          duration: d * 0.25,
-          yoyo: true,
-          ease: 'Quad.easeOut',
-          onComplete: () => u.box.setY(u.slot.y),
-        });
-      }
-      this.floatText(target, `+${e.heal}`, big ? 30 : 22, HEAL_TEXT, d);
+  private animate(e: BattleAction, d: number, big = false): void {
+    const actor = this.units[e.side][e.actor];
+    const dir = e.side === 'team' ? 1 : -1;
+    const attacks = e.hits.filter((h) => h.heal === undefined);
+    const bounce = (u: UnitView): void => {
+      this.tweens.add({
+        targets: u.box,
+        y: u.slot.y - 10,
+        duration: d * 0.25,
+        yoyo: true,
+        ease: 'Quad.easeOut',
+        onComplete: () => u.box.setY(u.slot.y),
+      });
+    };
+    if (attacks.length > 0) {
+      this.tweens.add({
+        targets: actor.box,
+        x: actor.slot.x + dir * (big ? 44 : 26),
+        duration: d * 0.3,
+        yoyo: true,
+        ease: 'Quad.easeOut',
+        onComplete: () => actor.box.setX(actor.slot.x),
+      });
+    } else {
+      bounce(actor);
+    }
+    if (e.buff) this.floatText(actor, e.buff === 'taunt' ? '嘲諷！' : '鼓舞！', 22, '#fff3c4', d);
+    // 同一隻被打好幾下（連打）：數字往上疊
+    const seen = new Map<UnitView, number>();
+    for (const h of e.hits) {
+      const target = this.units[h.side][h.target];
+      const nth = seen.get(target) ?? 0;
+      seen.set(target, nth + 1);
+      this.showHit(e, h, target, nth, d, big);
+      if (h.heal !== undefined && nth === 0 && target !== actor) bounce(target);
+    }
+  }
+
+  private showHit(
+    e: BattleAction,
+    h: BattleHit,
+    target: UnitView,
+    nth: number,
+    d: number,
+    big: boolean,
+  ): void {
+    if (h.heal !== undefined) {
+      this.floatText(target, `+${h.heal}`, big ? 30 : 22, HEAL_TEXT, d, nth);
       return;
     }
     const dir = e.side === 'team' ? 1 : -1;
-    this.tweens.add({
-      targets: attacker.box,
-      x: attacker.slot.x + dir * (big ? 44 : 26),
-      duration: d * 0.3,
-      yoyo: true,
-      ease: 'Quad.easeOut',
-      onComplete: () => attacker.box.setX(attacker.slot.x),
-    });
-    if (e.damage > 0) {
+    if (h.damage > 0 && nth === 0) {
       this.tweens.add({
         targets: target.box,
         x: target.slot.x + dir * 8,
@@ -522,19 +659,28 @@ export class BattleScene extends Phaser.Scene {
     }
     this.floatText(
       target,
-      e.damage > 0 ? `-${e.damage}` : '閃過',
-      big ? 32 : e.defeated ? 26 : 21,
-      e.damage > 0 ? (e.side === 'team' ? '#ffe08a' : '#ff9a8a') : '#ffffff',
+      h.dodged ? '閃過' : `${h.crit ? '爆擊 ' : ''}-${h.damage}`,
+      big || h.crit ? 30 : h.defeated ? 26 : 21,
+      h.dodged ? '#ffffff' : e.side === 'team' ? '#ffe08a' : '#ff9a8a',
       d,
+      nth,
     );
   }
 
-  /** 略過：剩下的出手直接套用，馬上進結算。結果和看完整場一樣。 */
+  /** 略過：剩下的用自動放招一次算完，馬上進結算。 */
   private skip(): void {
     if (this.phase !== 'playing') return;
     this.skipped = true;
     this.timer?.remove();
-    while (this.index < this.battle.events.length) this.apply(this.battle.events[this.index++]);
+    // 字卡播到一半的那一下已經算好了，先套上去
+    if (this.queued) this.apply(this.queued);
+    this.queued = null;
+    const rest = finishBattle(this.sim);
+    this.sim = rest.state;
+    for (const e of rest.actions) {
+      this.actions.push(e);
+      this.apply(e);
+    }
     this.finish();
   }
 
@@ -549,14 +695,25 @@ export class BattleScene extends Phaser.Scene {
     this.cameras.main.resetFX();
     for (const t of this.floating) t.destroy();
     this.floating.clear();
-    for (const u of [...this.units.team, ...this.units.enemy])
+    for (const u of [...this.units.team, ...this.units.enemy]) {
+      u.armed = false;
       u.box.setPosition(u.slot.x, u.slot.y);
+      this.redrawUnit(u);
+    }
     this.skipButton.setVisible(false).disableInteractive();
-    const last = this.battle.events[this.battle.events.length - 1];
-    if (last) this.round = last.round;
-    this.sync();
+    this.round = this.sim.round;
 
-    const rec = this.record!;
+    // 結算：把我方實際放招的時機交給規則重算一次，結果和畫面上打的一樣
+    const ultTurns = this.actions.filter((a) => a.side === 'team' && a.ult).map((a) => a.turn);
+    const done = completeExpedition(getState(), ultTurns);
+    if (!done) {
+      this.scene.start('LobbyScene');
+      return;
+    }
+    setState(done.state);
+    const rec = (this.record = done.record);
+    this.sync();
+    const storyId = newStoriesAfter(done.state, rec.stageId)[0]?.id;
     new ResultPanel(
       this,
       this.stage!.name,
@@ -564,46 +721,57 @@ export class BattleScene extends Phaser.Scene {
       rec.win,
       () => {
         patchDebug({ result: null, growth: null });
-        if (this.payload.storyId) {
-          this.scene.start('StoryScene', { mode: 'play', storyId: this.payload.storyId });
+        if (storyId) {
+          this.scene.start('StoryScene', { mode: 'play', storyId });
         } else {
           // 回出征地圖，可以馬上再打一場
-          const chapter = REGIONS.findIndex((r) => r.stages.some((x) => x.id === rec.stageId));
+          const found = REGIONS.findIndex((r) => r.stages.some((x) => x.id === rec.stageId));
+          const chapter = this.chapter ?? found;
           this.scene.start('CampaignScene', chapter >= 0 ? { chapter } : undefined);
         }
       },
-      this.payload.extra ?? [],
+      resultNotes(this.before, done.state, rec),
       rec.gains,
     );
     patchDebug({
       result: { ...rec.reward, win: rec.win, newDogId: rec.newDogId },
       growth: rec.gains,
+      resources: { ...done.state.resources },
     });
   }
 
   /** 更新文字與 Playwright 用的除錯資訊 */
   private sync(): void {
+    const auto = getState().settings.autoUlt;
     this.speedLabel.setText(`×${this.speed}`);
+    this.autoLabel.setText(`${auto ? '☑' : '☐'} 自動放招`);
     this.roundLabel.setText(this.phase === 'result' ? '戰鬥結束' : `第 ${this.round} 回合`);
+    // 剩下的部分用自動放招預估（總共幾次出手、還會放幾次大絕招）
+    const rest = this.sim.over ? [] : finishBattle(this.sim).actions;
+    const isUlt = (side: BattleSide, i: number): boolean => !!this.casterList[side][i];
+    const ultsOf = (list: readonly BattleAction[]): number =>
+      list.filter((a) => a.ult && isUlt(a.side, a.actor)).length;
     const view = (u: UnitView) => ({
       id: u.id,
       hp: u.hp,
       maxHp: u.maxHp,
       en: u.canUlt ? u.en : null,
+      row: u.row,
+      armed: u.armed,
       ...u.slot,
     });
     patchDebug({
       battle: {
         stageId: this.stage!.id,
-        win: this.record!.win,
+        win: this.record ? this.record.win : null,
         phase: this.phase,
         speed: this.speed,
         stepMs: this.stepMs,
         index: this.index,
-        total: this.battle.events.length,
-        heals: this.battle.events.slice(0, this.index).filter((e) => e.heal !== undefined).length,
+        total: this.actions.length + rest.length,
+        heals: this.heals,
         ults: this.ultCount,
-        ultTotal: this.show.filter((s) => s.ult).length,
+        ultTotal: ultsOf(this.actions) + ultsOf(rest),
         ult: this.ult
           ? {
               id: this.units[this.ult.side][this.ult.index].id,
@@ -613,7 +781,9 @@ export class BattleScene extends Phaser.Scene {
               kind: this.ult.kind,
             }
           : null,
-        enMax: ULT_CHARGE,
+        enMax: EN_MAX,
+        autoUlt: auto,
+        autoButton: this.layout.auto,
         voiceCue: this.lastVoiceCue,
         round: this.round,
         skipped: this.skipped,

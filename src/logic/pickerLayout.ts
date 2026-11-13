@@ -27,6 +27,8 @@ export interface PickerLayout {
   /** 標題文字的左上角 */
   title: { x: number; y: number; width: number };
   autoButton: Rect;
+  /** 「陣型」按鈕（T023），在自動編隊左邊 */
+  formationButton: Rect;
   slots: Rect[];
   roleChips: Rect[];
   statusChips: Rect[];
@@ -76,10 +78,12 @@ export function layoutPicker(o: PickerLayoutInput): PickerLayout {
     const last = statusChips[statusChips.length - 1];
     const sortChip: Rect = { x: last.x + last.width + 12, y: y2, width: 116, height: chipH };
     const autoButton: Rect = { x: x + width - 124, y: y2, width: 124, height: chipH };
+    const formationButton: Rect = { x: autoButton.x - 6 - 76, y: y2, width: 76, height: chipH };
     const gridTop = y2 + chipH + 8;
     return {
       title: { x: MARGIN, y: o.top + 2, width: SIDE_WIDTH },
       autoButton,
+      formationButton,
       slots,
       roleChips,
       statusChips,
@@ -92,7 +96,8 @@ export function layoutPicker(o: PickerLayoutInput): PickerLayout {
   }
 
   const width = o.w - MARGIN * 2;
-  const autoButton: Rect = { x: o.w - MARGIN - 124, y: o.top, width: 124, height: 40 };
+  const autoButton: Rect = { x: o.w - MARGIN - 112, y: o.top, width: 112, height: 40 };
+  const formationButton: Rect = { x: autoButton.x - 6 - 70, y: o.top, width: 70, height: 40 };
   const slotsTop = o.top + 46;
   const slots = row(MARGIN, slotsTop, width, 88, TEAM_SIZE, 6);
   const chipH = 40;
@@ -110,8 +115,9 @@ export function layoutPicker(o: PickerLayoutInput): PickerLayout {
   const sortChip: Rect = { x: o.w - MARGIN - 116, y: y2, width: 116, height: chipH };
   const gridTop = y2 + chipH + 8;
   return {
-    title: { x: MARGIN, y: o.top + 9, width: width - 132 },
+    title: { x: MARGIN, y: o.top + 9, width: width - 196 },
     autoButton,
+    formationButton,
     slots,
     roleChips,
     statusChips,
