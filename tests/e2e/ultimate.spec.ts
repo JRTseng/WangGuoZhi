@@ -134,16 +134,10 @@ test.describe('手機橫放', () => {
     let b = await waitUlt(page, 1);
     expect(b.ult).toMatchObject({ id: 'heixuan', side: 'team', skill: '怒吼', kind: 'pierce' });
     await page.screenshot({ path: 'artifacts/screenshots/landscape/ultimate-pierce.png' });
-    for (const speed of [3, 4]) {
-      if ((await battle(page)).phase === 'result') break;
-      await tap(page, b.speedButton);
-      await page.waitForFunction(
-        (s) => window.__WGZ__?.battle?.speed === s || window.__WGZ__?.battle?.phase === 'result',
-        speed,
-      );
-    }
+    // 剩下的照 ×2 看完。這裡不再點倍速：戰鬥可能剛好在這時結束，
+    // 點下去會按到結算畫面的按鈕而離開戰鬥（CI 上發生過）
     await page.waitForFunction(() => window.__WGZ__?.battle?.phase === 'result', null, {
-      timeout: 40_000,
+      timeout: 100_000,
     });
     b = await battle(page);
     expect(b).toMatchObject({ win: true, skipped: false, ult: null });
