@@ -311,6 +311,10 @@ export class ExpeditionScene extends Phaser.Scene {
     else if (!before.cleared.includes(stage.id)) extra.push('通過關卡！下一關已開放');
     const gift = record.newDogId ? findDog(record.newDogId) : undefined;
     if (gift) extra.push(`新夥伴「${gift.name}」加入！（${gift.breed}・${roleKeyOf(gift)}）`);
+    if (record.giftShards) {
+      const name = findDog(record.giftShards.dogId)?.name ?? '';
+      extra.push(`已經有「${name}」了，改送碎片 ×${record.giftShards.amount}`);
+    }
     const newBgs = unlockedBackgrounds(r.state).filter(
       (b) => !unlockedBackgrounds(before).includes(b),
     );

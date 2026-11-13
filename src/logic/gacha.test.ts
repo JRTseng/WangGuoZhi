@@ -61,10 +61,9 @@ describe('召募池', () => {
     expect(RARITIES.reduce((s, r) => s + GACHA_RATES[r], 0)).toBe(100);
   });
 
-  it('關卡送的補血狗要先拿到才會進池子', () => {
-    expect(gachaPool(STARTER_DOG_IDS).map((d) => d.id)).not.toContain('nuantong');
-    expect(gachaPool(STARTER_DOG_IDS)).toHaveLength(DOGS.length - 1);
-    expect(gachaPool([...STARTER_DOG_IDS, 'nuantong']).map((d) => d.id)).toContain('nuantong');
+  it('關卡送的補血狗一開始就在池子裡（重複可以換碎片）', () => {
+    expect(gachaPool().map((d) => d.id)).toContain('nuantong');
+    expect(gachaPool()).toHaveLength(DOGS.length);
   });
 
   it('看板主打最稀有的幾隻', () => {
@@ -107,7 +106,7 @@ describe('rollRarity', () => {
 
 describe('pickDog', () => {
   it('從指定稀有度裡平均抽；那一階沒有狗就往低一階找', () => {
-    const pool = gachaPool(STARTER_DOG_IDS);
+    const pool = gachaPool();
     const seen = new Set<string>();
     const rng = createRng(3);
     for (let i = 0; i < 200; i++) seen.add(pickDog(pool, 'SSR', rng)!.id);
@@ -138,7 +137,7 @@ describe('pull', () => {
     const s0 = fresh();
     // 0.2 → R；R 有 7 隻，0.2 落在第 2 隻：黑旋（開局就有）
     const r = pull(s0, 1, () => 0.2);
-    expect(gachaPool(s0.owned).filter((d) => d.rarity === 'R')[1].id).toBe('heixuan');
+    expect(gachaPool().filter((d) => d.rarity === 'R')[1].id).toBe('heixuan');
     expect(r.items).toEqual([
       { dogId: 'heixuan', rarity: 'R', isNew: false, shards: SHARDS_PER_DUPLICATE },
     ]);
@@ -213,8 +212,10 @@ describe('pull', () => {
     let s = fresh();
     const rng = createRng(5);
     for (let i = 0; i < 100; i++) s = pull(s, 10, rng).state;
-    expect(collection(s.owned)).toEqual({ owned: DOGS.length - 1, total: DOGS.length });
-    expect(s.owned).not.toContain('nuantong');
+    expect(collection(s.owned)).toEqual({ owned: DOGS.length, total: DOGS.length });
+    // 關卡送的補血狗也抽得到，拿到的是牠原本的等級
+    expect(s.owned).toContain('nuantong');
+    expect(s.dogs.nuantong.level).toBe(5);
     // 狀態可以直接存檔
     expect(JSON.parse(JSON.stringify(s))).toEqual(s);
   });

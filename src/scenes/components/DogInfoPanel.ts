@@ -141,7 +141,7 @@ export class DogInfoPanel {
           scene,
           box.x + box.width / 2,
           by + 24,
-          dog.rewardOnly ? '打贏第 1 章 Boss 就會加入' : '到主頁的「召募」抽抽看',
+          dog.rewardOnly ? '打贏第 1 章 Boss 就會加入，召募也抽得到' : '到主頁的「召募」抽抽看',
           16,
           COLORS.inkSoft,
         ).setOrigin(0.5),
