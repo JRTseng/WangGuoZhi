@@ -25,8 +25,8 @@ async function waitUlt(page: Page, n: number) {
 test('訓練場填台詞，戰鬥中放大絕招會喊招式名與台詞；勝負不變', async ({ page }) => {
   // 流程長（訓練場、重新整理、看兩次大絕招），CI 上超過預設的 60 秒
   test.setTimeout(150_000);
-  // &battle=slow：戰鬥放慢，來得及截圖
-  await openLobby(page, '?fast=1&battle=slow');
+  // &battle=slow：戰鬥放慢，來得及截圖；&seed=5：固定種子，每次都是同一場（三隻都會放到招）
+  await openLobby(page, '?fast=1&battle=slow&seed=5');
   await tap(page, (await wgz(page)).lobby!.buttons.train);
   await waitScene(page, 'TrainingScene');
   let row = (await wgz(page)).training!.rows.find((r) => r.id === 'daer')!;
@@ -118,7 +118,7 @@ test.describe('手機橫放', () => {
 
   test('橫式大絕招演出；整場看完，每一招都有播', async ({ page }) => {
     test.setTimeout(150_000);
-    await openLobby(page, '?fast=1&battle=slow');
+    await openLobby(page, '?fast=1&battle=slow&seed=5');
     await startBattle(page, 0, ['daer', 'heixuan', 'changxu', 'xiaosuan', 'abai']);
     await waitScene(page, 'BattleScene');
     await speedTwo(page);
@@ -134,14 +134,20 @@ test.describe('手機橫放', () => {
       { timeout: 40_000 },
     );
     b = await battle(page);
+    expect(b.ult?.id).toBe('xiaosuan');
     if (b.ult) {
       expect(b.ult.kind).toBe('row');
       await page.waitForTimeout(450);
       await page.screenshot({ path: 'artifacts/screenshots/landscape/ultimate-row.png' });
     }
+    // 種子固定時小算一定會放招；保險起見，萬一已經打完就不用再調速度
     for (const speed of [3, 4]) {
+      if ((await battle(page)).phase === 'result') break;
       await tap(page, b.speedButton);
-      await page.waitForFunction((s) => window.__WGZ__?.battle?.speed === s, speed);
+      await page.waitForFunction(
+        (s) => window.__WGZ__?.battle?.speed === s || window.__WGZ__?.battle?.phase === 'result',
+        speed,
+      );
     }
     await page.waitForFunction(() => window.__WGZ__?.battle?.phase === 'result', null, {
       timeout: 40_000,
@@ -149,7 +155,7 @@ test.describe('手機橫放', () => {
     b = await battle(page);
     expect(b).toMatchObject({ win: true, skipped: false, ult: null });
     expect(b.ults).toBe(b.ultTotal);
-    expect(b.ultTotal).toBeGreaterThanOrEqual(3);
+    expect(b.ultTotal).toBe(5);
     expect((await wgz(page)).result).toEqual({ food: 120, bones: 5, win: true });
   });
 });

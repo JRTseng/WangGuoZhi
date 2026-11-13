@@ -3,7 +3,7 @@ import { COLORS, FONT_FAMILY } from '../config';
 import { DOGS, findDog } from '../data/dogs';
 import { BACKGROUNDS } from '../data/backgrounds';
 import { findStage, type StageData } from '../data/regions';
-import { skillBonusOf, winChance } from '../logic/battle';
+import { battleSeedFromSearch, skillBonusOf, winChance } from '../logic/battle';
 import { TEAM_MIN, TEAM_SIZE, battleDogOf, busyDogIds, runExpedition } from '../logic/expedition';
 import { formatCountdown } from '../logic/format';
 import { autoTeam, roleKeyOf } from '../logic/dogFilter';
@@ -296,8 +296,8 @@ export class ExpeditionScene extends Phaser.Scene {
     const before = tick();
     const r = runExpedition(before, stage.id, this.selected, Date.now(), {
       ...timeOptions(),
-      // 這一仗的亂數種子：開戰時就定下來，之後不能重抽
-      seed: Math.floor(Math.random() * 0x100000000),
+      // 這一仗的亂數種子：開戰時就定下來，之後不能重抽（測試模式可用 &seed= 指定）
+      seed: battleSeedFromSearch(window.location.search) ?? Math.floor(Math.random() * 0x100000000),
     });
     if (!r.ok) {
       this.render();
