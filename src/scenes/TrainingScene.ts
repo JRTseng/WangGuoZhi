@@ -10,6 +10,12 @@ import { MAX_LEVEL, STAR_MAX, dogStats } from '../logic/leveling';
 import { SKILL_LINE_MAX, setSkillLine, skillLineOf } from '../logic/skillShow';
 import { checkStarUp, starUp, type StarCheck } from '../logic/star';
 import {
+  TRAINING_SORT_LABEL,
+  nextTrainingSort,
+  sortTrainingDogs,
+  type TrainingSortKey,
+} from '../logic/trainingSort';
+import {
   DRILL_LABELS,
   DRILL_MAX,
   checkDrill,
@@ -51,7 +57,8 @@ const LINE_BUTTON_COLOR = 0x3d5a94;
  * 訓練場（T005、T020、T021、T007）：看每隻狗的等級、經驗條、攻防與升級累積的成長，
  * 可以花糧草做攻擊或防禦特訓（每次永久 +1），也可以花碎片升星（提高攻防與等級上限）。
  * 右上角進「板凳寄宿」。每張卡片右邊的「改台詞」可以替狗狗填放大絕招時喊的台詞（T017）。
- * 進場時依等級高到低排，特訓後順序不變；狗多了可以上下捲動。
+ * 說明列右邊的「排序」按鈕可以換排序條件（稀有度、等級、戰力、可升星、定位），會記住上次選的。
+ * 進場與換排序時才重排，特訓或升星後順序不變（免得按鈕跳走）；狗多了可以上下捲動。
  */
 export class TrainingScene extends Phaser.Scene {
   private layout!: TrainingLayout;
@@ -64,6 +71,7 @@ export class TrainingScene extends Phaser.Scene {
   private boardingButton!: Rect;
   private boardingLabel!: Phaser.GameObjects.Text;
   private seenDogs: GameState['dogs'] | null = null;
+  private sortLabel!: Phaser.GameObjects.Text;
 
   constructor() {
     super('TrainingScene');
@@ -90,13 +98,30 @@ export class TrainingScene extends Phaser.Scene {
     makeTapArea(bc, bb.width, bb.height);
     bc.on('pointerup', () => this.scene.start('BoardingScene'));
 
-    this.ids = DOGS.filter((d) => st.owned.includes(d.id))
-      .map((d) => ({ d, s: dogStats(st, d) }))
-      .sort((a, b) => b.s.level - a.s.level || b.s.power - a.s.power)
-      .map((x) => x.d.id);
+    this.ids = this.sortedIds(st);
     const l = (this.layout = trainingLayout(w, h, landscape, this.ids.length, BAR));
 
-    this.hint = addText(this, l.hint.x, l.hint.y, '', 14, COLORS.inkSoft).setOrigin(0.5);
+    this.hint = addText(this, l.hint.x, l.hint.y, '', 14, COLORS.inkSoft).setOrigin(0, 0.5);
+
+    // 說明列右邊：排序按鈕，點一下換下一種
+    const sc = this.add.container(l.sortChip.x, l.sortChip.y);
+    const sg = this.add.graphics();
+    sg.fillStyle(COLORS.card, 1);
+    sg.lineStyle(2, COLORS.cardBorder, 1);
+    sg.fillRoundedRect(0, 0, l.sortChip.width, l.sortChip.height, 14);
+    sg.strokeRoundedRect(0, 0, l.sortChip.width, l.sortChip.height, 14);
+    this.sortLabel = addText(
+      this,
+      l.sortChip.width / 2,
+      l.sortChip.height / 2,
+      '',
+      14,
+      COLORS.ink,
+      true,
+    ).setOrigin(0.5);
+    sc.add([sg, this.sortLabel]);
+    makeTapArea(sc, l.sortChip.width, l.sortChip.height);
+    sc.on('pointerup', () => this.cycleSort());
 
     this.rows = this.add.container(0, 0);
     const mask = this.make.graphics();
@@ -146,6 +171,32 @@ export class TrainingScene extends Phaser.Scene {
     return DOGS.find((x) => x.id === id)!;
   }
 
+  /** 擁有的狗依目前選的排序條件排好 */
+  private sortedIds(st: GameState): string[] {
+    return sortTrainingDogs(
+      DOGS.filter((d) => st.owned.includes(d.id)),
+      st.settings.trainingSort,
+      (d) => {
+        const s = dogStats(st, d);
+        const c = checkStarUp(st, d.id);
+        return { level: s.level, power: s.power, star: s.star, shards: c.shards, starCost: c.cost };
+      },
+    ).map((d) => d.id);
+  }
+
+  /** 換下一種排序：記進設定、重排、捲回最上面 */
+  private cycleSort(): void {
+    if (isTextPromptOpen()) return;
+    const st = tick();
+    const sort: TrainingSortKey = nextTrainingSort(st.settings.trainingSort);
+    setState({ ...st, settings: { ...st.settings, trainingSort: sort } });
+    this.ids = this.sortedIds(getState());
+    this.scrollY = 0;
+    this.rows.y = 0;
+    this.renderRows();
+    this.publish();
+  }
+
   /** 依目前狀態重畫整個列表（進場與每次特訓後） */
   private renderRows(): void {
     const st = getState();
@@ -154,7 +205,8 @@ export class TrainingScene extends Phaser.Scene {
     const busy = busyDogIds(st);
     this.seenDogs = st.dogs;
     this.boardingLabel.setText(`寄宿 ${st.boarding.length}/${boardingSlotCount(st)} ›`);
-    this.hint.setText(`糧草特訓永久 +1・碎片升星・糧草 ${formatAmount(st.resources.food)}`);
+    this.hint.setText(`糧草 ${formatAmount(st.resources.food)}・特訓永久 +1`);
+    this.sortLabel.setText(`排序：${TRAINING_SORT_LABEL[st.settings.trainingSort]}`);
     this.rows.removeAll(true);
 
     this.ids.forEach((id, i) => {
@@ -398,6 +450,8 @@ export class TrainingScene extends Phaser.Scene {
           slots: boardingSlotCount(st),
         },
         list: this.layout.list,
+        sort: st.settings.trainingSort,
+        sortChip: this.layout.sortChip,
         scrollY: this.scrollY,
         scrollMax: this.layout.scrollMax,
         food: st.resources.food,

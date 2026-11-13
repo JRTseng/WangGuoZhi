@@ -19,6 +19,7 @@ import { PITY_SSR } from './gacha';
 import { MAX_LEVEL, STAR_MAX, expNeeded, initialProgress, levelCapForStar } from './leveling';
 import { cleanSkillLine } from './skillShow';
 import { DRILL_MAX } from './training';
+import { isTrainingSort } from './trainingSort';
 
 /**
  * 存檔與讀檔（T006）。全部是純函式：這裡只負責「狀態 ↔ 字串」，
@@ -193,6 +194,7 @@ function settings(v: unknown, fallback: Settings): Settings {
     skipBattle: bool(v.skipBattle, fallback.skipBattle),
     battleSpeed:
       speed === 1 || speed === 2 || speed === 3 || speed === 4 ? speed : fallback.battleSpeed,
+    trainingSort: isTrainingSort(v.trainingSort) ? v.trainingSort : fallback.trainingSort,
   };
 }
 

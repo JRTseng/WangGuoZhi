@@ -3,6 +3,7 @@ import type { ThemeId } from '../data/regions';
 import { INITIAL_RESOURCES, type Resources } from '../data/resources';
 import type { BattleDog } from '../logic/battle';
 import { initialProgress, type DogExpGain } from '../logic/leveling';
+import { DEFAULT_TRAINING_SORT, type TrainingSortKey } from '../logic/trainingSort';
 
 /**
  * 遊戲狀態：純物件（只有數字、字串、陣列），可直接 JSON 序列化，整份存進存檔（T006）。
@@ -130,6 +131,8 @@ export interface Settings {
   skipBattle: boolean;
   /** 戰鬥播放倍速，下次戰鬥沿用 */
   battleSpeed: 1 | 2 | 3 | 4;
+  /** 訓練場上次選的排序條件，下次進去沿用 */
+  trainingSort: TrainingSortKey;
 }
 
 export interface GameState {
@@ -193,6 +196,7 @@ export function createInitialState(now: number = Date.now()): GameState {
       quality: 'high',
       skipBattle: false,
       battleSpeed: 1,
+      trainingSort: DEFAULT_TRAINING_SORT,
     },
     stamina: { value: STAMINA_MAX, updatedAt: now },
     // day 留空：第一次結算時會換成當天

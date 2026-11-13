@@ -1,13 +1,15 @@
 import type { Rect } from './layout';
 
 /**
- * 訓練場（T005、T020）的排版：上方一行說明，下面是可捲動的狗狗列表，
+ * 訓練場（T005、T020）的排版：上方一行說明與排序按鈕，下面是可捲動的狗狗列表，
  * 每張卡片底部有攻擊特訓、防禦特訓、升星（T007）三顆按鈕。
  * 直式一欄、橫式兩欄；放不下就上下捲動。
  */
 export interface TrainingLayout {
-  /** 說明文字的位置（中心點） */
+  /** 說明文字的位置（靠左，y 是中線） */
   hint: { x: number; y: number };
+  /** 右邊的「排序：稀有度」按鈕，點一下換下一種排序 */
+  sortChip: Rect;
   /** 列表可見範圍 */
   list: Rect;
   columns: number;
@@ -25,6 +27,7 @@ export interface TrainingLayout {
 
 const MARGIN = 16;
 const HINT_HEIGHT = 34;
+const SORT_CHIP = { width: 116, height: 28 };
 
 export function trainingLayout(
   w: number,
@@ -47,7 +50,12 @@ export function trainingLayout(
   const rows = Math.ceil(Math.max(0, count) / columns);
   const contentHeight = rows === 0 ? 0 : rows * rowHeight + (rows - 1) * gap;
   return {
-    hint: { x: w / 2, y: top + HINT_HEIGHT / 2 },
+    hint: { x: MARGIN + 2, y: top + HINT_HEIGHT / 2 },
+    sortChip: {
+      x: w - MARGIN - SORT_CHIP.width,
+      y: top + (HINT_HEIGHT - SORT_CHIP.height) / 2 + 1,
+      ...SORT_CHIP,
+    },
     list,
     columns,
     rowWidth,
