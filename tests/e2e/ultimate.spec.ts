@@ -23,6 +23,8 @@ async function waitUlt(page: Page, n: number) {
 }
 
 test('訓練場填台詞，戰鬥中放大絕招會喊招式名與台詞；勝負不變', async ({ page }) => {
+  // 流程長（訓練場、重新整理、看兩次大絕招），CI 上超過預設的 60 秒
+  test.setTimeout(150_000);
   // &battle=slow：戰鬥放慢，來得及截圖
   await openLobby(page, '?fast=1&battle=slow');
   await tap(page, (await wgz(page)).lobby!.buttons.train);
@@ -115,6 +117,7 @@ test.describe('手機橫放', () => {
   test.use({ viewport: { width: 844, height: 390 } });
 
   test('橫式大絕招演出；整場看完，每一招都有播', async ({ page }) => {
+    test.setTimeout(150_000);
     await openLobby(page, '?fast=1&battle=slow');
     await startBattle(page, 0, ['daer', 'heixuan', 'changxu', 'xiaosuan', 'abai']);
     await waitScene(page, 'BattleScene');
