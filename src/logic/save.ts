@@ -17,6 +17,7 @@ import { boardingSlotCount } from './boarding';
 import { HISTORY_MAX, TEAM_SIZE } from './expedition';
 import { PITY_SSR } from './gacha';
 import { MAX_LEVEL, STAR_MAX, expNeeded, initialProgress, levelCapForStar } from './leveling';
+import { cleanSkillLine } from './skillShow';
 import { DRILL_MAX } from './training';
 
 /**
@@ -288,6 +289,16 @@ export function sanitizeState(raw: unknown, now: number): GameState {
       }
     : base.gacha;
 
+  // 玩家填的台詞（T017）：只留認得的狗，內容重新整理一次（去控制字元、限制字數），空的丟掉
+  const skillLines: Record<string, string> = {};
+  if (isObj(raw.skillLines)) {
+    for (const [id, v] of Object.entries(raw.skillLines)) {
+      if (!isDog(id) || typeof v !== 'string') continue;
+      const line = cleanSkillLine(v);
+      if (line) skillLines[id] = line;
+    }
+  }
+
   return {
     resources: resources(raw.resources, base.resources),
     history,
@@ -308,6 +319,7 @@ export function sanitizeState(raw: unknown, now: number): GameState {
     // 碎片（T007）：只留認得的狗、正整數
     shards: countMap(raw.shards, isDog),
     gacha,
+    skillLines,
   };
 }
 

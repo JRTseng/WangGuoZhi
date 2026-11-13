@@ -1,11 +1,13 @@
 import Phaser from 'phaser';
 import { COLORS, rarityHex } from '../config';
 import { DOGS, type DogData } from '../data/dogs';
+import { DEFAULT_SKILL_LINES } from '../data/skillLines';
 import { boardingSlotCount } from '../logic/boarding';
 import { busyDogIds } from '../logic/expedition';
 import { formatAmount } from '../logic/format';
 import type { Rect } from '../logic/layout';
 import { MAX_LEVEL, STAR_MAX, dogStats } from '../logic/leveling';
+import { SKILL_LINE_MAX, setSkillLine, skillLineOf } from '../logic/skillShow';
 import { checkStarUp, starUp, type StarCheck } from '../logic/star';
 import {
   DRILL_LABELS,
@@ -18,6 +20,7 @@ import {
 import {
   trainingButtons,
   trainingLayout,
+  trainingLineButton,
   trainingRow,
   type TrainingLayout,
 } from '../logic/trainingLayout';
@@ -26,6 +29,7 @@ import { getState, setState, tick } from '../state/store';
 import { makeTapArea } from './components/hitArea';
 import { drawDogHead } from './components/dogArt';
 import { drawExpBar, expLabel } from './components/ExpBar';
+import { closeTextPrompt, isTextPromptOpen, openTextPrompt } from './components/TextPrompt';
 import { addText, drawHeader, patchDebug, resetDebug, viewOf } from './ui';
 
 const BAR = 56;
@@ -38,11 +42,15 @@ const STAR_BUTTON_COLOR = 0xc98a12;
 const TAP_SLOP = 8;
 /** 按鈕的點擊範圍上下各多留一點，手機比較好按 */
 const TAP_PAD = 3;
+/** 「改台詞」按鈕比較小，點擊範圍上下左右多留一些 */
+const LINE_TAP_PAD = 8;
+/** 「改台詞」按鈕的顏色（深藍，和大絕招字卡同色系） */
+const LINE_BUTTON_COLOR = 0x3d5a94;
 
 /**
  * 訓練場（T005、T020、T021、T007）：看每隻狗的等級、經驗條、攻防與升級累積的成長，
  * 可以花糧草做攻擊或防禦特訓（每次永久 +1），也可以花碎片升星（提高攻防與等級上限）。
- * 右上角進「板凳寄宿」。
+ * 右上角進「板凳寄宿」。每張卡片右邊的「改台詞」可以替狗狗填放大絕招時喊的台詞（T017）。
  * 進場時依等級高到低排，特訓後順序不變；狗多了可以上下捲動。
  */
 export class TrainingScene extends Phaser.Scene {
@@ -127,6 +135,9 @@ export class TrainingScene extends Phaser.Scene {
       },
     });
 
+    // 離開訓練場時把打字視窗收掉
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, closeTextPrompt);
+
     patchDebug({ backButton: back });
     this.publish();
   }
@@ -160,6 +171,9 @@ export class TrainingScene extends Phaser.Scene {
       const top = landscape ? 9 : 10;
       const gapY = landscape ? 23 : 24;
       drawDogHead(g, 16 + hr, top + gapY + 12, hr, d.color, d.accent);
+      const lb = trainingLineButton(l, i);
+      g.fillStyle(LINE_BUTTON_COLOR, 1);
+      g.fillRoundedRect(lb.x - r.x, lb.y - r.y, lb.width, lb.height, 13);
       const tx = 16 + hr * 2 + 14;
       const right = r.width - 14;
       const maxed = s.expNeed === 0;
@@ -210,13 +224,23 @@ export class TrainingScene extends Phaser.Scene {
         addText(this, tx, top + gapY, `攻擊 ${s.attack}\u3000防禦 ${s.defense}`, 14, COLORS.ink),
         addText(
           this,
-          right,
+          lb.x - r.x - 8,
           top + gapY,
           busy.has(d.id) ? '寄宿中' : '',
           13,
           '#2f7d32',
           true,
         ).setOrigin(1, 0),
+        // 「改台詞」小按鈕（T017）
+        addText(
+          this,
+          lb.x - r.x + lb.width / 2,
+          lb.y - r.y + lb.height / 2,
+          '改台詞 ›',
+          13,
+          '#ffffff',
+          true,
+        ).setOrigin(0.5),
         addText(
           this,
           tx,
@@ -280,9 +304,14 @@ export class TrainingScene extends Phaser.Scene {
 
   /** 點到哪顆特訓按鈕就做一次特訓（y 已加上捲動量） */
   private tapAt(x: number, y: number): void {
-    const hit = (b: Rect) =>
-      x >= b.x && x <= b.x + b.width && y >= b.y - TAP_PAD && y <= b.y + b.height + TAP_PAD;
+    if (isTextPromptOpen()) return;
+    const hit = (b: Rect, padX = 0, padY = TAP_PAD) =>
+      x >= b.x - padX && x <= b.x + b.width + padX && y >= b.y - padY && y <= b.y + b.height + padY;
     for (let i = 0; i < this.ids.length; i++) {
+      if (hit(trainingLineButton(this.layout, i), LINE_TAP_PAD, LINE_TAP_PAD)) {
+        this.editLine(this.ids[i]);
+        return;
+      }
       const buttons = trainingButtons(this.layout, i);
       for (const stat of STATS) {
         if (!hit(buttons[stat])) continue;
@@ -304,6 +333,32 @@ export class TrainingScene extends Phaser.Scene {
         return;
       }
     }
+  }
+
+  /** 開打字視窗，替這隻狗填放大絕招時喊的台詞；清空或按「恢復預設」就用回預設台詞 */
+  private editLine(id: string): void {
+    const d = this.dog(id);
+    openTextPrompt({
+      title: `${d.name}的招式台詞`,
+      note: `放大絕招「${d.skill.name}」時會喊出這句話。\n留空就用預設台詞。`,
+      value: getState().skillLines[id] ?? '',
+      placeholder: DEFAULT_SKILL_LINES[id] ?? '',
+      maxLength: SKILL_LINE_MAX,
+      onSubmit: (value) => {
+        const next = setSkillLine(getState(), id, value);
+        if (next === getState()) return;
+        setState(next);
+        const i = this.ids.indexOf(id);
+        const line = skillLineOf(next.skillLines, DEFAULT_SKILL_LINES, id);
+        this.floatText(
+          trainingLineButton(this.layout, i),
+          line ? `「${line}」` : '已清除',
+          '#3d5a94',
+        );
+      },
+      onClose: () => this.publish(),
+    });
+    this.publish();
   }
 
   /** 特訓成功的回饋：按鈕上方飄一行「攻擊 +1」 */
@@ -336,6 +391,7 @@ export class TrainingScene extends Phaser.Scene {
     const shift = (r: Rect): Rect => ({ ...r, y: r.y - this.scrollY });
     patchDebug({
       training: {
+        lineEditor: isTextPromptOpen(),
         boardingButton: {
           ...this.boardingButton,
           count: st.boarding.length,
@@ -373,6 +429,12 @@ export class TrainingScene extends Phaser.Scene {
               };
             })(),
             levelCap: s.levelCap,
+            skillLine: {
+              ...shift(trainingLineButton(this.layout, i)),
+              skill: this.dog(id).skill.name,
+              line: skillLineOf(st.skillLines, DEFAULT_SKILL_LINES, id),
+              custom: !!st.skillLines[id],
+            },
             ...shift(trainingRow(this.layout, i)),
           };
         }),
