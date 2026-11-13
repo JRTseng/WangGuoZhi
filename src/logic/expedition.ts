@@ -46,6 +46,8 @@ export type RunResult =
 
 /** 出征紀錄只留最近幾筆（重播戰鬥與結算用），不讓存檔越長越大 */
 export const HISTORY_MAX = 30;
+/** 第一次通關要送的狗已經先從召募抽到時，改送幾個碎片（和重複抽到一樣） */
+export const GIFT_DUPLICATE_SHARDS = 10;
 
 /**
  * 目前不能出征的狗狗 id：在訓練場寄宿中的狗（T021）。
@@ -185,6 +187,9 @@ export function runExpedition(
   const firstClear = win && !state.cleared.includes(stageId);
   const gift = firstClear ? findDog(stage.firstClearDog ?? '') : undefined;
   const newDog = gift && !state.owned.includes(gift.id) ? gift : undefined;
+  // 送的狗已經先從召募抽到了：改送碎片，可以拿去升星
+  const giftShards =
+    gift && !newDog ? { dogId: gift.id, amount: GIFT_DUPLICATE_SHARDS } : undefined;
   const record: ExpeditionRecord = {
     id: `exp-${state.nextExpeditionNo}`,
     ...exp,
@@ -194,6 +199,7 @@ export function runExpedition(
     gains: growth.gains,
     ...(opts.auto ? { auto: true } : {}),
     ...(newDog ? { newDogId: newDog.id } : {}),
+    ...(giftShards ? { giftShards } : {}),
   };
   return {
     ok: true,
@@ -206,6 +212,12 @@ export function runExpedition(
       },
       dogs: newDog ? { ...growth.dogs, [newDog.id]: initialProgress(newDog) } : growth.dogs,
       owned: newDog ? [...paid.owned, newDog.id] : paid.owned,
+      shards: giftShards
+        ? {
+            ...paid.shards,
+            [giftShards.dogId]: (paid.shards[giftShards.dogId] ?? 0) + giftShards.amount,
+          }
+        : paid.shards,
       nextExpeditionNo: state.nextExpeditionNo + 1,
       cleared:
         !win || state.cleared.includes(stageId) ? state.cleared : [...state.cleared, stageId],

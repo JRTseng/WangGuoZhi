@@ -8,7 +8,7 @@ import { calcPower } from './power';
  * 紀錄：先知道勝負，再排出一場「結果一致」的回合紀錄
  *       （輸的一方全倒，贏的一方至少留一隻）。
  * 補血（T017）：補血狗讓隊伍有效戰力多 10%，這是牠對勝負的真正影響；
- *       回合紀錄裡牠會幫血量偏低的隊友回血，畫面照著播。
+ *       回合紀錄裡牠每次攻擊完，會接著幫血量最低的兩位隊友回血，畫面照著播。
  * 亂數只來自傳入的種子：同種子、同隊伍、同關卡 → 結果與紀錄完全相同。
  */
 
@@ -25,8 +25,8 @@ export const SKILL_BONUS_RATE = 0.02;
 export const HEAL_BONUS_RATE = 0.1;
 /** 補血量：被補的那隻最大血量的 25% */
 export const HEAL_RATE = 0.25;
-/** 隊友血量剩這個比例以下，補血狗才會出手補血 */
-export const HEAL_TRIGGER = 0.6;
+/** 補血狗每次攻擊後，接著補血量比例最低的幾位隊友（含自己；沒受傷的不補） */
+export const HEAL_TARGETS = 2;
 /** 敗北時拿到的獎勵比例 */
 export const DEFEAT_REWARD_RATE = 0.3;
 
@@ -41,7 +41,7 @@ export interface BattleDog {
   level: number;
   /** 有沒有技能（有的話給固定小加成） */
   hasSkill?: boolean;
-  /** 補血狗：輪到牠時會幫受傷的隊友回血，並給隊伍較大的戰力加成 */
+  /** 補血狗：每次攻擊後接著幫受傷的隊友回血，並給隊伍較大的戰力加成 */
   heal?: boolean;
 }
 
@@ -83,6 +83,8 @@ export interface BattleEvent {
   defeated: boolean;
   /** 補血量；有這個欄位代表這次出手是補血（damage 為 0） */
   heal?: number;
+  /** 接在同一隻的攻擊後面的動作（攻擊後補血），不算另一次出手 */
+  follow?: boolean;
 }
 
 export interface BattleResult {
@@ -173,8 +175,6 @@ interface Fighter {
   maxHp: number;
   attack: number;
   heal: boolean;
-  /** 上一次出手是不是補血（不連續補，補一次打一次） */
-  healedLast: boolean;
 }
 
 const toFighter = (u: BattleUnit): Fighter => ({
@@ -182,7 +182,6 @@ const toFighter = (u: BattleUnit): Fighter => ({
   maxHp: u.maxHp,
   attack: u.attack,
   heal: !!u.heal,
-  healedLast: false,
 });
 
 export function resolveBattle(input: BattleInput): BattleResult {
@@ -257,33 +256,6 @@ export function resolveBattle(input: BattleInput): BattleResult {
       const target = foes.findIndex((f) => f.hp > 0);
       if (target < 0) break;
       const mates = hp[side];
-      // 補血狗：有隊友（含自己）血量偏低就補血，這次不攻擊。
-      // 不連續補；到了預計的最後一回合也不補，讓戰鬥收得了尾。
-      if (me.heal && !me.healedLast && roundsLeft > 0) {
-        let weakest = -1;
-        mates.forEach((f, i) => {
-          if (f.hp <= 0 || f.hp / f.maxHp > HEAL_TRIGGER) return;
-          if (weakest < 0 || f.hp / f.maxHp < mates[weakest].hp / mates[weakest].maxHp) weakest = i;
-        });
-        if (weakest >= 0) {
-          const mate = mates[weakest];
-          const amount = Math.min(mate.maxHp - mate.hp, Math.round(mate.maxHp * HEAL_RATE));
-          mate.hp += amount;
-          me.healedLast = true;
-          events.push({
-            round,
-            side,
-            attacker: index,
-            target: weakest,
-            damage: 0,
-            targetHp: mate.hp,
-            defeated: false,
-            heal: amount,
-          });
-          continue;
-        }
-      }
-      me.healedLast = false;
       // 這一方到預計結束前大約還有幾次出手
       const laterThisRound = order
         .slice(k + 1)
@@ -313,6 +285,31 @@ export function resolveBattle(input: BattleInput): BattleResult {
         targetHp: foes[target].hp,
         defeated: damage > 0 && foes[target].hp === 0,
       });
+      // 補血狗：攻擊完接著補血量比例最低的幾位隊友（含自己）。
+      // 到了預計的最後一回合就不補，讓戰鬥收得了尾；對面已經全倒也不用補。
+      if (me.heal && roundsLeft > 0 && alive(foes) > 0) {
+        const hurt = mates
+          .map((f, i) => ({ f, i }))
+          .filter(({ f }) => f.hp > 0 && f.hp < f.maxHp)
+          .sort((x, y) => x.f.hp / x.f.maxHp - y.f.hp / y.f.maxHp || x.i - y.i)
+          .slice(0, HEAL_TARGETS);
+        for (const { f: mate, i } of hurt) {
+          const amount = Math.min(mate.maxHp - mate.hp, Math.round(mate.maxHp * HEAL_RATE));
+          if (amount <= 0) continue;
+          mate.hp += amount;
+          events.push({
+            round,
+            side,
+            attacker: index,
+            target: i,
+            damage: 0,
+            targetHp: mate.hp,
+            defeated: false,
+            heal: amount,
+            follow: true,
+          });
+        }
+      }
     }
   }
   // 保險：真的排不完（理論上不會）就讓還站著的輸家直接倒下

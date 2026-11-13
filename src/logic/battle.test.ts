@@ -3,7 +3,7 @@ import {
   BATTLE_ROLL_RANGE,
   HEAL_BONUS_RATE,
   HEAL_RATE,
-  HEAL_TRIGGER,
+  HEAL_TARGETS,
   SKILL_BONUS_RATE,
   skillBonusOf,
   DEFEAT_REWARD_RATE,
@@ -248,38 +248,55 @@ describe('補血狗（T017）', () => {
     expect(winRate(withHealer())).toBeGreaterThan(winRate(plain));
   });
 
-  it('補血紀錄合理：只補活著、血量六成以下的隊友，補最大血量的 25% 且不超過上限', () => {
+  it('補血紀錄合理：補血狗每次攻擊後，接著補血量比例最低的兩位受傷隊友，各補 25% 且不超過上限', () => {
     let heals = 0;
     for (const seed of SEEDS) {
       for (const recommendedPower of [200, 260, 400]) {
         const r = resolveBattle(withHealer({ seed, recommendedPower }));
         const hp = { team: r.team.map((u) => u.maxHp), enemy: r.enemies.map((u) => u.maxHp) };
-        let lastWasHeal = false;
-        for (const e of r.events) {
+        const ratio = (i: number) => hp.team[i] / r.team[i].maxHp;
+        /** 這一輪補血（同一次攻擊後面）已經補了誰 */
+        let healed: number[] = [];
+        r.events.forEach((e, k) => {
           if (e.heal === undefined) {
+            expect(e.follow).toBeUndefined();
             const foes = e.side === 'team' ? hp.enemy : hp.team;
             foes[e.target] -= e.damage;
             expect(foes[e.target]).toBe(e.targetHp);
-            if (e.side === 'team' && e.attacker === 2) lastWasHeal = false;
-            continue;
+            healed = [];
+            return;
           }
           heals++;
+          // 補血一定接在補血狗自己的攻擊（或同一輪的上一下補血）後面
+          expect(e.follow).toBe(true);
           expect(e.side).toBe('team');
           expect(r.team[e.attacker].heal).toBe(true);
           expect(hp.team[e.attacker]).toBeGreaterThan(0);
-          expect(lastWasHeal).toBe(false);
-          lastWasHeal = true;
+          const prev = r.events[k - 1];
+          expect(prev.side).toBe('team');
+          expect(prev.attacker).toBe(e.attacker);
+          expect(prev.round).toBe(e.round);
+          expect(healed).not.toContain(e.target);
+          expect(healed.length).toBeLessThan(HEAL_TARGETS);
           const max = r.team[e.target].maxHp;
           const before = hp.team[e.target];
           expect(before).toBeGreaterThan(0);
-          expect(before / max).toBeLessThanOrEqual(HEAL_TRIGGER);
+          expect(before).toBeLessThan(max);
+          // 補的是還沒補過的人裡面血量比例最低的
+          for (let i = 0; i < hp.team.length; i++) {
+            if (i === e.target || healed.includes(i) || hp.team[i] <= 0) continue;
+            if (hp.team[i] < r.team[i].maxHp) {
+              expect(ratio(e.target)).toBeLessThanOrEqual(ratio(i));
+            }
+          }
           expect(e.heal).toBe(Math.min(max - before, Math.round(max * HEAL_RATE)));
           expect(e.heal).toBeGreaterThan(0);
           expect(e.damage).toBe(0);
           expect(e.defeated).toBe(false);
           hp.team[e.target] += e.heal;
           expect(hp.team[e.target]).toBe(e.targetHp);
-        }
+          healed.push(e.target);
+        });
         expect(hp.team).toEqual(r.finalHp.team);
         expect(hp.enemy).toEqual(r.finalHp.enemies);
         // 勝負與結尾的規則不變
@@ -291,6 +308,15 @@ describe('補血狗（T017）', () => {
       }
     }
     expect(heals).toBeGreaterThan(50);
+    // 目前敵人都集中打最前面那一隻，同時有兩位受傷的情況很少；T023 改成真的打之後才常見
+    expect(HEAL_TARGETS).toBe(2);
+  });
+
+  it('補血不影響勝負：同隊伍同種子，有沒有標成補血狗只差那 10% 戰力加成', () => {
+    for (const seed of SEEDS.slice(0, 50)) {
+      const r = resolveBattle(withHealer({ seed, recommendedPower: 260 }));
+      expect(r.win).toBe(r.teamPower * (1 + r.skillBonus) * (1 + r.roll) >= 260 * 0.97);
+    }
   });
 
   it('只有補血狗一隻也打得完；同種子結果一樣', () => {

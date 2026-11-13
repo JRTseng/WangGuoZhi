@@ -27,11 +27,12 @@ export const SHARDS_PER_DUPLICATE = 10;
 const rank = (r: DogRarity): number => RARITIES.indexOf(r);
 
 /**
- * 現在抽得到哪些狗：有稀有度的都算；關卡送的狗（rewardOnly）要先拿到才會進來，
- * 這樣通關獎勵不會被提早抽走，拿到之後也能靠重複抽到來升星。
+ * 現在抽得到哪些狗：有稀有度的都算，關卡送的狗（rewardOnly，例如暖桶）也抽得到。
+ * （原本要先通關拿到才會進池子；Jimmy 2026-11-13 認為抽不到是 bug，改成一開始就在池子裡。
+ * 先抽到的話，通關時改送碎片，見 expedition.ts 的 GIFT_DUPLICATE_SHARDS。）
  */
-export function gachaPool(owned: readonly string[]): DogData[] {
-  return DOGS.filter((d) => d.rarity && (!d.rewardOnly || owned.includes(d.id)));
+export function gachaPool(): DogData[] {
+  return DOGS.filter((d) => d.rarity);
 }
 
 export interface RollOptions {
@@ -98,7 +99,7 @@ export function pull<S extends GachaFields>(
   rng: () => number,
 ): { state: S; items: PullItem[] } {
   const n = Math.min(GACHA_MAX_PULLS, Math.max(1, Math.floor(count) || 1));
-  const pool = gachaPool(state.owned);
+  const pool = gachaPool();
   const owned = [...state.owned];
   const dogs = { ...state.dogs };
   const shards = { ...state.shards };

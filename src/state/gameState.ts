@@ -55,6 +55,8 @@ export interface ExpeditionRecord {
   auto?: boolean;
   /** 這一仗第一次通關送的狗狗 id（T017） */
   newDogId?: string;
+  /** 第一次通關要送的狗已經先抽到了，改送的碎片 */
+  giftShards?: { dogId: string; amount: number };
 }
 
 /** 體力（T019）：只存數值與上次結算時間，要用時才依經過的時間補算 */

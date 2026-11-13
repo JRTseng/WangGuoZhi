@@ -93,11 +93,46 @@ describe('planShow', () => {
     expect(show.every((s) => s.en.enemy[0] === 0)).toBe(true);
   });
 
-  it('補血狗的大絕招只在補血那一下播；滿了先留著，攻擊照常', () => {
-    const events = [attack('team', 0), attack('team', 0), attack('team', 0), heal(0), heal(0)];
+  it('補血狗是攻擊後補血：補血那幾下不集氣；EN 滿的那一回，大絕招播在攻擊後的第一下補血', () => {
+    const follow = (attacker: number): BattleEvent => ({ ...heal(attacker), follow: true });
+    const events = [
+      attack('team', 0), // +1
+      follow(0),
+      follow(0),
+      attack('team', 0), // +1，滿了
+      follow(0),
+      attack('team', 0), // 已滿：這一回要放
+      follow(0), // 大絕招
+      follow(0),
+      attack('team', 0), // +1
+    ];
     const show = planShow(events, { team: [caster('暖桶', 'heal')], enemy: [null] });
-    expect(show.map((s) => s.ult?.kind ?? null)).toEqual([null, null, null, 'heal', null]);
-    expect(show.map((s) => s.en.team[0])).toEqual([1, 2, 2, 0, 1]);
+    expect(show.map((s) => s.ult?.kind ?? null)).toEqual([
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      'heal',
+      null,
+      null,
+    ]);
+    expect(show.map((s) => s.en.team[0])).toEqual([1, 1, 1, 2, 2, 2, 0, 0, 1]);
+  });
+
+  it('補血狗 EN 滿了但那一回沒人需要補：留著，等下一回有補血再放', () => {
+    const follow = (attacker: number): BattleEvent => ({ ...heal(attacker), follow: true });
+    const events = [
+      attack('team', 0),
+      attack('team', 0),
+      attack('team', 0), // 已滿，但後面沒有補血
+      attack('team', 0),
+      follow(0),
+    ];
+    const show = planShow(events, { team: [caster('暖桶', 'heal')], enemy: [null] });
+    expect(show.map((s) => !!s.ult)).toEqual([false, false, false, false, true]);
+    expect(show.map((s) => s.en.team[0])).toEqual([1, 2, 2, 2, 0]);
   });
 
   it('Boss 也會放招', () => {

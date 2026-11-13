@@ -158,6 +158,12 @@ function historyRecord(v: unknown): ExpeditionRecord | null {
   if (v.newDogId !== undefined && (typeof v.newDogId !== 'string' || !isDog(v.newDogId))) {
     return null;
   }
+  if (v.giftShards !== undefined) {
+    const g = v.giftShards;
+    if (!isObj(g) || typeof g.dogId !== 'string' || !isDog(g.dogId) || !isNum(g.amount)) {
+      return null;
+    }
+  }
   return v as unknown as ExpeditionRecord;
 }
 

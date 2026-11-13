@@ -57,25 +57,35 @@ export interface ShowCasters {
 /**
  * 把戰鬥紀錄排成演出：回傳的陣列和 events 一一對應。
  * 規則：每次出手 EN +1 格，滿了之後的下一次出手播成大絕招並歸零。
- * 補血狗的大絕招只在牠真的補血的那一下播（EN 滿了就留著，等到下次補血）；
- * 其他狗若剛好在補血（目前不會發生）也一律播成補血的樣子。
+ * 補血狗是「攻擊後接著補血」（紀錄裡補血那幾下標了 follow，不算另一次出手、不集氣）：
+ * 牠的大絕招播在 EN 已滿的那一回、攻擊後的第一下補血；那一回沒人需要補就留著等下次。
  */
 export function planShow(events: readonly BattleEvent[], casters: ShowCasters): ShowStep[] {
   const en = {
     team: casters.team.map(() => 0),
     enemy: casters.enemy.map(() => 0),
   };
+  /** 補血狗這一回出手時 EN 已滿：等牠接下來的第一下補血播大絕招 */
+  const ready = new Set<string>();
   return events.map((e) => {
     const caster = casters[e.side][e.attacker] ?? null;
     let ult: ShowUlt | null = null;
     if (caster) {
+      const key = `${e.side}-${e.attacker}`;
       const isHeal = e.heal !== undefined;
       const full = en[e.side][e.attacker] >= ULT_CHARGE;
-      if (full && (caster.kind !== 'heal' || isHeal)) {
+      const fire = (): void => {
         ult = { ...caster, kind: isHeal ? 'heal' : caster.kind, side: e.side, index: e.attacker };
         en[e.side][e.attacker] = 0;
-      } else if (!full) {
-        en[e.side][e.attacker] += 1;
+        ready.delete(key);
+      };
+      if (e.follow) {
+        if (isHeal && ready.has(key)) fire();
+      } else {
+        ready.delete(key);
+        if (!full) en[e.side][e.attacker] += 1;
+        else if (caster.kind === 'heal' && !isHeal) ready.add(key);
+        else fire();
       }
     }
     return { ult, en: { team: [...en.team], enemy: [...en.enemy] } };

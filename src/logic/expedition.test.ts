@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { createInitialState, type GameState } from '../state/gameState';
+import { findDog } from '../data/dogs';
 import {
+  GIFT_DUPLICATE_SHARDS,
   HISTORY_MAX,
   busyDogIds,
   expeditionBattle,
@@ -8,6 +10,7 @@ import {
   idleDogIds,
   runExpedition,
 } from './expedition';
+import { initialProgress } from './leveling';
 import { STAMINA_COST, STAMINA_MAX, runsLeft } from './stamina';
 import { dogPower } from './team';
 
@@ -252,6 +255,25 @@ describe('第 1 章通關送補血狗（T017）', () => {
     expect(again.record.newDogId).toBeUndefined();
     expect(again.state.owned.filter((id) => id === GIFT)).toHaveLength(1);
     expect(again.state.dogs[GIFT]).toEqual(first.dogs[GIFT]);
+  });
+
+  it('送的狗已經先從召募抽到：不重複加入，改送碎片（只有第一次通關）', () => {
+    const s0 = beforeBoss();
+    const s = {
+      ...s0,
+      owned: [...s0.owned, GIFT],
+      dogs: { ...s0.dogs, [GIFT]: initialProgress(findDog(GIFT)!) },
+      shards: { [GIFT]: 3 },
+    };
+    const first = run(s, BOSS, ALL);
+    expect(first.record.win).toBe(true);
+    expect(first.record.newDogId).toBeUndefined();
+    expect(first.record.giftShards).toEqual({ dogId: GIFT, amount: GIFT_DUPLICATE_SHARDS });
+    expect(first.state.owned.filter((id) => id === GIFT)).toHaveLength(1);
+    expect(first.state.shards[GIFT]).toBe(3 + GIFT_DUPLICATE_SHARDS);
+    const again = run(first.state, BOSS, ALL, T0 + 1);
+    expect(again.record.giftShards).toBeUndefined();
+    expect(again.state.shards[GIFT]).toBe(3 + GIFT_DUPLICATE_SHARDS);
   });
 
   it('打輸不送；其他關卡打贏也不送', () => {

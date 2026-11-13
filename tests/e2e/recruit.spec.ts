@@ -182,7 +182,7 @@ test('召募：單抽與十連，新狗加入、重複換碎片，到訓練場�
   expect(again.gacha.pulls).toBe(r.pulls);
 });
 
-test('召募：連抽 50 次以內一定有 SSR；補血狗不會被抽到', async ({ page }) => {
+test('召募：連抽 50 次以內一定有 SSR', async ({ page }) => {
   await seedRandom(page, 7);
   await openRecruit(page);
   const seen: string[] = [];
@@ -195,7 +195,6 @@ test('召募：連抽 50 次以內一定有 SSR；補血狗不會被抽到', asy
   }
   expect(gotSSR).toBe(true);
   expect(seen).toHaveLength(50);
-  expect(seen).not.toContain('nuantong');
 });
 
 test.describe('手機橫放', () => {
