@@ -34,7 +34,8 @@ test.describe('手機橫放', () => {
 
     await tap(page, s.lobby!.buttons.team);
     await waitScene(page, 'TeamScene');
-    for (const d of (await wgz(page)).team!.dogs) inside(d);
+    // T007 起狗變多，卡片格要捲動：只看目前看得到的
+    for (const d of (await wgz(page)).team!.dogs.filter((c) => c.visible)) inside(d);
     for (const slot of (await wgz(page)).team!.slots) inside(slot);
     expect((await wgz(page)).team!.slots).toHaveLength(5);
     await page.screenshot({ path: 'artifacts/screenshots/landscape/team.png' });

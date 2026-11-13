@@ -2,7 +2,7 @@ import type { Rect } from './layout';
 
 /**
  * 訓練場（T005、T020）的排版：上方一行說明，下面是可捲動的狗狗列表，
- * 每張卡片底部有攻擊特訓、防禦特訓兩顆按鈕。
+ * 每張卡片底部有攻擊特訓、防禦特訓、升星（T007）三顆按鈕。
  * 直式一欄、橫式兩欄；放不下就上下捲動。
  */
 export interface TrainingLayout {
@@ -75,13 +75,21 @@ export function trainingRow(l: TrainingLayout, index: number): Rect {
 const BUTTON_PAD = 14;
 const BUTTON_GAP = 8;
 
-/** 第 index 列的兩顆特訓按鈕（還沒扣掉捲動量）：左邊攻擊、右邊防禦 */
-export function trainingButtons(l: TrainingLayout, index: number): { attack: Rect; defense: Rect } {
+/**
+ * 第 index 列的三顆按鈕（還沒扣掉捲動量）：攻擊特訓、防禦特訓，最右邊比較窄的是升星（T007）。
+ */
+export function trainingButtons(
+  l: TrainingLayout,
+  index: number,
+): { attack: Rect; defense: Rect; star: Rect } {
   const r = trainingRow(l, index);
-  const width = (r.width - BUTTON_PAD * 2 - BUTTON_GAP) / 2;
+  const starWidth = l.columns > 1 ? 90 : 74;
+  const width = (r.width - BUTTON_PAD * 2 - BUTTON_GAP * 2 - starWidth) / 2;
   const y = r.y + l.buttonTop;
+  const x = r.x + BUTTON_PAD;
   return {
-    attack: { x: r.x + BUTTON_PAD, y, width, height: l.buttonHeight },
-    defense: { x: r.x + BUTTON_PAD + width + BUTTON_GAP, y, width, height: l.buttonHeight },
+    attack: { x, y, width, height: l.buttonHeight },
+    defense: { x: x + width + BUTTON_GAP, y, width, height: l.buttonHeight },
+    star: { x: x + (width + BUTTON_GAP) * 2, y, width: starWidth, height: l.buttonHeight },
   };
 }

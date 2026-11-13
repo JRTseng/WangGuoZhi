@@ -1,4 +1,4 @@
-import { findDog, type DogData } from '../data/dogs';
+import { findDog, type DogData, type DogRarity } from '../data/dogs';
 import type { StageData } from '../data/regions';
 import type { DogProgress, GameState } from '../state/gameState';
 import { calcPower } from './power';
@@ -8,13 +8,46 @@ import { calcPower } from './power';
  *
  * 每升一級：
  * - 固定成長：主屬性 +3、副屬性 +2（突擊攻擊為主、守護防禦為主；其餘定位攻防輪流 +3／+2）
+ * - 稀有度加成（T007，Jimmy 2026-11-13）：越稀有每級多加越多，R +1、SR +2、SSR +3，算在固定成長裡
  * - 隨機加成：攻擊、防禦各自再加 0、+1 或 +2（平均 +1）
  * - 同一隻狗累積的隨機加成和平均（每級 +1）的差距不會超過 ±BONUS_DRIFT_LIMIT
  * 結果在升級當下就寫進狀態，之後不會重抽。
  */
 
-/** 等級上限 */
+/** 等級上限（滿星時；星數低的狗上限比較低，見 levelCapOf） */
 export const MAX_LEVEL = 100;
+
+// ---- 星數（T007）：重複抽到換碎片，在訓練場升星（操作在 src/logic/star.ts） ----
+
+/** 最高幾星；新拿到的狗是 1 星 */
+export const STAR_MAX = 5;
+/** 1 星的等級上限，之後每升一星 + STAR_LEVEL_CAP_STEP，滿星剛好是 MAX_LEVEL（暫定） */
+export const STAR_LEVEL_CAP_BASE = 60;
+export const STAR_LEVEL_CAP_STEP = 10;
+/** 每升一星，攻擊、防禦各多「資料檔基礎值」的這個比例（暫定） */
+export const STAR_STAT_RATE = 0.1;
+
+/** 這隻狗幾星（舊存檔沒有這個欄位就是 1 星） */
+export function starOf(p: Pick<DogProgress, 'star'>): number {
+  return Math.min(STAR_MAX, Math.max(1, Math.floor(p.star ?? 1)));
+}
+
+/** 幾星的等級上限 */
+export function levelCapForStar(star: number): number {
+  const s = Math.min(STAR_MAX, Math.max(1, Math.floor(star)));
+  return Math.min(MAX_LEVEL, STAR_LEVEL_CAP_BASE + STAR_LEVEL_CAP_STEP * (s - 1));
+}
+
+/** 這隻狗目前的等級上限（看星數） */
+export function levelCapOf(p: Pick<DogProgress, 'star'>): number {
+  return levelCapForStar(starOf(p));
+}
+
+/** 幾星讓一項基礎屬性多多少 */
+export function starBonus(base: number, star: number): number {
+  const s = Math.min(STAR_MAX, Math.max(1, Math.floor(star)));
+  return Math.round(Math.max(0, base) * STAR_STAT_RATE * (s - 1));
+}
 /** 每級所需經驗 = EXP_BASE × 等級^EXP_CURVE（暫定，等 Jimmy 手機實測後再調） */
 export const EXP_BASE = 20;
 export const EXP_CURVE = 1.5;
@@ -51,22 +84,36 @@ export interface DogExpGain {
   defense: StatGain;
 }
 
-/** 這一級升到下一級需要多少經驗；滿級回傳 0 */
-export function expNeeded(level: number): number {
+/** 這一級升到下一級需要多少經驗；到等級上限（cap，預設是滿星的上限）回傳 0 */
+export function expNeeded(level: number, cap: number = MAX_LEVEL): number {
   const lv = Math.max(1, Math.floor(level));
-  if (lv >= MAX_LEVEL) return 0;
+  if (lv >= Math.min(cap, MAX_LEVEL)) return 0;
   return Math.round(EXP_BASE * lv ** EXP_CURVE);
 }
 
-/** 升到 toLevel 那一級的固定成長 */
+/**
+ * 稀有度讓每級的固定成長多幾點（攻防合計，暫定）。
+ * 低稀有度前期一樣好用，等級越高差距越大：60 級時 SSR 比 N 多約 180 戰力。
+ */
+export const RARITY_GROWTH: Readonly<Record<DogRarity, number>> = { N: 0, R: 1, SR: 2, SSR: 3 };
+
+/** 升到 toLevel 那一級的固定成長（含稀有度加成；沒給稀有度當成 N） */
 export function fixedGrowth(
   role: DogData['role'],
   toLevel: number,
+  rarity?: DogRarity,
 ): { attack: number; defense: number } {
-  if (role.includes('突擊')) return { attack: 3, defense: 2 };
-  if (role.includes('守護')) return { attack: 2, defense: 3 };
   // 後排與隊長：攻防各 +2.5，輪流給 +3／+2
-  return toLevel % 2 === 0 ? { attack: 3, defense: 2 } : { attack: 2, defense: 3 };
+  const attackMain = role.includes('突擊')
+    ? true
+    : role.includes('守護')
+      ? false
+      : toLevel % 2 === 0;
+  // 稀有度多的點數：主屬性拿多的那一半
+  const extra = rarity ? RARITY_GROWTH[rarity] : 0;
+  const main = 3 + Math.ceil(extra / 2);
+  const sub = 2 + Math.floor(extra / 2);
+  return attackMain ? { attack: main, defense: sub } : { attack: sub, defense: main };
 }
 
 /**
@@ -89,7 +136,7 @@ export function bonusDrift(p: DogProgress): { attack: number; defense: number } 
 }
 
 /** 新拿到的狗的養成進度：資料檔的等級若大於 1，之前的等級用固定成長 + 平均加成補上 */
-export function initialProgress(dog: Pick<DogData, 'role' | 'level'>): DogProgress {
+export function initialProgress(dog: Pick<DogData, 'role' | 'level' | 'rarity'>): DogProgress {
   const level = Math.min(MAX_LEVEL, Math.max(1, Math.floor(dog.level)));
   const p: DogProgress = {
     level,
@@ -101,7 +148,7 @@ export function initialProgress(dog: Pick<DogData, 'role' | 'level'>): DogProgre
     rolls: 0,
   };
   for (let lv = 2; lv <= level; lv++) {
-    const f = fixedGrowth(dog.role, lv);
+    const f = fixedGrowth(dog.role, lv, dog.rarity);
     p.growthAttack += f.attack + BONUS_AVERAGE;
     p.growthDefense += f.defense + BONUS_AVERAGE;
     p.bonusAttack += BONUS_AVERAGE;
@@ -111,15 +158,16 @@ export function initialProgress(dog: Pick<DogData, 'role' | 'level'>): DogProgre
   return p;
 }
 
-/** 升一級（已滿級則不變） */
+/** 升一級（已到這隻狗的等級上限則不變） */
 export function levelUp(
   p: DogProgress,
   role: DogData['role'],
   rng: () => number,
+  rarity?: DogRarity,
 ): { progress: DogProgress; up: LevelUp | null } {
-  if (p.level >= MAX_LEVEL) return { progress: p, up: null };
+  if (p.level >= levelCapOf(p)) return { progress: p, up: null };
   const level = p.level + 1;
-  const fixed = fixedGrowth(role, level);
+  const fixed = fixedGrowth(role, level, rarity);
   const drift = bonusDrift(p);
   const attack: StatGain = { fixed: fixed.attack, bonus: rollBonus(drift.attack, rng) };
   const defense: StatGain = { fixed: fixed.defense, bonus: rollBonus(drift.defense, rng) };
@@ -140,23 +188,25 @@ export function levelUp(
 
 /**
  * 加經驗：滿了就自動升級，可以連升，多的經驗留到下一級。
- * 滿級後經驗不再累積（歸零）。
+ * 到等級上限（看星數）後經驗不再累積（歸零）。
  */
 export function addExp(
   p: DogProgress,
   role: DogData['role'],
   amount: number,
   rng: () => number,
+  rarity?: DogRarity,
 ): { progress: DogProgress; gained: number; ups: LevelUp[] } {
-  const gained = p.level >= MAX_LEVEL ? 0 : Math.max(0, Math.floor(amount));
-  let cur: DogProgress = { ...p, exp: p.level >= MAX_LEVEL ? 0 : p.exp + gained };
+  const cap = levelCapOf(p);
+  const gained = p.level >= cap ? 0 : Math.max(0, Math.floor(amount));
+  let cur: DogProgress = { ...p, exp: p.level >= cap ? 0 : p.exp + gained };
   const ups: LevelUp[] = [];
-  while (cur.level < MAX_LEVEL && cur.exp >= expNeeded(cur.level)) {
-    const r = levelUp({ ...cur, exp: cur.exp - expNeeded(cur.level) }, role, rng);
+  while (cur.level < cap && cur.exp >= expNeeded(cur.level, cap)) {
+    const r = levelUp({ ...cur, exp: cur.exp - expNeeded(cur.level, cap) }, role, rng, rarity);
     cur = r.progress;
     if (r.up) ups.push(r.up);
   }
-  if (cur.level >= MAX_LEVEL) cur = { ...cur, exp: 0 };
+  if (cur.level >= cap) cur = { ...cur, exp: 0 };
   return { progress: cur, gained, ups };
 }
 
@@ -192,12 +242,18 @@ export function progressOf(state: HasDogs, dog: DogData): DogProgress {
   return state.dogs[dog.id] ?? initialProgress(dog);
 }
 
-/** 一隻狗目前的數字：攻防 = 基礎值 + 升級成長 + 特訓加成，戰力由攻防算出 */
+/** 一隻狗目前的數字：攻防 = 基礎值 + 星數加成 + 升級成長 + 特訓加成，戰力由攻防算出 */
 export interface DogStats {
   level: number;
   exp: number;
-  /** 升下一級需要的經驗；滿級為 0 */
+  /** 升下一級需要的經驗；到等級上限為 0 */
   expNeed: number;
+  /** 星數（T007）與這個星數的等級上限 */
+  star: number;
+  levelCap: number;
+  /** 星數帶來的攻防加成（已算進攻防） */
+  starAttack: number;
+  starDefense: number;
   attack: number;
   defense: number;
   power: number;
@@ -214,13 +270,22 @@ export function dogStats(state: HasDogs, dog: DogData): DogStats {
   const p = progressOf(state, dog);
   const drillAttack = p.drillAttack ?? 0;
   const drillDefense = p.drillDefense ?? 0;
-  const attack = dog.baseAttack + p.growthAttack + drillAttack;
-  const defense = dog.baseDefense + p.growthDefense + drillDefense;
+  const star = starOf(p);
+  const levelCap = levelCapForStar(star);
+  const starAttack = starBonus(dog.baseAttack, star);
+  const starDefense = starBonus(dog.baseDefense, star);
+  const attack = dog.baseAttack + starAttack + p.growthAttack + drillAttack;
+  const defense = dog.baseDefense + starDefense + p.growthDefense + drillDefense;
   const drift = bonusDrift(p);
+  const expNeed = expNeeded(p.level, levelCap);
   return {
     level: p.level,
-    exp: p.exp,
-    expNeed: expNeeded(p.level),
+    exp: expNeed === 0 ? 0 : p.exp,
+    expNeed,
+    star,
+    levelCap,
+    starAttack,
+    starDefense,
     attack,
     defense,
     power: calcPower(attack, defense),

@@ -239,7 +239,7 @@ export class LobbyScene extends Phaser.Scene {
   private drawShortcuts(): void {
     const S = this.layout.shortcuts;
     new RoundShortcut(this, S.recruit, '召募', 'recruit', 0xa83a2b, () =>
-      this.showToast(`召募${COMING_SOON}（抽卡 T007）`),
+      this.scene.start('RecruitScene'),
     ).setDot(true);
     new RoundShortcut(this, S.shop, '商城', 'shop', 0x3f7fa8, () =>
       this.showToast(`商城${COMING_SOON}`),

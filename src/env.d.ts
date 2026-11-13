@@ -99,6 +99,30 @@ interface WgzDebugState {
         attack: { count: number; cost: number; enabled: boolean } & WgzRect;
         defense: { count: number; cost: number; enabled: boolean } & WgzRect;
       };
+      /** 升星按鈕（T007）：目前幾星、手上碎片、升下一星要幾個、能不能按 */
+      star: { star: number; shards: number; cost: number; enabled: boolean } & WgzRect;
+      /** 等級上限（看星數） */
+      levelCap: number;
+    } & WgzRect)[];
+  };
+  /** 召募畫面（T007） */
+  recruit?: {
+    buttons: { one: WgzRect; ten: WgzRect };
+    /** 總共抽了幾次 */
+    pulls: number;
+    /** 再幾抽內必出 SSR */
+    toPity: number;
+    /** 已擁有幾隻／全部幾隻 */
+    owned: number;
+    total: number;
+    /** 結果卡片還在一張一張跳出來 */
+    revealing: boolean;
+    /** 這次抽到的狗（照順序）與卡片位置 */
+    results: ({
+      dogId: string;
+      rarity: 'N' | 'R' | 'SR' | 'SSR';
+      isNew: boolean;
+      shards: number;
     } & WgzRect)[];
   };
   /** 板凳寄宿畫面（T021） */
@@ -177,7 +201,13 @@ interface WgzDebugState {
     owned: number;
     panel: string | null;
     /** 資訊面板上顯示的等級與經驗（沒開為 null） */
-    panelStats?: { level: number; exp: number; expNeed: number; power: number } | null;
+    panelStats?: {
+      level: number;
+      exp: number;
+      expNeed: number;
+      power: number;
+      star: number;
+    } | null;
     panelButtons: { team?: WgzRect; lobby?: WgzRect } | null;
     lobbyDogId: string;
   };

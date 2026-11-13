@@ -2,7 +2,7 @@ import { DOGS, findDog } from '../data/dogs';
 import { REGIONS, type StageData } from '../data/regions';
 import type { BoardingSlot, DogProgress, GameState } from '../state/gameState';
 import { createRng, mixSeed } from './battle';
-import { MAX_LEVEL, expNeeded, levelUp, progressOf, stageExp } from './leveling';
+import { expNeeded, levelCapOf, levelUp, progressOf, stageExp } from './leveling';
 import { STAMINA_COST, STAMINA_REGEN_MS, type TimeOptions } from './stamina';
 
 /**
@@ -77,6 +77,9 @@ export const BOARD_BLOCK_LABEL: Record<BoardBlock, string> = {
   full: '沒有空位',
 };
 
+/** 已經到這隻狗的等級上限（看星數，T007），再給經驗也不會升 */
+const atLevelCap = (p: DogProgress): boolean => p.level >= levelCapOf(p);
+
 type BoardState = Pick<GameState, 'owned' | 'dogs' | 'team' | 'boarding' | 'cleared'>;
 
 /** 這隻狗現在能不能放進寄宿位；不能的話回傳原因 */
@@ -86,7 +89,7 @@ export function checkBoard(state: BoardState, dogId: string): BoardBlock | null 
   if (!state.owned.includes(dogId)) return 'not-owned';
   if (state.boarding.some((s) => s.dogId === dogId)) return 'boarding';
   if (state.team.includes(dogId)) return 'in-team';
-  if (progressOf(state, dog).level >= MAX_LEVEL) return 'max-level';
+  if (atLevelCap(progressOf(state, dog))) return 'max-level';
   if (state.boarding.length >= boardingSlotCount(state)) return 'full';
   return null;
 }
@@ -112,14 +115,20 @@ function gain(
 ): { progress: DogProgress; levels: number } {
   const dog = findDog(dogId)!;
   const salt = LEVEL_SEED_SALT + DOGS.indexOf(dog);
+  const cap = levelCapOf(p);
   let cur: DogProgress = { ...p, exp: p.exp + amount };
   let levels = 0;
-  while (cur.level < MAX_LEVEL && cur.exp >= expNeeded(cur.level)) {
+  while (cur.level < cap && cur.exp >= expNeeded(cur.level, cap)) {
     const rng = createRng(mixSeed(since, cur.level + 1, salt));
-    cur = levelUp({ ...cur, exp: cur.exp - expNeeded(cur.level) }, dog.role, rng).progress;
+    cur = levelUp(
+      { ...cur, exp: cur.exp - expNeeded(cur.level, cap) },
+      dog.role,
+      rng,
+      dog.rarity,
+    ).progress;
     levels++;
   }
-  if (cur.level >= MAX_LEVEL) cur = { ...cur, exp: 0 };
+  if (cur.level >= cap) cur = { ...cur, exp: 0 };
   return { progress: cur, levels };
 }
 
@@ -144,7 +153,7 @@ export function settleBoarding<S extends SettleState>(state: S, now: number, o?:
     }
     const before = dogs[slot.dogId] ?? progressOf({ dogs }, dog);
     // 滿級的狗留在位子上也不會再拿經驗
-    if (before.level >= MAX_LEVEL) return slot;
+    if (atLevelCap(before)) return slot;
     const units = slot.carry + (now - slot.at) * perRun;
     const gained = Math.floor(units / period);
     if (gained <= 0) return slot;
@@ -182,7 +191,7 @@ export function msUntilNextBoardingExp(
   o?: TimeOptions,
 ): number {
   const dog = findDog(slot.dogId);
-  if (!dog || progressOf(state, dog).level >= MAX_LEVEL) return 0;
+  if (!dog || atLevelCap(progressOf(state, dog))) return 0;
   const perRun = boardingExpPerRun(state);
   const units = slot.carry + Math.max(0, now - slot.at) * perRun;
   return Math.max(0, Math.ceil((boardingPeriodMs(o) - units) / perRun));

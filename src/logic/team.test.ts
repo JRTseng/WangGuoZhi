@@ -33,8 +33,8 @@ describe('組隊編排', () => {
   });
   it('隊伍戰力為成員戰力加總', () => {
     const s = createInitialState();
-    // 大耳 3 級：攻 42+7、防 48+7；黑旋 2 級：攻 64+4、防 30+3
-    expect(teamPower(s, ['daer', 'heixuan'])).toBe(104 + 101);
+    // 大耳 3 級（R）：攻 42+8、防 48+8；黑旋 2 級（R）：攻 64+5、防 30+3
+    expect(teamPower(s, ['daer', 'heixuan'])).toBe(106 + 102);
     expect(teamPower(s, [])).toBe(0);
   });
   it('升級後戰力跟著變高，自動編隊照新的戰力排', () => {
