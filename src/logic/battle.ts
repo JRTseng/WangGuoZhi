@@ -405,3 +405,16 @@ export function battlePaceFromSearch(search: string): BattlePace {
   const b = q.get('battle');
   return b === 'slow' || b === 'normal' ? b : 'fast';
 }
+
+/**
+ * 測試模式（?fast=1）可以用 &seed=數字 指定戰鬥的亂數種子，讓自動測試每次看到同一場戰鬥；
+ * 沒指定、不是測試模式或不是非負整數就回傳 null（正常用隨機種子）。
+ */
+export function battleSeedFromSearch(search: string): number | null {
+  const q = new URLSearchParams(search);
+  const fast = q.get('fast');
+  if (fast !== '1' && fast !== 'true') return null;
+  const raw = q.get('seed');
+  if (raw === null || !/^\d{1,10}$/.test(raw)) return null;
+  return Number(raw) >>> 0;
+}

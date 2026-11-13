@@ -5,6 +5,7 @@ import { createRng } from './battle';
 import { runExpedition } from './expedition';
 import { pull } from './gacha';
 import { SAVE_VERSION, deserialize, sanitizeState, serialize, type SaveFile } from './save';
+import { SKILL_LINE_MAX, setSkillLine } from './skillShow';
 import { buyStamina, settle } from './stamina';
 import { starUp } from './star';
 import { drill } from './training';
@@ -261,5 +262,43 @@ describe('召募、碎片與星數（T007）', () => {
       shards: {},
       gacha: { pulls: 0, sinceSSR: 0 },
     });
+  });
+});
+
+describe('招式台詞（T017）', () => {
+  it('填過台詞的進度存了再讀，完全一樣', () => {
+    const st = setSkillLine(playedState(), 'daer', '兄弟們衝啊！');
+    expect(st.skillLines).toEqual({ daer: '兄弟們衝啊！' });
+    const r = deserialize(serialize(st, NOW), NOW);
+    expect(r.status).toBe('ok');
+    expect(r.state).toEqual(st);
+  });
+
+  it('T017 之前的舊存檔沒有台詞：補成空的，其他進度留著', () => {
+    const st = playedState();
+    const old: Record<string, unknown> = JSON.parse(JSON.stringify(st));
+    delete old.skillLines;
+    const out = sanitizeState(old, NOW);
+    expect(out.skillLines).toEqual({});
+    expect(out.dogs).toEqual(st.dogs);
+  });
+
+  it('怪怪的值會被修正：只留認得的狗與字串，太長截掉，空的丟掉', () => {
+    const st = createInitialState(NOW);
+    const out = sanitizeState(
+      {
+        ...st,
+        skillLines: {
+          daer: `  ${'汪'.repeat(50)}  `,
+          heixuan: 'A\nB',
+          abai: '   ',
+          changxu: 123,
+          nobody: '我是誰',
+        },
+      },
+      NOW,
+    );
+    expect(out.skillLines).toEqual({ daer: '汪'.repeat(SKILL_LINE_MAX), heixuan: 'A B' });
+    expect(sanitizeState({ ...st, skillLines: ['x'] }, NOW).skillLines).toEqual({});
   });
 });

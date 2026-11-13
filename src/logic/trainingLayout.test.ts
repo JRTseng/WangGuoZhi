@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { trainingButtons, trainingLayout, trainingRow } from './trainingLayout';
+import { trainingButtons, trainingLayout, trainingLineButton, trainingRow } from './trainingLayout';
 
 describe('trainingLayout', () => {
   it('直式一欄：5 隻不用捲動，都在畫面內', () => {
@@ -64,6 +64,25 @@ describe('trainingLayout', () => {
         expect(b.star.width).toBeGreaterThanOrEqual(70);
       }
       if (!landscape) expect(l.buttonHeight).toBeGreaterThanOrEqual(40);
+    }
+  });
+
+  it('改台詞按鈕（T017）：在卡片右側、特訓按鈕上面，不超出卡片', () => {
+    for (const [w, h, landscape] of [
+      [390, 844, false],
+      [844, 390, true],
+    ] as const) {
+      const l = trainingLayout(w, h, landscape, 5);
+      for (let i = 0; i < 5; i++) {
+        const r = trainingRow(l, i);
+        const b = trainingLineButton(l, i);
+        expect(b.x).toBeGreaterThan(r.x + r.width / 2);
+        expect(b.x + b.width).toBeLessThanOrEqual(r.x + r.width);
+        expect(b.y).toBeGreaterThan(r.y);
+        // 點擊範圍上下各多留 8，仍然碰不到下面的特訓按鈕
+        expect(b.y + b.height + 8).toBeLessThan(trainingButtons(l, i).attack.y);
+        expect(b.width).toBeGreaterThanOrEqual(70);
+      }
     }
   });
 });

@@ -93,3 +93,12 @@ export function trainingButtons(
     star: { x: x + (width + BUTTON_GAP) * 2, y, width: starWidth, height: l.buttonHeight },
   };
 }
+
+/**
+ * 第 index 列右側的「改台詞」小按鈕（T017，還沒扣掉捲動量）：
+ * 在卡片第二行靠右，戰力數字下面、經驗文字上面。
+ */
+export function trainingLineButton(l: TrainingLayout, index: number): Rect {
+  const r = trainingRow(l, index);
+  return { x: r.x + r.width - BUTTON_PAD - 76, y: r.y + 29, width: 76, height: 26 };
+}

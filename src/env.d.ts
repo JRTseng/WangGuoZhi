@@ -77,6 +77,8 @@ interface WgzDebugState {
     | null;
   /** 訓練場（TrainingScene） */
   training?: {
+    /** 改台詞的打字視窗是不是開著（T017） */
+    lineEditor: boolean;
     /** 右上角進板凳寄宿的按鈕（T021）：幾隻在寄宿／幾個位子 */
     boardingButton: { count: number; slots: number } & WgzRect;
     list: WgzRect;
@@ -103,6 +105,8 @@ interface WgzDebugState {
       star: { star: number; shards: number; cost: number; enabled: boolean } & WgzRect;
       /** 等級上限（看星數） */
       levelCap: number;
+      /** 招式台詞那一條（T017）：點了可以改；line 是目前會喊的台詞，custom 代表是玩家自己填的 */
+      skillLine: { skill: string; line: string; custom: boolean } & WgzRect;
     } & WgzRect)[];
   };
   /** 召募畫面（T007） */
@@ -162,12 +166,21 @@ interface WgzDebugState {
     /** 已播完幾次出手／總共幾次 */
     index: number;
     total: number;
+    /** 大絕招演出（T017）：已經播了幾次／整場會播幾次，以及正在播的那一招（沒有為 null） */
+    ults: number;
+    ultTotal: number;
+    ult: { id: string; side: string; skill: string; line: string; kind: string } | null;
+    /** EN 條有幾格 */
+    enMax: number;
+    /** 最後一次送給語音包掛點的提示 id（還沒有語音包，不會真的出聲） */
+    voiceCue: string | null;
     round: number;
     skipped: boolean;
     skipButton: WgzRect;
     speedButton: WgzRect;
-    team: { id: string; hp: number; maxHp: number; x: number; y: number; r: number }[];
-    enemies: { id: string; hp: number; maxHp: number; x: number; y: number; r: number }[];
+    /** en：EN 條目前幾格，不會放大絕招的（野犬）為 null */
+    team: WgzBattleUnit[];
+    enemies: WgzBattleUnit[];
   };
   /** 帳號與設定面板，沒開為 undefined */
   settings?: {
@@ -276,4 +289,14 @@ interface WgzRect {
 
 interface Window {
   __WGZ__?: WgzDebugState;
+}
+
+interface WgzBattleUnit {
+  id: string;
+  hp: number;
+  maxHp: number;
+  en: number | null;
+  x: number;
+  y: number;
+  r: number;
 }

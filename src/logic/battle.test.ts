@@ -9,6 +9,7 @@ import {
   DEFEAT_REWARD_RATE,
   battleDurationMs,
   battlePaceFromSearch,
+  battleSeedFromSearch,
   battleTeamPower,
   createRng,
   mixSeed,
@@ -304,5 +305,14 @@ describe('補血狗（T017）', () => {
   it('沒有補血狗的隊伍不會出現補血', () => {
     for (const seed of SEEDS.slice(0, 50))
       expect(resolveBattle(input({ seed })).events.every((e) => e.heal === undefined)).toBe(true);
+  });
+
+  it('測試模式可以用 &seed= 指定戰鬥種子；平常不行', () => {
+    expect(battleSeedFromSearch('?fast=1&seed=7')).toBe(7);
+    expect(battleSeedFromSearch('?fast=1&battle=slow&seed=0')).toBe(0);
+    expect(battleSeedFromSearch('?seed=7')).toBeNull();
+    expect(battleSeedFromSearch('?fast=1')).toBeNull();
+    expect(battleSeedFromSearch('?fast=1&seed=abc')).toBeNull();
+    expect(battleSeedFromSearch('?fast=1&seed=-3')).toBeNull();
   });
 });

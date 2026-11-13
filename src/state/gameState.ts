@@ -164,6 +164,8 @@ export interface GameState {
   shards: Record<string, number>;
   /** 召募的累計紀錄（T007） */
   gacha: GachaState;
+  /** 玩家替狗狗填的大絕招台詞（T017），以狗狗 id 為鍵；沒填的用預設台詞 */
+  skillLines: Record<string, string>;
 }
 
 /** 體力上限；新遊戲從滿體力開始 */
@@ -199,5 +201,6 @@ export function createInitialState(now: number = Date.now()): GameState {
     boarding: [],
     shards: {},
     gacha: { pulls: 0, sinceSSR: 0 },
+    skillLines: {},
   };
 }
