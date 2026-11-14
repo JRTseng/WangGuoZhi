@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { startNext, type NextFrom } from './components/nextStage';
 import { COLORS } from '../config';
 import { findDog } from '../data/dogs';
 import { findStage } from '../data/regions';
@@ -18,6 +19,8 @@ interface StorySceneData {
   storyId?: string;
   /** 播完回哪裡：從回顧清單進來回清單，過關自動播放回主頁 */
   returnTo?: 'list' | 'lobby';
+  /** 結算畫面按了「下一關」才進來的：看完劇情接著打下一關 */
+  next?: NextFrom;
 }
 
 /**
@@ -29,6 +32,7 @@ export class StoryScene extends Phaser.Scene {
   private mode: 'list' | 'play' = 'list';
   private story: StoryData | null = null;
   private returnTo: 'list' | 'lobby' = 'lobby';
+  private nextFrom: NextFrom | null = null;
   private line = 0;
   private dialog!: Phaser.GameObjects.Container;
   private speaker: DogSprite | null = null;
@@ -42,6 +46,7 @@ export class StoryScene extends Phaser.Scene {
     this.mode = data?.mode ?? 'list';
     this.story = data?.storyId ? (findStory(data.storyId) ?? null) : null;
     this.returnTo = data?.returnTo ?? 'lobby';
+    this.nextFrom = data?.next ?? null;
     this.line = 0;
     if (this.mode === 'play' && !this.story) this.mode = 'list';
   }
@@ -274,6 +279,7 @@ export class StoryScene extends Phaser.Scene {
 
   private finish(): void {
     setState(markStorySeen(getState(), this.story!.id));
+    if (this.nextFrom && startNext(this, this.nextFrom)) return;
     if (this.returnTo === 'list') this.scene.start('StoryScene', { mode: 'list' });
     else this.scene.start('LobbyScene');
   }

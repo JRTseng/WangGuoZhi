@@ -77,6 +77,8 @@ interface WgzDebugState {
   } | null;
   /** 結算面板顯示的獎勵與勝負，沒開為 null */
   result?: { food: number; bones: number; win: boolean; newDogId?: string } | null;
+  /** 結算面板上的「下一關」按鈕與它會去的關卡；沒有按鈕為 null */
+  nextButton?: (WgzRect & { stageId: string }) | null;
   /** 這一仗掉的裝備 id（T014）；結算面板沒開或沒掉為 null */
   drop?: string | null;
   /** 結算面板上每隻狗的經驗與升級（T005），沒開為 null */
