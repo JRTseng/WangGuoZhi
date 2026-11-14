@@ -20,6 +20,8 @@ interface WgzDebugState {
   lobby?: {
     dogId: string;
     dogAction: string;
+    /** 主頁狗狗的受傷外觀（T014）：0 沒事、1 剛回來、2 掛彩 */
+    dogHurt?: number;
     background: string;
     buttons: Record<
       | 'account'

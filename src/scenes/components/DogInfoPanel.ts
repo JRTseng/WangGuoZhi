@@ -5,7 +5,7 @@ import type { Rect } from '../../logic/layout';
 import type { DogStats } from '../../logic/leveling';
 import { MAX_LEVEL } from '../../logic/leveling';
 import { addText, openModal, viewOf } from '../ui';
-import { drawDogHead } from './dogArt';
+import { drawDogHead, type HeadOptions } from './dogArt';
 import { drawExpBar, expLabel } from './ExpBar';
 import { makeTapArea } from './hitArea';
 
@@ -18,6 +18,8 @@ export interface DogInfoOptions {
   /** 在訓練場寄宿中（T021）：要先接回來才能加入隊伍 */
   boarding?: boolean;
   isLobby: boolean;
+  /** 頭像的外觀（T014）：頭飾與受傷 */
+  look?: Pick<HeadOptions, 'gear' | 'hurt'>;
   onToggleTeam: () => void;
   onSetLobby: () => void;
   /** 去倉庫幫這隻狗換裝備（T014）；沒給就不顯示按鈕 */
@@ -51,7 +53,7 @@ export class DogInfoPanel {
     const hr = 40;
     const hx = box.x + 24 + hr;
     const hy = box.y + 34 + hr;
-    drawDogHead(head, hx, hy, hr, dog.color, dog.accent, { dark: !o.owned });
+    drawDogHead(head, hx, hy, hr, dog.color, dog.accent, { dark: !o.owned, ...o.look });
     layer.add(head);
     // 頭像下面：稀有度・體型・星數（T007）
     if (dog.rarity) {

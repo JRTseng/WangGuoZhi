@@ -361,31 +361,91 @@ export function drawBodyGear(g: G, gears: readonly Look[]): void {
 }
 
 /**
- * 畫在狗頭上（頭的中心是原點，r 是頭的半徑）。back 畫在頭後面（頭套那一圈），front 畫在頭前面。
+ * 畫在狗頭上（頭的中心在 (x, y)，r 是頭的半徑）。back 畫在頭後面（頭套那一圈），front 畫在頭前面。
+ * 小頭像只有一支畫筆時 back、front 傳同一支，先呼叫 drawHeadGearBack 再畫頭、最後 drawHeadGearFront。
  */
-export function drawHeadGear(back: G, front: G, gears: readonly Look[], r: number): void {
-  const head = gears.find((x) => x.slot === 'head');
-  if (!head) return;
-  if (head.style === 'cone') {
-    back.fillStyle(head.color, 0.92);
-    back.lineStyle(3, head.accent, 1);
-    back.fillCircle(0, r * 0.08, r * 1.5);
-    back.strokeCircle(0, r * 0.08, r * 1.5);
-    back.lineStyle(2, COLORS.inkHex, 0.5);
-    back.strokeCircle(0, r * 0.08, r * 1.5 + 2);
-    return;
-  }
+export function drawHeadGearBack(back: G, gears: readonly Look[], r: number, x = 0, y = 0): void {
+  const head = gears.find((g) => g.slot === 'head');
+  if (head?.style !== 'cone') return;
+  drawCone(back, x, y, r, head.color, head.accent);
+}
+
+/** 頭套那一圈（受傷外觀也用這個） */
+export function drawCone(
+  g: G,
+  x: number,
+  y: number,
+  r: number,
+  color: number,
+  accent: number,
+): void {
+  g.fillStyle(color, 0.92);
+  g.lineStyle(Math.max(1.5, r / 12), accent, 1);
+  g.fillCircle(x, y + r * 0.08, r * 1.5);
+  g.strokeCircle(x, y + r * 0.08, r * 1.5);
+  g.lineStyle(Math.max(1, r / 18), COLORS.inkHex, 0.5);
+  g.strokeCircle(x, y + r * 0.08, r * 1.5 + Math.max(1, r / 18));
+}
+
+export function drawHeadGearFront(front: G, gears: readonly Look[], r: number, x = 0, y = 0): void {
+  const head = gears.find((g) => g.slot === 'head');
+  if (!head || head.style === 'cone') return;
   if (head.style === 'bandana') {
-    front.lineStyle(Math.max(2, r / 14), COLORS.inkHex, 1);
+    front.lineStyle(Math.max(1.5, r / 14), COLORS.inkHex, 1);
     front.fillStyle(head.color, 1);
-    front.fillEllipse(0, -r * 0.74, r * 1.36, r * 0.5);
-    front.strokeEllipse(0, -r * 0.74, r * 1.36, r * 0.5);
-    front.fillTriangle(r * 0.6, -r * 0.8, r * 1.05, -r * 1.02, r * 1.0, -r * 0.58);
-    front.strokeTriangle(r * 0.6, -r * 0.8, r * 1.05, -r * 1.02, r * 1.0, -r * 0.58);
+    front.fillEllipse(x, y - r * 0.74, r * 1.36, r * 0.5);
+    front.strokeEllipse(x, y - r * 0.74, r * 1.36, r * 0.5);
+    front.fillTriangle(
+      x + r * 0.6,
+      y - r * 0.8,
+      x + r * 1.05,
+      y - r * 1.02,
+      x + r * 1.0,
+      y - r * 0.58,
+    );
+    front.strokeTriangle(
+      x + r * 0.6,
+      y - r * 0.8,
+      x + r * 1.05,
+      y - r * 1.02,
+      x + r * 1.0,
+      y - r * 0.58,
+    );
     front.fillStyle(head.accent, 1);
-    for (const x of [-0.35, 0, 0.35]) front.fillCircle(x * r, -r * 0.76, r * 0.07);
+    for (const k of [-0.35, 0, 0.35]) front.fillCircle(x + k * r, y - r * 0.76, r * 0.07);
     return;
   }
   const lift = head.style === 'bow' ? 0.98 : head.style === 'hat' ? 1.02 : 1.12;
-  drawGearIcon(front, 0, -r * lift, r * (head.style === 'hat' ? 0.62 : 0.5), head);
+  drawGearIcon(front, x, y - r * lift, r * (head.style === 'hat' ? 0.62 : 0.5), head);
+}
+
+export function drawHeadGear(back: G, front: G, gears: readonly Look[], r: number): void {
+  drawHeadGearBack(back, gears, r);
+  drawHeadGearFront(front, gears, r);
+}
+
+/** OK 繃：中心 (x, y)，長 len，轉 angle 弧度 */
+export function drawBandage(g: G, x: number, y: number, len: number, angle: number): void {
+  const w = len * 0.42;
+  const c = Math.cos(angle);
+  const s = Math.sin(angle);
+  const pt = (px: number, py: number) => ({ x: x + px * c - py * s, y: y + px * s + py * c });
+  const strip = [
+    pt(-len / 2, -w / 2),
+    pt(len / 2, -w / 2),
+    pt(len / 2, w / 2),
+    pt(-len / 2, w / 2),
+  ];
+  g.lineStyle(Math.max(1, len / 14), 0x9a6b3f, 1);
+  g.fillStyle(0xf6d7a8, 1);
+  g.fillPoints(strip, true);
+  g.strokePoints(strip, true);
+  const pad = [
+    pt(-len * 0.16, -w / 2),
+    pt(len * 0.16, -w / 2),
+    pt(len * 0.16, w / 2),
+    pt(-len * 0.16, w / 2),
+  ];
+  g.fillStyle(0xfff3e0, 1);
+  g.fillPoints(pad, true);
 }

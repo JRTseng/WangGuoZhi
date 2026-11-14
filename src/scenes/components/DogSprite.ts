@@ -2,11 +2,13 @@ import Phaser from 'phaser';
 import { COLORS, FONT_FAMILY } from '../../config';
 import type { GearData } from '../../data/equipment';
 import { drawDogHead, drawEyes } from './dogArt';
-import { drawBodyGear, drawHeadGear } from './gearArt';
+import { drawBandage, drawBodyGear } from './gearArt';
 
 /** 主頁狗狗會輪流做的動作 */
 export const DOG_ACTIONS = ['idle', 'wag', 'hop', 'look', 'sit', 'sleep'] as const;
-export type DogAction = (typeof DOG_ACTIONS)[number];
+export type DogAction = (typeof DOG_ACTIONS)[number] | 'lick';
+/** 剛出征回來、掛彩的狗輪流做的動作：多半在舔傷口、坐著、打盹（T014） */
+export const HURT_ACTIONS: readonly DogAction[] = ['lick', 'sit', 'lick', 'sleep', 'lick', 'idle'];
 
 export interface DogLook {
   color: number;
@@ -14,6 +16,8 @@ export interface DogLook {
   fierce?: boolean;
   /** 身上穿的裝備（T014），會畫在身體與頭上 */
   gear?: readonly GearData[];
+  /** 受傷外觀（T014）：1 貼 OK 繃；2 再加頭套 */
+  hurt?: 0 | 1 | 2;
 }
 
 /**
@@ -65,24 +69,30 @@ export class DogSprite extends Phaser.GameObjects.Container {
     body.fillStyle(accent, 1);
     body.fillEllipse(18, -44, 56, 26);
 
+    // 腳掌的毛色（T014 美化）
+    body.fillStyle(accent, 1);
+    for (const lx of [-40, -22, 22, 40]) body.fillRoundedRect(lx - 6.5, -11, 13, 9.5, 4);
+
     // 裝備（T014）：衣服、褲子、鞋子、手套畫在身體上
     const bodyGear = scene.add.graphics();
     const gear = look.gear ?? [];
+    const hurt = look.hurt ?? 0;
     drawBodyGear(bodyGear, gear);
+    // 受傷外觀：身上貼 OK 繃
+    if (hurt > 0) drawBandage(bodyGear, -14, -66, 26, 0.5);
+    if (hurt === 2) drawBandage(bodyGear, 30, -22, 20, -0.4);
 
     this.head = scene.add.container(46, -96);
-    const headBack = scene.add.graphics();
-    const headFront = scene.add.graphics();
-    drawHeadGear(headBack, headFront, gear, 36);
     const hg = scene.add.graphics();
-    drawDogHead(hg, 0, 0, 36, color, accent, { fierce: look.fierce });
+    drawDogHead(hg, 0, 0, 36, color, accent, { fierce: look.fierce, gear, hurt });
+    // 頭飾畫在頭上之後，閉眼的眼皮要蓋在最上面
     this.lids = scene.add.graphics();
     this.lids.fillStyle(color, 1);
     this.lids.fillCircle(-12.6, -5.4, 6);
     this.lids.fillCircle(12.6, -5.4, 6);
     drawEyes(this.lids, 0, 0, 36, true);
     this.lids.setVisible(false);
-    this.head.add([headBack, hg, this.lids, headFront]);
+    this.head.add([hg, this.lids]);
 
     this.zzz = scene.add
       .text(70, -150, 'Z z z', {
@@ -136,17 +146,17 @@ export class DogSprite extends Phaser.GameObjects.Container {
     return this.current;
   }
 
-  /** 每隔 intervalMs 換下一個動作 */
-  startCycle(intervalMs: number): this {
-    this.play(DOG_ACTIONS[0]);
+  /** 每隔 intervalMs 換下一個動作；actions 沒給就是平常那一輪 */
+  startCycle(intervalMs: number, actions: readonly DogAction[] = DOG_ACTIONS): this {
+    this.play(actions[0]);
     // 用實際時間判斷，不用 Phaser 計時器：手機卡頓或掉幀時遊戲時間會變慢，動作會停太久
     let last = Date.now();
     this.cycle = () => {
       const now = Date.now();
       if (now - last < intervalMs) return;
       last = now;
-      this.index = (this.index + 1) % DOG_ACTIONS.length;
-      this.play(DOG_ACTIONS[this.index]);
+      this.index = (this.index + 1) % actions.length;
+      this.play(actions[this.index]);
     };
     this.scene.events.on(Phaser.Scenes.Events.UPDATE, this.cycle);
     return this;
@@ -215,6 +225,21 @@ export class DogSprite extends Phaser.GameObjects.Container {
           repeat: -1,
         });
         t({ targets: this.head, angle: -10, duration: 1000, yoyo: true, repeat: -1 });
+        break;
+      case 'lick':
+        // 舔傷口：坐下來，低頭一下一下地舔前腳
+        this.rig.setScale(1.04, 0.88);
+        this.head.setPosition(50, -78);
+        t({
+          targets: this.head,
+          angle: { from: 18, to: 34 },
+          y: -70,
+          duration: 380,
+          yoyo: true,
+          repeat: -1,
+          ease: 'Sine.easeInOut',
+        });
+        t({ targets: this.tail, angle: -8, duration: 900, yoyo: true, repeat: -1 });
         break;
       case 'sleep':
         this.rig.setScale(1.06, 0.8);

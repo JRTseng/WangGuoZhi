@@ -7,6 +7,7 @@ import { autoFillTeam, placeDog, setLobbyDog, teamPower, toggleTeamMember } from
 import { presetSizes, switchTeam } from '../logic/teams';
 import { getState, setState } from '../state/store';
 import { DogInfoPanel } from './components/DogInfoPanel';
+import { headLook } from './components/headLook';
 import { DogPicker } from './components/DogPicker';
 import { drawHeader, patchDebug, resetDebug, viewOf } from './ui';
 
@@ -106,6 +107,7 @@ export class TeamScene extends Phaser.Scene {
         teamFull: st.team.length >= TEAM_SIZE,
         boarding: st.boarding.some((b) => b.dogId === d.id),
         isLobby: st.lobbyDogId === d.id,
+        look: headLook(st, d.id),
         onToggleTeam: () => {
           setState(toggleTeamMember(getState(), d.id));
           show();

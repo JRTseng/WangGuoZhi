@@ -26,6 +26,7 @@ import { MAX_LEVEL, STAR_MAX, expNeeded, initialProgress, levelCapForStar } from
 import { cleanSkillLine } from './skillShow';
 import { DRILL_MAX } from './training';
 import { isTrainingSort } from './trainingSort';
+import { sanitizeWounds } from './wounds';
 
 /**
  * 存檔與讀檔（T006）。全部是純函式：這裡只負責「狀態 ↔ 字串」，
@@ -405,6 +406,7 @@ export function sanitizeState(raw: unknown, now: number): GameState {
     pending,
     gear,
     equipped,
+    wounds: sanitizeWounds(raw.wounds, isOwned, now),
   };
 }
 
