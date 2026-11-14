@@ -27,6 +27,7 @@ import {
   type RunBlock,
 } from '../logic/stamina';
 import { dogContext, placeDog, teamPower } from '../logic/team';
+import { presetSizes, switchTeam } from '../logic/teams';
 import { getState, setState, tick, timeOptions } from '../state/store';
 import { Button } from './components/Button';
 import { DogPicker } from './components/DogPicker';
@@ -138,6 +139,21 @@ export class ExpeditionScene extends Phaser.Scene {
       dogs: () => DOGS.filter((d) => getState().owned.includes(d.id)),
       selected: () => this.selected,
       title: () => `${landscape ? '隊伍' : '出征隊伍'} ${this.selected.length}/${TEAM_SIZE}`,
+      teams: {
+        index: () => getState().teamIndex,
+        // 目前這組顯示畫面上正在選的隻數
+        sizes: () =>
+          presetSizes(getState()).map((n, i) =>
+            i === getState().teamIndex ? this.selected.length : n,
+          ),
+        onSwitch: (i) => {
+          // 換一組：帶入那一組存好的成員與站位
+          const st = switchTeam(getState(), i);
+          setState(st);
+          this.selected = [...st.team];
+          this.render();
+        },
+      },
       onSlotTap: (id) => this.toggleDog(id),
       onCellTap: (dog) => this.toggleDog(dog.id),
       onAuto: () => {

@@ -278,3 +278,80 @@ test.describe('手機橫放', () => {
     await page.screenshot({ path: 'artifacts/screenshots/landscape/formation-battle.png' });
   });
 });
+
+test('五組隊伍：切換分頁各自記成員與站位，出征選隊也能換，重開還在', async ({ page }) => {
+  await openLobby(page, '?fast=1');
+  await tap(page, (await wgz(page)).lobby!.buttons.team);
+  await waitScene(page, 'TeamScene');
+  let p = (await wgz(page)).picker!;
+  expect(p.teamTabs).toHaveLength(5);
+  expect(p.teamIndex).toBe(0);
+  for (const t of p.teamTabs) {
+    expect(t.x).toBeGreaterThanOrEqual(0);
+    expect(t.y + t.height).toBeLessThanOrEqual(p.boardRows[0].y);
+    expect(t.x + t.width).toBeLessThanOrEqual(p.grid.x);
+  }
+  const first = p.board.filter((c) => c.id).map((c) => `${c.id}@${c.row}${c.lane}`);
+  expect(first).toHaveLength(3);
+
+  // 二隊一開始是空的：拖阿白到前排中間、小算到後排上面
+  await tap(page, p.teamTabs[1]);
+  await page.waitForFunction(() => window.__WGZ__?.picker?.teamIndex === 1);
+  p = (await wgz(page)).picker!;
+  expect(p.board.filter((c) => c.id)).toHaveLength(0);
+  const cellOf = (pk: typeof p, row: number, lane: number) =>
+    pk.board.find((c) => c.row === row && c.lane === lane)!;
+  await drag(
+    page,
+    p.cells.find((c) => c.id === 'abai')!,
+    cellOf(p, 0, 1),
+    400,
+  );
+  await page.waitForFunction(
+    () => window.__WGZ__?.picker?.board.find((c) => c.row === 0 && c.lane === 1)?.id === 'abai',
+  );
+  p = (await wgz(page)).picker!;
+  await drag(
+    page,
+    p.cells.find((c) => c.id === 'xiaosuan')!,
+    cellOf(p, 2, 0),
+    400,
+  );
+  await page.waitForFunction(
+    () => window.__WGZ__?.picker?.board.find((c) => c.row === 2 && c.lane === 0)?.id === 'xiaosuan',
+  );
+  await page.waitForTimeout(200);
+  await page.screenshot({ path: 'artifacts/screenshots/landscape/team-presets.png' });
+
+  // 切回一隊：原本三隻與站位都沒變
+  await tap(page, (await wgz(page)).picker!.teamTabs[0]);
+  await page.waitForFunction(() => window.__WGZ__?.picker?.teamIndex === 0);
+  p = (await wgz(page)).picker!;
+  expect(p.board.filter((c) => c.id).map((c) => `${c.id}@${c.row}${c.lane}`)).toEqual(first);
+
+  // 重開遊戲：停在一隊，二隊還在
+  await page.reload();
+  await waitScene(page, 'LobbyScene');
+  await tap(page, (await wgz(page)).lobby!.buttons.expedition);
+  await waitScene(page, 'CampaignScene');
+  await tap(page, (await wgz(page)).map!.nodes[0]);
+  await page.waitForFunction(() => !!window.__WGZ__?.map?.stagePanel);
+  await tap(page, (await wgz(page)).map!.stagePanel!.go);
+  await waitScene(page, 'ExpeditionScene');
+  p = (await wgz(page)).picker!;
+  expect(p.teamIndex).toBe(0);
+  expect(p.board.filter((c) => c.id)).toHaveLength(3);
+  // 出征選隊直接換成二隊
+  await tap(page, p.teamTabs[1]);
+  await page.waitForFunction(() => window.__WGZ__?.picker?.teamIndex === 1);
+  p = (await wgz(page)).picker!;
+  expect(cellOf(p, 0, 1).id).toBe('abai');
+  expect(cellOf(p, 2, 0).id).toBe('xiaosuan');
+  expect(
+    (await wgz(page))
+      .expeditionPanel!.teamCards.filter((c) => c.selected)
+      .map((c) => c.id)
+      .sort(),
+  ).toEqual(['abai', 'xiaosuan']);
+  await page.screenshot({ path: 'artifacts/screenshots/landscape/team-presets-expedition.png' });
+});

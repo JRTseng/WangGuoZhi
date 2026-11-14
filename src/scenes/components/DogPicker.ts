@@ -37,6 +37,7 @@ import {
   type PickerLayout,
 } from '../../logic/pickerLayout';
 import { dogContext } from '../../logic/team';
+import { TEAM_PRESET_NAMES } from '../../logic/teams';
 import { getState } from '../../state/store';
 import { addText, darken, viewOf } from '../ui';
 import { drawDogHead } from './dogArt';
@@ -55,8 +56,14 @@ export interface DogPickerOptions {
   dogs: () => readonly DogData[];
   /** 目前隊伍 */
   selected: () => readonly string[];
-  /** 隊伍格上方的標題 */
+  /** 九宮格下面那行提示前面的說明（例如「隊伍 3/5・戰力 320」） */
   title: () => string;
+  /** 五組隊伍的分頁：目前第幾組、每組幾隻、點了換組 */
+  teams: {
+    index: () => number;
+    sizes: () => readonly number[];
+    onSwitch: (index: number) => void;
+  };
   onSlotTap: (dogId: string) => void;
   onCellTap: (dog: DogData) => void;
   onAuto: () => void;
@@ -211,15 +218,17 @@ export class DogPicker {
     this.layer.removeAll(true);
 
     // ---- 標題、自動編隊、隊伍格 ----
-    this.layer.add(
-      addText(
-        this.scene,
-        l.title.x,
-        l.title.y,
-        this.o.title(),
-        landscape ? 16 : 17,
-        COLORS.ink,
-        true,
+    const sizes = this.o.teams.sizes();
+    l.teamTabs.forEach((r, i) =>
+      this.chip(
+        r,
+        `${TEAM_PRESET_NAMES[i]}${sizes[i] ? ` ${sizes[i]}` : ''}`,
+        this.o.teams.index() === i,
+        () => {
+          if (this.o.locked?.() || this.o.teams.index() === i) return;
+          this.notice = '';
+          this.o.teams.onSwitch(i);
+        },
       ),
     );
     this.chip(l.autoButton, '⚡ 自動編隊', true, () => this.o.onAuto(), COLORS.harvest);
@@ -304,6 +313,8 @@ export class DogPicker {
       statusChips: l.statusChips.map((r, i) => ({ key: statuses[i], ...r })),
       sortChip: l.sortChip,
       autoButton: l.autoButton,
+      teamTabs: l.teamTabs.map((r, i) => ({ index: i, active: this.o.teams.index() === i, ...r })),
+      teamIndex: this.o.teams.index(),
       slots: this.slotRects(),
       rows: teamRows(getState(), this.o.selected()),
       board: this.boardCells(),
@@ -491,7 +502,8 @@ export class DogPicker {
         this.scene,
         l.boardHint.x,
         l.boardHint.y,
-        this.notice || (empty ? '按住下面的狗狗，拖到格子上' : '按住拖曳換位置・點一下移出'),
+        this.notice ||
+          `${this.o.title()}・${empty ? '把狗狗拖到格子上' : '拖曳換位置・點一下移出'}`,
         12,
         this.notice ? '#b0413e' : COLORS.inkSoft,
         !!this.notice,

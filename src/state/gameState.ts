@@ -155,6 +155,12 @@ export interface Settings {
   trainingSort: TrainingSortKey;
 }
 
+/** 一組存起來的隊伍：成員與牠們在九宮格的站位 */
+export interface TeamPreset {
+  team: string[];
+  formation: Record<string, number>;
+}
+
 export interface GameState {
   resources: Resources;
   /** 最近的出征紀錄（只留最後幾筆） */
@@ -167,6 +173,10 @@ export interface GameState {
   dogs: Record<string, DogProgress>;
   /** 組隊編排（最多 5 隻），出征選角時預設帶入 */
   team: string[];
+  /** 現在用的是第幾組隊伍（0～4）；team／formation 就是這一組（見 src/logic/teams.ts） */
+  teamIndex: number;
+  /** 五組隊伍；第 teamIndex 格在切走時才寫回，平常以 team／formation 為準 */
+  teams: TeamPreset[];
   /** 主頁上顯示的狗狗 */
   lobbyDogId: string;
   /** 主頁背景 */
@@ -211,6 +221,8 @@ export function createInitialState(now: number = Date.now()): GameState {
       DOGS.filter((d) => STARTER_DOG_IDS.includes(d.id)).map((d) => [d.id, initialProgress(d)]),
     ),
     team: ['daer', 'heixuan', 'changxu'],
+    teamIndex: 0,
+    teams: Array.from({ length: 5 }, () => ({ team: [], formation: {} })),
     lobbyDogId: 'daer',
     backgroundId: 'slope',
     cleared: [],

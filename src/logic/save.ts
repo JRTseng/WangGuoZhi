@@ -13,10 +13,12 @@ import {
   type PendingBattle,
   type Quality,
   type Settings,
+  type TeamPreset,
 } from '../state/gameState';
 import { boardingSlotCount } from './boarding';
 import { HISTORY_MAX, TEAM_SIZE, battleTeamOf } from './expedition';
 import { isFormationValue } from './formation';
+import { TEAM_PRESETS } from './teams';
 import { PITY_SSR } from './gacha';
 import { MAX_LEVEL, STAR_MAX, expNeeded, initialProgress, levelCapForStar } from './leveling';
 import { cleanSkillLine } from './skillShow';
@@ -322,6 +324,26 @@ export function sanitizeState(raw: unknown, now: number): GameState {
     }
   }
 
+  // 五組隊伍：只留擁有的狗、每組最多 5 隻不重複；缺的補空的
+  const teamIndex =
+    isNum(raw.teamIndex) && Number.isInteger(raw.teamIndex) && raw.teamIndex >= 0
+      ? Math.min(raw.teamIndex, TEAM_PRESETS - 1)
+      : 0;
+  const rawTeams = Array.isArray(raw.teams) ? raw.teams : [];
+  const teams: TeamPreset[] = Array.from({ length: TEAM_PRESETS }, (_, i) => {
+    const p: unknown = rawTeams[i];
+    if (!isObj(p)) return { team: [], formation: {} };
+    const ids = [...new Set(stringList(p.team, isOwned))].slice(0, TEAM_SIZE);
+    const cells: Record<string, number> = {};
+    if (isObj(p.formation)) {
+      for (const id of ids) {
+        const v = p.formation[id];
+        if (isFormationValue(v)) cells[id] = v;
+      }
+    }
+    return { team: ids, formation: cells };
+  });
+
   // 開戰到一半的仗（T023）：關卡與隊伍要認得，隊伍的攻防與站位用現在的資料重新排
   let pending: PendingBattle | null = null;
   if (isObj(raw.pending) && typeof raw.pending.stageId === 'string') {
@@ -350,6 +372,8 @@ export function sanitizeState(raw: unknown, now: number): GameState {
     owned,
     dogs,
     team,
+    teamIndex,
+    teams,
     lobbyDogId,
     backgroundId,
     cleared,

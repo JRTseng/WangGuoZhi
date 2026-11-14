@@ -4,6 +4,7 @@ import { DOGS, type DogData } from '../data/dogs';
 import { TEAM_SIZE } from '../logic/expedition';
 import { dogStats } from '../logic/leveling';
 import { autoFillTeam, placeDog, setLobbyDog, teamPower, toggleTeamMember } from '../logic/team';
+import { presetSizes, switchTeam } from '../logic/teams';
 import { getState, setState } from '../state/store';
 import { DogInfoPanel } from './components/DogInfoPanel';
 import { DogPicker } from './components/DogPicker';
@@ -45,6 +46,14 @@ export class TeamScene extends Phaser.Scene {
       title: () => {
         const st = getState();
         return `隊伍 ${st.team.length}/${TEAM_SIZE}・戰力 ${teamPower(st, st.team)}`;
+      },
+      teams: {
+        index: () => getState().teamIndex,
+        sizes: () => presetSizes(getState()),
+        onSwitch: (i) => {
+          setState(switchTeam(getState(), i));
+          this.picker.render();
+        },
       },
       onSlotTap: (id) => {
         setState(toggleTeamMember(getState(), id));

@@ -242,6 +242,10 @@ interface WgzDebugState {
     statusChips: ({ key: string } & WgzRect)[];
     sortChip: WgzRect;
     autoButton: WgzRect;
+    /** 五組隊伍的分頁 */
+    teamTabs: ({ index: number; active: boolean } & WgzRect)[];
+    /** 現在是第幾組（0～4） */
+    teamIndex: number;
     /** 隊伍每一隻站第幾排（0 前、1 中、2 後），和 slots 一一對應 */
     rows: number[];
     /** 照隊伍順序的 5 個位置：有狗的是牠站的那一格，其餘是還空著的格子 */

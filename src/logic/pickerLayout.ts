@@ -2,8 +2,8 @@ import type { Rect } from './layout';
 
 /**
  * 選狗畫面的排版（T015），組隊編排與出征選狗共用。
- * - 直式：由上而下「標題列（右邊自動編隊）→ 3×3 陣型九宮格 → 定位篩選 → 狀態與排序 → 狗狗卡片格」
- * - 橫式：左邊一欄陣型九宮格，右邊「定位篩選 → 狀態、排序、自動編隊 → 狗狗卡片格」
+ * - 直式：由上而下「隊伍分頁（右邊自動編隊）→ 3×3 陣型九宮格 → 定位篩選 → 狀態與排序 → 狗狗卡片格」
+ * - 橫式：左邊一欄「隊伍分頁 → 陣型九宮格」，右邊「定位篩選 → 狀態、排序、自動編隊 → 狗狗卡片格」
  * 九宮格（2026-11-14 Jimmy）：直的三行由左到右是後排、中排、前排（前排在右邊面對敵人），
  * 每行上、中、下三格；從卡片格把狗拖上去就上陣並站那一格。
  * 卡片格固定大小，放不下時上下捲動。
@@ -25,8 +25,8 @@ export interface PickerLayoutInput {
 }
 
 export interface PickerLayout {
-  /** 標題文字的左上角 */
-  title: { x: number; y: number; width: number };
+  /** 五組隊伍的分頁（2026-11-14），在九宮格上面 */
+  teamTabs: Rect[];
   autoButton: Rect;
   /** 陣型九宮格整塊的範圍 */
   board: Rect;
@@ -96,7 +96,8 @@ export function layoutPicker(o: PickerLayoutInput): PickerLayout {
   const gap = 8;
   if (o.landscape) {
     const sideBottom = o.slotsBottom ?? o.bottom;
-    const boardTop = o.top + 26;
+    const teamTabs = row(MARGIN, o.top, SIDE_WIDTH, 28, 5, 4);
+    const boardTop = o.top + 32;
     const board = boardLayout(
       { x: MARGIN, y: boardTop, width: SIDE_WIDTH, height: sideBottom - boardTop },
       4,
@@ -119,7 +120,7 @@ export function layoutPicker(o: PickerLayoutInput): PickerLayout {
     const autoButton: Rect = { x: x + width - 124, y: y2, width: 124, height: chipH };
     const gridTop = y2 + chipH + 8;
     return {
-      title: { x: MARGIN, y: o.top + 2, width: SIDE_WIDTH },
+      teamTabs,
       autoButton,
       ...board,
       roleChips,
@@ -152,7 +153,7 @@ export function layoutPicker(o: PickerLayoutInput): PickerLayout {
   const sortChip: Rect = { x: o.w - MARGIN - 116, y: y2, width: 116, height: chipH };
   const gridTop = y2 + chipH + 8;
   return {
-    title: { x: MARGIN, y: o.top + 9, width: width - 120 },
+    teamTabs: row(MARGIN, o.top, width - 120, 40, 5, 4),
     autoButton,
     ...board,
     roleChips,
