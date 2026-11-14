@@ -1,6 +1,16 @@
 import { describe, expect, it } from 'vitest';
 import { findDog } from '../data/dogs';
-import { GEARS, GEAR_BONUS, GEAR_SLOTS, findGear } from '../data/equipment';
+import {
+  ALL_GEARS,
+  EXCLUSIVE_BONUS,
+  EXCLUSIVE_GEARS,
+  GEARS,
+  GEAR_BONUS,
+  GEAR_SLOTS,
+  exclusiveGearOf,
+  findGear,
+} from '../data/equipment';
+import { DOGS } from '../data/dogs';
 import { createInitialState, type GameState } from '../state/gameState';
 import {
   DROP_RATE,
@@ -10,6 +20,8 @@ import {
   equip,
   equipBest,
   gearBonus,
+  gearPct,
+  grantExclusives,
   gearBonusLabel,
   gearOf,
   ownedGears,
@@ -23,6 +35,7 @@ import {
 import { expeditionDrop, runExpedition } from './expedition';
 import { dogStats } from './leveling';
 import { deserialize, serialize } from './save';
+import { pull } from './gacha';
 
 const base = (): GameState => createInitialState(0);
 const withGear = (ids: Record<string, number>): GameState => ({ ...base(), gear: ids });
@@ -302,5 +315,108 @@ describe('存檔', () => {
       heixuan: { head: 'crown-yiguandaodi' },
     });
     expect(sanitizeGear(null, [], () => true)).toEqual({ gear: {}, equipped: {} });
+  });
+});
+
+describe('專屬裝備', () => {
+  const own = (ids: string[]): GameState => {
+    const s = base();
+    return grantExclusives({ ...s, owned: [...s.owned, ...ids] });
+  };
+
+  it('SR、SSR 的狗每隻一件，其他的沒有；id、名字不和一般裝備重複', () => {
+    for (const d of DOGS) {
+      const g = exclusiveGearOf(d.id);
+      if (d.rarity === 'SR' || d.rarity === 'SSR') {
+        expect(g, d.name).toBeTruthy();
+        expect(g!.rarity).toBe(d.rarity);
+        expect(g!.attack + g!.defense).toBe(EXCLUSIVE_BONUS[d.rarity]);
+        expect(g!.pct ?? 0).toBe(d.rarity === 'SSR' ? 0.05 : 0);
+        expect(g!.name.length).toBeLessThanOrEqual(8);
+      } else expect(g).toBeUndefined();
+    }
+    expect(EXCLUSIVE_GEARS).toHaveLength(12);
+    expect(new Set(ALL_GEARS.map((g) => g.id)).size).toBe(ALL_GEARS.length);
+    expect(new Set(ALL_GEARS.map((g) => g.name)).size).toBe(ALL_GEARS.length);
+    // 比同稀有度的一般裝備強
+    expect(EXCLUSIVE_BONUS.SR).toBeGreaterThan(GEAR_BONUS.SR);
+    expect(EXCLUSIVE_BONUS.SSR).toBeGreaterThan(GEAR_BONUS.SSR);
+  });
+
+  it('擁有那隻狗就送一件，不會重複送；沒有的狗不送', () => {
+    const s = own(['xiongyue', 'tieya']);
+    expect(s.gear).toEqual({ 'ex-xiongyue': 1, 'ex-tieya': 1 });
+    expect(grantExclusives(s)).toBe(s);
+    expect(grantExclusives(base())).toEqual(base());
+  });
+
+  it('只有那隻狗能穿；一鍵穿上不會拿別隻狗的專屬', () => {
+    const s = own(['xiongyue']);
+    expect(equip(s, 'daer', 'ex-xiongyue')).toEqual({ ok: false, error: 'exclusive' });
+    expect(equipBest(s, 'daer')).toBe(s);
+    const best = equipBest(addGear(s, 'trousers-chikunailao'), 'xiongyue');
+    // 專屬（+16、攻防 +5%）比一般的 SSR 褲子（+12）好
+    expect(best.equipped.xiongyue).toEqual({ pants: 'ex-xiongyue' });
+  });
+
+  it('SSR 專屬：固定加成之外，攻防各再多 5%（以沒算裝備的攻防為準）', () => {
+    const s = own(['xiongyue']);
+    const before = stats(s, 'xiongyue');
+    const r = equip(s, 'xiongyue', 'ex-xiongyue');
+    if (!r.ok) throw new Error();
+    expect(gearPct(r.state, 'xiongyue')).toBe(0.05);
+    const after = stats(r.state, 'xiongyue');
+    expect(after.gearAttack).toBe(4 + Math.round(before.attack * 0.05));
+    expect(after.gearDefense).toBe(12 + Math.round(before.defense * 0.05));
+    expect(after.attack).toBe(before.attack + after.gearAttack);
+    expect(after.power).toBe(before.power + after.gearAttack + after.gearDefense);
+  });
+
+  it('SR 專屬只有固定加成', () => {
+    const s = own(['tieya']);
+    const r = equip(s, 'tieya', 'ex-tieya');
+    if (!r.ok) throw new Error();
+    expect(stats(r.state, 'tieya')).toMatchObject({ gearAttack: 0, gearDefense: 10 });
+    expect(gearBonusLabel(findGear('ex-tieya')!)).toBe('防 +10');
+    expect(gearBonusLabel(findGear('ex-xiongyue')!)).toBe('攻 +4 防 +12 攻防 +5%');
+  });
+
+  it('關卡不會掉專屬裝備', () => {
+    let seed = 7;
+    const rng = () => {
+      seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
+      return seed / 4294967296;
+    };
+    for (let i = 0; i < 3000; i++) {
+      const g = rollDrop(10, true, rng);
+      if (g) expect(g.exclusive).toBeUndefined();
+    }
+    expect(GEARS.every((g) => !g.exclusive)).toBe(true);
+  });
+
+  it('召募抽到新的 SR、SSR 後補發；讀舊存檔時也會補發', () => {
+    let seed = 99;
+    const rng = () => {
+      seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
+      return seed / 4294967296;
+    };
+    let s = base();
+    for (let i = 0; i < 20; i++) s = grantExclusives(pull(s, 10, rng).state);
+    const rare = DOGS.filter(
+      (d) => s.owned.includes(d.id) && (d.rarity === 'SR' || d.rarity === 'SSR'),
+    );
+    expect(rare.length).toBeGreaterThan(3);
+    for (const d of rare) expect(s.gear[exclusiveGearOf(d.id)!.id]).toBe(1);
+    // 舊存檔：有狗但沒有裝備欄位
+    const file = JSON.parse(serialize(s, 5));
+    delete file.state.gear;
+    const back = deserialize(JSON.stringify(file), 5).state;
+    for (const d of rare) expect(back.gear[exclusiveGearOf(d.id)!.id]).toBe(1);
+    // 存檔裡把專屬裝備穿在別隻狗身上：讀檔時脫掉
+    const bad = JSON.parse(serialize(s, 5));
+    bad.state.equipped = {
+      daer: { [exclusiveGearOf(rare[0].id)!.slot]: exclusiveGearOf(rare[0].id)!.id },
+    };
+    expect(deserialize(JSON.stringify(bad), 5).state.equipped).toEqual({});
   });
 });

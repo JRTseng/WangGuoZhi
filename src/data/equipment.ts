@@ -5,6 +5,7 @@ import type { DogRarity } from './dogs';
  * 名字走台灣人愛的諧音梗（Jimmy 2026-11-12），造型與名字全部原創；pun 是原本那句話，給說明用。
  * 加成合計照稀有度：N +2、R +4、SR +7、SSR +12（見 GEAR_BONUS），攻擊與防禦怎麼分看部位：
  * 手套全加攻擊、衣服全加防禦、鞋子偏攻擊、褲子偏防禦、頭飾攻防各半。
+ * GEARS 是一般裝備（關卡會掉）；專屬裝備在下面的 EXCLUSIVE_GEARS。
  * 純資料，不放公式；穿脫與掉落的規則在 src/logic/equipment.ts。
  */
 export type GearSlot = 'clothes' | 'gloves' | 'pants' | 'shoes' | 'head';
@@ -56,7 +57,15 @@ export interface GearData {
   /** 主色與點綴色 */
   color: number;
   accent: number;
+  /** 專屬裝備：只有這隻狗能穿（狗狗 id）；拿到這隻狗就送，不會從關卡掉 */
+  exclusive?: string;
+  /** 專屬裝備的額外加成：穿上後攻擊、防禦各多這個比例（以沒算裝備的攻防為準） */
+  pct?: number;
 }
+
+/** 專屬裝備的加成：SR 合計 +10；SSR 合計 +16，攻防再各 +5%（暫定） */
+export const EXCLUSIVE_BONUS: Readonly<Record<'SR' | 'SSR', number>> = { SR: 10, SSR: 16 };
+export const EXCLUSIVE_SSR_PCT = 0.05;
 
 export const GEARS: readonly GearData[] = [
   // ---- 衣服：全加防禦 ----
@@ -339,6 +348,196 @@ export const GEARS: readonly GearData[] = [
   },
 ];
 
+/**
+ * 專屬裝備：SR、SSR 的狗各有一件，只有牠自己能穿，拿到那隻狗就送（Jimmy 2026-11-13：越稀有越華麗、功能越強）。
+ * SR 合計 +10；SSR 合計 +16，穿上後攻防再各 +5%。不會從關卡掉。
+ */
+export const EXCLUSIVE_GEARS: readonly GearData[] = [
+  {
+    id: 'ex-tieya',
+    name: '牙牙學衣鐵甲',
+    slot: 'clothes',
+    rarity: 'SR',
+    attack: 0,
+    defense: 10,
+    pun: '牙牙學語',
+    note: '鐵牙小時候的第一件鐵甲，上面還有牙印。',
+    style: 'vest',
+    color: 0x8d99ae,
+    accent: 0x8a5a2b,
+    exclusive: 'tieya',
+  },
+  {
+    id: 'ex-shanlan',
+    name: '老馬識鞋',
+    slot: 'shoes',
+    rarity: 'SR',
+    attack: 6,
+    defense: 4,
+    pun: '老馬識途',
+    note: '穿上去閉著眼睛也走得回家。',
+    style: 'boots',
+    color: 0x4f8a3c,
+    accent: 0x3b2f2a,
+    exclusive: 'shanlan',
+  },
+  {
+    id: 'ex-jiying',
+    name: '捕風捉影爪套',
+    slot: 'gloves',
+    rarity: 'SR',
+    attack: 10,
+    defense: 0,
+    pun: '捕風捉影',
+    note: '揮出去只看得到殘影。',
+    style: 'mitt',
+    color: 0x2a2422,
+    accent: 0xc0392b,
+    exclusive: 'jiying',
+  },
+  {
+    id: 'ex-shuangtong',
+    name: '另眼相看眼罩',
+    slot: 'head',
+    rarity: 'SR',
+    attack: 5,
+    defense: 5,
+    pun: '另眼相看',
+    note: '一藍一褐兩個鏡片，戴上去誰都多看兩眼。',
+    style: 'bandana',
+    color: 0x6f7f93,
+    accent: 0x7ad0e8,
+    exclusive: 'shuangtong',
+  },
+  {
+    id: 'ex-jinling',
+    name: '鈴機一動鈴鐺',
+    slot: 'clothes',
+    rarity: 'SR',
+    attack: 4,
+    defense: 6,
+    pun: '靈機一動',
+    note: '叮一聲，好主意就來了。',
+    style: 'bib',
+    color: 0xf4c430,
+    accent: 0xd9762b,
+    exclusive: 'jinling',
+  },
+  {
+    id: 'ex-xiongyue',
+    name: '熊熊烈褲',
+    slot: 'pants',
+    rarity: 'SSR',
+    attack: 4,
+    defense: 12,
+    pun: '熊熊烈火',
+    note: '褲管繡著火焰，其實很保暖。',
+    style: 'trousers',
+    color: 0xb5452b,
+    accent: 0xf4c430,
+    exclusive: 'xiongyue',
+    pct: EXCLUSIVE_SSR_PCT,
+  },
+  {
+    id: 'ex-xueling',
+    name: '雪中送鞋',
+    slot: 'shoes',
+    rarity: 'SSR',
+    attack: 11,
+    defense: 5,
+    pun: '雪中送炭',
+    note: '踩在雪上不留腳印，還暖呼呼的。',
+    style: 'boots',
+    color: 0xdfeaf2,
+    accent: 0x7ad0e8,
+    exclusive: 'xueling',
+    pct: EXCLUSIVE_SSR_PCT,
+  },
+  {
+    id: 'ex-nuantong',
+    name: '桶一天下披風',
+    slot: 'clothes',
+    rarity: 'SSR',
+    attack: 4,
+    defense: 12,
+    pun: '統一天下',
+    note: '披上去，全天下的狗都想靠過來取暖。',
+    style: 'robe',
+    color: 0xb5652f,
+    accent: 0xfff3e0,
+    exclusive: 'nuantong',
+    pct: EXCLUSIVE_SSR_PCT,
+  },
+  {
+    id: 'ex-liuxing',
+    name: '流星趕月爪',
+    slot: 'gloves',
+    rarity: 'SSR',
+    attack: 16,
+    defense: 0,
+    pun: '流星趕月',
+    note: '出爪的時候會拖一條亮亮的尾巴。',
+    style: 'boxing',
+    color: 0xb9bfc9,
+    accent: 0xf4c430,
+    exclusive: 'liuxing',
+    pct: EXCLUSIVE_SSR_PCT,
+  },
+  {
+    id: 'ex-songling',
+    name: '一聲嶺下將軍盔',
+    slot: 'head',
+    rarity: 'SSR',
+    attack: 8,
+    defense: 8,
+    pun: '一聲令下',
+    note: '戴上去吠一聲，全隊立正。',
+    style: 'hat',
+    color: 0xc77b3b,
+    accent: 0xf4c430,
+    exclusive: 'songling',
+    pct: EXCLUSIVE_SSR_PCT,
+  },
+  {
+    id: 'ex-fuqiu',
+    name: '球之不得蝴蝶結',
+    slot: 'head',
+    rarity: 'SSR',
+    attack: 8,
+    defense: 8,
+    pun: '求之不得',
+    note: '別的狗求都求不到的好運，打個結綁在頭上。',
+    style: 'bow',
+    color: 0xf0a04a,
+    accent: 0xfff3e0,
+    exclusive: 'fuqiu',
+    pct: EXCLUSIVE_SSR_PCT,
+  },
+  {
+    id: 'ex-haiyan',
+    name: '海晏河清救生衣',
+    slot: 'clothes',
+    rarity: 'SSR',
+    attack: 4,
+    defense: 12,
+    pun: '海晏河清',
+    note: '穿著牠下水，再大的浪都會靜下來。',
+    style: 'vest',
+    color: 0xe07a2b,
+    accent: 0x2e3a4a,
+    exclusive: 'haiyan',
+    pct: EXCLUSIVE_SSR_PCT,
+  },
+];
+
+/** 全部的裝備：一般的＋專屬的 */
+export const ALL_GEARS: readonly GearData[] = [...GEARS, ...EXCLUSIVE_GEARS];
+
 export function findGear(id: string): GearData | undefined {
-  return GEARS.find((g) => g.id === id);
+  return ALL_GEARS.find((g) => g.id === id);
+}
+
+/** 這隻狗的專屬裝備；沒有回傳 undefined */
+export function exclusiveGearOf(dogId: string): GearData | undefined {
+  return EXCLUSIVE_GEARS.find((g) => g.exclusive === dogId);
 }

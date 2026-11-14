@@ -1,3 +1,4 @@
+import { grantExclusives } from './equipment';
 import { describe, expect, it } from 'vitest';
 import { createInitialState, type GameState } from '../state/gameState';
 import { setAuto } from './auto';
@@ -52,7 +53,7 @@ describe('serialize / deserialize', () => {
     const st = createInitialState(NOW);
     const r = deserialize(serialize(st, NOW), NOW);
     expect(r.status).toBe('ok');
-    expect(r.state).toEqual(st);
+    expect(r.state).toEqual(grantExclusives(st));
   });
 
   it('玩過的進度存了再讀，完全一樣', () => {
@@ -65,7 +66,7 @@ describe('serialize / deserialize', () => {
 
     const r = deserialize(serialize(st, NOW), NOW + 1000);
     expect(r.status).toBe('ok');
-    expect(r.state).toEqual(st);
+    expect(r.state).toEqual(grantExclusives(st));
   });
 
   it('存檔帶版本號與存檔時間', () => {
@@ -219,7 +220,7 @@ describe('召募、碎片與星數（T007）', () => {
     expect(st.owned.length).toBeGreaterThan(6);
     const r = deserialize(serialize(st, NOW), NOW);
     expect(r.status).toBe('ok');
-    expect(r.state).toEqual(st);
+    expect(r.state).toEqual(grantExclusives(st));
   });
 
   it('T007 之前的舊存檔：沒有碎片、召募紀錄與星數，補成預設值，其他進度留著', () => {
@@ -272,7 +273,7 @@ describe('招式台詞（T017）', () => {
     expect(st.skillLines).toEqual({ daer: '兄弟們衝啊！' });
     const r = deserialize(serialize(st, NOW), NOW);
     expect(r.status).toBe('ok');
-    expect(r.state).toEqual(st);
+    expect(r.state).toEqual(grantExclusives(st));
   });
 
   it('T017 之前的舊存檔沒有台詞：補成空的，其他進度留著', () => {
@@ -316,7 +317,7 @@ describe('陣型與開戰中的仗（T023）', () => {
     expect(out.state.formation).toEqual({ daer: 7, heixuan: 3, changxu: 10 });
     expect(out.state.settings.autoUlt).toBe(false);
     expect(teamRows(out.state, TEAM)).toEqual([1, 0, 2]);
-    expect(out.state).toEqual(st);
+    expect(out.state).toEqual(grantExclusives(st));
   });
 
   it('T023 之前的舊存檔：沒有陣型，自動照定位排好；自動放招預設打勾', () => {

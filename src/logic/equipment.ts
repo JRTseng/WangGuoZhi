@@ -1,5 +1,7 @@
 import type { DogRarity } from '../data/dogs';
 import {
+  ALL_GEARS,
+  EXCLUSIVE_GEARS,
   GEARS,
   GEAR_SLOTS,
   GEAR_SLOT_LABEL,
@@ -50,6 +52,25 @@ export function gearBonus(
   return { attack, defense };
 }
 
+/** 身上的專屬裝備讓攻擊、防禦各多多少比例（沒穿是 0） */
+export function gearPct(state: { equipped?: GameState['equipped'] }, dogId: string): number {
+  return gearOf(state, dogId).reduce((s, g) => s + (g.pct ?? 0), 0);
+}
+
+/**
+ * 把專屬裝備發給已經擁有的狗：SR、SSR 的狗各有一件，還沒有就補一件。
+ * 召募抽到、關卡送狗、讀檔時都會呼叫；沒有要補的就原樣回傳。
+ */
+export function grantExclusives<S extends Pick<GameState, 'owned' | 'gear'>>(state: S): S {
+  let gear = state.gear;
+  for (const g of EXCLUSIVE_GEARS) {
+    if (g.exclusive && state.owned.includes(g.exclusive) && (gear[g.id] ?? 0) < 1) {
+      gear = { ...gear, [g.id]: 1 };
+    }
+  }
+  return gear === state.gear ? state : { ...state, gear };
+}
+
 /** 這種裝備擁有幾件 */
 export function ownedCount(state: Pick<GameState, 'gear'>, gearId: string): number {
   return Math.max(0, Math.floor(state.gear[gearId] ?? 0));
@@ -70,7 +91,7 @@ export function spareCount(state: HasGear, gearId: string): number {
 /** 擁有的裝備種類，照部位、稀有度高的在前；slot 有給就只列那個部位 */
 export function ownedGears(state: Pick<GameState, 'gear'>, slot?: GearSlot): GearData[] {
   const rank: Record<DogRarity, number> = { SSR: 0, SR: 1, R: 2, N: 3 };
-  return GEARS.filter((g) => ownedCount(state, g.id) > 0 && (!slot || g.slot === slot))
+  return ALL_GEARS.filter((g) => ownedCount(state, g.id) > 0 && (!slot || g.slot === slot))
     .map((g, i) => ({ g, i }))
     .sort(
       (a, b) =>
@@ -83,7 +104,7 @@ export function ownedGears(state: Pick<GameState, 'gear'>, slot?: GearSlot): Gea
 
 /** 總共擁有幾件裝備 */
 export function totalGear(state: Pick<GameState, 'gear'>): number {
-  return GEARS.reduce((s, g) => s + ownedCount(state, g.id), 0);
+  return ALL_GEARS.reduce((s, g) => s + ownedCount(state, g.id), 0);
 }
 
 /** 拿到裝備 */
@@ -92,7 +113,7 @@ export function addGear<S extends Pick<GameState, 'gear'>>(state: S, gearId: str
   return { ...state, gear: { ...state.gear, [gearId]: ownedCount(state, gearId) + Math.floor(n) } };
 }
 
-export type EquipError = 'gear-not-found' | 'dog-not-owned' | 'no-gear';
+export type EquipError = 'gear-not-found' | 'dog-not-owned' | 'no-gear' | 'exclusive';
 export type EquipResult =
   | { ok: true; state: GameState; /** 這一件原本穿在哪隻狗身上（從牠身上換過來） */ from?: string }
   | { ok: false; error: EquipError };
@@ -121,6 +142,8 @@ export function equip(state: GameState, dogId: string, gearId: string): EquipRes
   if (!g) return { ok: false, error: 'gear-not-found' };
   if (!state.owned.includes(dogId)) return { ok: false, error: 'dog-not-owned' };
   if (ownedCount(state, gearId) <= 0) return { ok: false, error: 'no-gear' };
+  // 專屬裝備只有那一隻狗能穿
+  if (g.exclusive && g.exclusive !== dogId) return { ok: false, error: 'exclusive' };
   if (state.equipped[dogId]?.[g.slot] === gearId) return { ok: true, state };
   let equipped = state.equipped;
   let from: string | undefined;
@@ -139,11 +162,12 @@ export function unequip(state: GameState, dogId: string, slot: GearSlot): GameSt
   return { ...state, equipped: setSlot(state.equipped, dogId, slot, null) };
 }
 
-const total = (g: GearData): number => g.attack + g.defense;
+/** 比哪一件比較好：攻防合計，有比例加成的（專屬）再往前排 */
+const total = (g: GearData): number => g.attack + g.defense + (g.pct ?? 0) * 1000;
 
 /**
  * 一鍵穿上：每個部位從「身上那件＋倉庫裡沒人穿的」挑加成最高的。
- * 不會去搶別的狗身上的；一樣好就維持身上那件。
+ * 不會去搶別的狗身上的，也不會拿別隻狗的專屬裝備；一樣好就維持身上那件。
  */
 export function equipBest(state: GameState, dogId: string): GameState {
   if (!state.owned.includes(dogId)) return state;
@@ -151,8 +175,9 @@ export function equipBest(state: GameState, dogId: string): GameState {
   for (const slot of GEAR_SLOTS) {
     const current = findGear(s.equipped[dogId]?.[slot] ?? '');
     let best = current;
-    for (const g of GEARS) {
+    for (const g of ALL_GEARS) {
       if (g.slot !== slot || spareCount(s, g.id) <= 0) continue;
+      if (g.exclusive && g.exclusive !== dogId) continue;
       if (!best || total(g) > total(best)) best = g;
     }
     if (best && best !== current) {
@@ -205,9 +230,13 @@ export function rollDrop(chapter: number, boss: boolean, rng: () => number): Gea
 
 // ---- 顯示用 ----
 
-/** 「攻 +4」「防 +2」「攻 +1 防 +3」 */
-export function gearBonusLabel(g: Pick<GearData, 'attack' | 'defense'>): string {
-  return [g.attack > 0 ? `攻 +${g.attack}` : '', g.defense > 0 ? `防 +${g.defense}` : '']
+/** 「攻 +4」「防 +2」「攻 +1 防 +3」；專屬的比例加成接在後面「攻防 +5%」 */
+export function gearBonusLabel(g: Pick<GearData, 'attack' | 'defense' | 'pct'>): string {
+  return [
+    g.attack > 0 ? `攻 +${g.attack}` : '',
+    g.defense > 0 ? `防 +${g.defense}` : '',
+    g.pct ? `攻防 +${Math.round(g.pct * 100)}%` : '',
+  ]
     .filter(Boolean)
     .join(' ');
 }
@@ -247,6 +276,7 @@ export function sanitizeGear(
         if (typeof id !== 'string') continue;
         const g = findGear(id);
         if (!g || g.slot !== slot || (used[id] ?? 0) >= (gear[id] ?? 0)) continue;
+        if (g.exclusive && g.exclusive !== dogId) continue;
         used[id] = (used[id] ?? 0) + 1;
         out[slot] = id;
       }

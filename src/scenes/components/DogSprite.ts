@@ -97,6 +97,37 @@ export class DogSprite extends Phaser.GameObjects.Container {
       .setVisible(false);
 
     this.rig.add([this.tail, body, bodyGear, this.head, this.zzz]);
+
+    // 穿著專屬裝備：身邊有幾顆閃閃的星星（SSR 金色、SR 紫色）
+    const special = gear.find((x) => x.exclusive);
+    if (special) {
+      const tint = special.rarity === 'SSR' ? '#f4c430' : '#c39bd3';
+      [
+        [-66, -112, 20],
+        [84, -62, 16],
+        [-18, -150, 14],
+      ].forEach(([sx, sy, size], i) => {
+        const star = scene.add
+          .text(sx, sy, '✦', {
+            fontFamily: FONT_FAMILY,
+            fontSize: `${size}px`,
+            color: tint,
+            stroke: '#ffffff',
+            strokeThickness: 3,
+          })
+          .setOrigin(0.5);
+        this.rig.add(star);
+        scene.tweens.add({
+          targets: star,
+          alpha: 0.15,
+          scale: 0.6,
+          duration: 700,
+          delay: i * 260,
+          yoyo: true,
+          repeat: -1,
+        });
+      });
+    }
     this.add([this.shadow, this.rig]);
     scene.add.existing(this);
   }

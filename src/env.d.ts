@@ -149,6 +149,8 @@ interface WgzDebugState {
       spare: number;
       /** 現在這隻狗是不是穿著這一件 */
       wearing: boolean;
+      /** 專屬裝備：只有這隻狗能穿（狗狗 id）；一般裝備為 null */
+      exclusive: string | null;
       visible: boolean;
     } & WgzRect)[];
   };
