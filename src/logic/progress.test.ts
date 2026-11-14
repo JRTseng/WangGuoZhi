@@ -20,7 +20,10 @@ const ch1 = REGIONS[0].stages.map((s) => s.id);
 describe('章節與關卡解鎖', () => {
   it('一開始只有第 1 章第 1 關', () => {
     const s = createInitialState();
-    expect(REGIONS.map((_, i) => isChapterUnlocked(s, i))).toEqual([true, false, false]);
+    expect(REGIONS.map((_, i) => isChapterUnlocked(s, i))).toEqual([
+      true,
+      ...Array.from({ length: REGIONS.length - 1 }, () => false),
+    ]);
     expect(ch1.map((id) => stageNodeState(s, id))).toEqual([
       'open',
       'locked',

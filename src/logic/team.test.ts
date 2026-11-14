@@ -49,6 +49,11 @@ describe('組隊編排', () => {
       .find((x) => !cells.some((c) => c.row === x.row && c.lane === x.lane))!;
     const no = placeDog(full, full.team, 'tieya', free.row as 0, free.lane as 0);
     expect(no.error).toContain('隊伍滿了');
+    // 出征選狗：上限是那一關的上陣數量（T018）
+    const three = full.team.slice(0, 3);
+    const capped = placeDog(full, three, 'abai', free.row as 0, free.lane as 0, 3);
+    expect(capped.error).toContain('最多 3 隻');
+    expect(placeDog(full, three, 'abai', free.row as 0, free.lane as 0, 4).error).toBeNull();
     expect(no.state).toBe(full);
     expect(no.team).toEqual(full.team);
     // 滿了還是可以拖到隊友身上換人

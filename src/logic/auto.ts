@@ -1,6 +1,7 @@
 import { REGIONS, type StageData } from '../data/regions';
 import type { AutoSummary, ExpeditionRecord, GameState } from '../state/gameState';
-import { TEAM_MIN, TEAM_SIZE, busyDogIds, runExpedition } from './expedition';
+import { TEAM_MIN, TEAM_SIZE, busyDogIds, runExpedition, stageTeamMax } from './expedition';
+import { dogPower } from './team';
 import { stageExp } from './leveling';
 import {
   STAMINA_COST,
@@ -25,6 +26,20 @@ const MAX_STEPS = 2000;
 export function autoTeamOf(state: GameState): string[] {
   const busy = busyDogIds(state);
   return state.team.filter((id) => state.owned.includes(id) && !busy.has(id)).slice(0, TEAM_SIZE);
+}
+
+/**
+ * 自動出征打某一關時派誰（T018）：那一關能上陣幾隻，就從組隊編排裡挑戰力最高的幾隻，
+ * 順序照組隊編排原本的順序。
+ */
+export function autoTeamFor(state: GameState, stageId: string): string[] {
+  const team = autoTeamOf(state);
+  const max = stageTeamMax(stageId);
+  if (team.length <= max) return team;
+  const keep = new Set(
+    [...team].sort((a, b) => dogPower(state, b) - dogPower(state, a)).slice(0, max),
+  );
+  return team.filter((id) => keep.has(id));
 }
 
 /**
@@ -94,7 +109,7 @@ export function advanceAuto(state: GameState, now: number, o?: TimeOptions): Gam
       s = settle(s, t, o);
       const stage = pickAutoStage(s, t, o);
       if (stage && s.stamina.value >= STAMINA_COST) {
-        const r = runExpedition(s, stage.id, team, t, { ...o, auto: true });
+        const r = runExpedition(s, stage.id, autoTeamFor(s, stage.id), t, { ...o, auto: true });
         if (!r.ok) break;
         s = {
           ...r.state,

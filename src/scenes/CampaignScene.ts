@@ -1,7 +1,8 @@
 import Phaser from 'phaser';
 import { COLORS } from '../config';
-import { REGIONS, type StageData } from '../data/regions';
+import { REGIONS, chapterName, type StageData } from '../data/regions';
 import { RESOURCE_LABELS, type Resources } from '../data/resources';
+import { ROW_NAMES } from '../logic/battle';
 import { formatAmount } from '../logic/format';
 import { layoutPath, type Rect } from '../logic/layout';
 import {
@@ -26,7 +27,7 @@ interface CampaignData {
 }
 
 /**
- * 出征地圖：3 個章節分頁，每章 5 個小節用點和線連起來，最後一關是大隻的 Boss。
+ * 出征地圖：10 個章節分頁，每章 5 個小節用點和線連起來，最後一關是大隻的 Boss。
  * 打過的關卡打勾，可以挑戰的會閃，還沒開的上鎖。點關卡看詳情（體力、今日次數）→ 選隊伍開戰。
  */
 export class CampaignScene extends Phaser.Scene {
@@ -61,18 +62,20 @@ export class CampaignScene extends Phaser.Scene {
     );
     this.add.rectangle(0, 0, w, h, 0xf4e9d8, 0.35).setOrigin(0, 0);
 
-    const back = drawHeader(this, `出征・第${'一二三'[this.chapter]}章 ${region.name}`, () =>
+    const back = drawHeader(this, `出征・${chapterName(region.chapter)} ${region.name}`, () =>
       this.scene.start('LobbyScene'),
     );
 
     // ---- 章節分頁 ----
     const tabY = BAR + 8;
     const tabH = 40;
-    const tabsW = landscape ? Math.min(520, w - 32) : w - 32;
-    const tabW = (tabsW - 16) / REGIONS.length;
+    // 十個章節：分頁只放數字，章名看標題列
+    const tabsW = landscape ? Math.min(640, w - 32) : w - 32;
+    const tabGap = 6;
+    const tabW = (tabsW - tabGap * (REGIONS.length - 1)) / REGIONS.length;
     const tabX0 = (w - tabsW) / 2;
     const chapters = REGIONS.map((r, i) => {
-      const rect = { x: tabX0 + i * (tabW + 8), y: tabY, width: tabW, height: tabH };
+      const rect = { x: tabX0 + i * (tabW + tabGap), y: tabY, width: tabW, height: tabH };
       const unlocked = isChapterUnlocked(st, i);
       const active = i === this.chapter;
       const c = this.add.container(rect.x, rect.y);
@@ -81,7 +84,7 @@ export class CampaignScene extends Phaser.Scene {
       g.lineStyle(2, active ? 0x8a4a12 : COLORS.cardBorder, 1);
       g.fillRoundedRect(0, 0, tabW, tabH, 12);
       g.strokeRoundedRect(0, 0, tabW, tabH, 12);
-      const label = `${unlocked ? '' : '🔒'}第${'一二三'[i]}章 ${r.name}`;
+      const label = unlocked ? `${r.chapter}` : '🔒';
       c.add([
         g,
         addText(
@@ -232,7 +235,9 @@ export class CampaignScene extends Phaser.Scene {
     };
     const { layer, box } = openModal(
       this,
-      landscape ? { width: 520, height: 320 } : { width: 340, height: s.boss ? 450 : 360 },
+      landscape
+        ? { width: 560, height: s.boss ? 372 : 340 }
+        : { width: 340, height: s.boss ? 500 : 410 },
       close,
       s.boss ? 0xc0392b : COLORS.cardBorder,
     );
@@ -247,7 +252,7 @@ export class CampaignScene extends Phaser.Scene {
       layer.add([hg, addText(this, left, y, 'BOSS 關', 15, '#c0392b', true)]);
       y += 24;
     }
-    const stars = '★'.repeat(Math.min(s.difficulty, 7));
+    const stars = s.difficulty <= 7 ? '★'.repeat(s.difficulty) : `★×${s.difficulty}`;
     layer.add(addText(this, left, y, s.name, 24, COLORS.ink, true));
     y += 38;
     layer.add(addText(this, left, y, `難度 ${stars}`, 16, '#b5651d', true));
@@ -267,6 +272,26 @@ export class CampaignScene extends Phaser.Scene {
       ),
     );
     y += 28;
+    // 這一關的敵人與上陣數量（T018）
+    layer.add(
+      addText(
+        this,
+        left,
+        y,
+        `可上陣 ${s.teamMax} 隻・敵人 ${s.enemies.length} 隻`,
+        16,
+        COLORS.ink,
+        true,
+      ),
+    );
+    y += 24;
+    layer.add(
+      addText(this, left, y, lineupText(s), 13, COLORS.inkSoft).setWordWrapWidth(
+        box.width - 44 - (s.boss && landscape ? 96 : 0),
+        true,
+      ),
+    );
+    y += landscape ? 30 : 58;
     const st = tick();
     const now = Date.now();
     const o = timeOptions();
@@ -303,7 +328,12 @@ export class CampaignScene extends Phaser.Scene {
       this.scene.start('ExpeditionScene', { stageId: s.id, chapter: this.chapter }),
     );
     layer.add(c);
-    patchDebug({ map: { ...window.__WGZ__!.map!, stagePanel: { stageId: s.id, go } } });
+    patchDebug({
+      map: {
+        ...window.__WGZ__!.map!,
+        stagePanel: { stageId: s.id, go, teamMax: s.teamMax, enemies: s.enemies.length },
+      },
+    });
   }
 
   private showToast(text: string): void {
@@ -323,6 +353,23 @@ export class CampaignScene extends Phaser.Scene {
       onComplete: () => t.destroy(),
     });
   }
+}
+
+/** 敵人陣容的文字：前排／中排／後排各有誰（同一種合併成「×N」） */
+export function lineupText(s: StageData): string {
+  const parts: string[] = [];
+  ROW_NAMES.forEach((rowName, row) => {
+    const count = new Map<string, number>();
+    for (const e of s.enemies) {
+      if (e.row !== row) continue;
+      const name = e.name.replace(/[甲乙丙丁戊己庚辛壬]$/, '');
+      count.set(name, (count.get(name) ?? 0) + 1);
+    }
+    if (count.size === 0) return;
+    const list = [...count].map(([name, n]) => (n > 1 ? `${name}×${n}` : name)).join('、');
+    parts.push(`${rowName}：${list}`);
+  });
+  return parts.join('\u3000');
 }
 
 function rewardText(r: Resources): string {

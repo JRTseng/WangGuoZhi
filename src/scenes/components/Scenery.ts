@@ -1,9 +1,9 @@
 import Phaser from 'phaser';
-import type { ThemeId } from '../../data/regions';
+import type { RegionScene } from '../../data/regions';
 import type { Rect } from '../../logic/layout';
 import type { Quality } from '../../state/gameState';
 
-export type SceneryTheme = ThemeId | 'city';
+export type SceneryTheme = RegionScene | 'city';
 
 interface Palette {
   skyTop: number;
@@ -13,6 +13,12 @@ interface Palette {
   ground: number;
   particle: number[];
   night?: boolean;
+  /** 近景裝飾照哪一種畫（第四章起的場景借用前幾章的畫法，換顏色）；沒填就是自己 */
+  decor?: 'slope' | 'bamboo' | 'snow' | 'lantern' | 'city' | 'none';
+  /** 樹的顏色（decor 是 slope／snow 時用）：樹幹、樹冠、亮部 */
+  tree?: [number, number, number];
+  /** 遠山比較高（雪山、火山、雲頂） */
+  tall?: boolean;
 }
 
 const PALETTES: Record<SceneryTheme, Palette> = {
@@ -49,6 +55,77 @@ const PALETTES: Record<SceneryTheme, Palette> = {
     ground: 0x4a2f3d,
     particle: [0xffb347, 0xff7b54, 0xffd56b],
     night: true,
+  },
+  // ---- 第四章起（T018）：先用換色的簡單場景，T016 做背景時再細修 ----
+  peach: {
+    skyTop: 0xbfe3f5,
+    skyBottom: 0xfde7ee,
+    far: 0xe7b7c8,
+    near: 0xd98aa6,
+    ground: 0xcfe3a8,
+    particle: [0xf7a8c0, 0xfbd0dc, 0xffffff],
+    decor: 'slope',
+    tree: [0x7a4a2a, 0xf291b2, 0xfbc4d4],
+  },
+  desert: {
+    skyTop: 0xf5c77e,
+    skyBottom: 0xfdeec8,
+    far: 0xe0b06a,
+    near: 0xcf9550,
+    ground: 0xecd09a,
+    particle: [0xe8c98a, 0xf3deb0],
+    decor: 'none',
+  },
+  marsh: {
+    skyTop: 0x54665c,
+    skyBottom: 0xa9b8a2,
+    far: 0x6f8572,
+    near: 0x4d6652,
+    ground: 0x7d9173,
+    particle: [0xd7f2a0, 0xbfe07a],
+    decor: 'bamboo',
+  },
+  volcano: {
+    skyTop: 0x2b1418,
+    skyBottom: 0xb5432a,
+    far: 0x4a2622,
+    near: 0x33191a,
+    ground: 0x5a3028,
+    particle: [0xff7b54, 0xffb347, 0xffd56b],
+    night: true,
+    decor: 'none',
+    tall: true,
+  },
+  coast: {
+    skyTop: 0x6ec3ee,
+    skyBottom: 0xdff4fb,
+    far: 0x4aa3c7,
+    near: 0x2f86ad,
+    ground: 0xf1e0b5,
+    particle: [0xffffff, 0xcfeefa],
+    decor: 'slope',
+    tree: [0x8a6a3a, 0x3f9b63, 0x67b87d],
+  },
+  cloud: {
+    skyTop: 0x7fa8e0,
+    skyBottom: 0xfbe3c9,
+    far: 0xdfe6f3,
+    near: 0xf4f6fb,
+    ground: 0xc9d3e6,
+    particle: [0xffffff],
+    decor: 'snow',
+    tree: [0x3d5a6c, 0xffffff, 0xffffff],
+    tall: true,
+  },
+  palace: {
+    skyTop: 0x1d1a3a,
+    skyBottom: 0x7a4a2a,
+    far: 0x3b2a3f,
+    near: 0x2c1f2e,
+    ground: 0x5a4636,
+    particle: [0xffd56b, 0xffb347],
+    night: true,
+    decor: 'lantern',
   },
   city: {
     skyTop: 0xa8d8f0,
@@ -102,7 +179,7 @@ export class Scenery extends Phaser.GameObjects.Container {
     g.fillStyle(p.far, 1);
     for (let i = -1; i < 5; i++) {
       const cx = (i + 0.5) * (w / 4);
-      g.fillEllipse(cx, hy, w * 0.45, h * (theme === 'snow' ? 0.34 : 0.2));
+      g.fillEllipse(cx, hy, w * 0.45, h * (theme === 'snow' || p.tall ? 0.34 : 0.2));
     }
     if (theme === 'snow') {
       // 雪山尖
@@ -127,23 +204,32 @@ export class Scenery extends Phaser.GameObjects.Container {
     g.fillRect(0, hy, w, h - hy);
 
     this.add(g);
-    this.drawDecor(scene, theme, w, h, hy);
+    this.drawDecor(scene, p.decor ?? theme, w, h, hy, p.tree);
     if (quality !== 'low') this.addClouds(scene, w, h, p.night ? 0.25 : 0.85);
-    this.addParticles(scene, theme, w, hy, PARTICLES_BY_QUALITY[quality], p.particle);
+    // 飄落特效的形狀跟著裝飾的種類（雪是圓點、燈會與火山往上飄）
+    const drift = theme === 'volcano' ? 'lantern' : (p.decor ?? theme);
+    this.addParticles(scene, drift, w, hy, PARTICLES_BY_QUALITY[quality], p.particle);
     scene.add.existing(this);
   }
 
-  private drawDecor(scene: Phaser.Scene, theme: SceneryTheme, w: number, h: number, hy: number) {
+  private drawDecor(
+    scene: Phaser.Scene,
+    theme: SceneryTheme | 'none',
+    w: number,
+    h: number,
+    hy: number,
+    tree?: [number, number, number],
+  ) {
     const g = scene.add.graphics();
     const trees = [0.08, 0.26, 0.74, 0.93];
     if (theme === 'slope') {
       for (const tx of trees) {
         const x = tx * w;
-        g.fillStyle(0x7a4a2a, 1);
+        g.fillStyle(tree?.[0] ?? 0x7a4a2a, 1);
         g.fillRect(x - 4, hy - 30, 8, 40);
-        g.fillStyle(0xd9542b, 1);
+        g.fillStyle(tree?.[1] ?? 0xd9542b, 1);
         g.fillCircle(x, hy - 46, 26);
-        g.fillStyle(0xe8892c, 1);
+        g.fillStyle(tree?.[2] ?? 0xe8892c, 1);
         g.fillCircle(x - 14, hy - 34, 16);
         g.fillCircle(x + 14, hy - 36, 17);
       }
@@ -159,7 +245,7 @@ export class Scenery extends Phaser.GameObjects.Container {
     } else if (theme === 'snow') {
       for (const tx of trees) {
         const x = tx * w;
-        g.fillStyle(0x2f5a4a, 1);
+        g.fillStyle(tree?.[0] ?? 0x2f5a4a, 1);
         g.fillTriangle(x - 22, hy + 6, x + 22, hy + 6, x, hy - 50);
         g.fillStyle(0xffffff, 1);
         g.fillTriangle(x - 10, hy - 26, x + 10, hy - 26, x, hy - 50);
@@ -222,7 +308,7 @@ export class Scenery extends Phaser.GameObjects.Container {
 
   private addParticles(
     scene: Phaser.Scene,
-    theme: SceneryTheme,
+    theme: SceneryTheme | 'none',
     w: number,
     hy: number,
     count: number,

@@ -1,6 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import { createInitialState, type GameState } from '../state/gameState';
-import { advanceAuto, autoTeamOf, clearAutoSummary, pickAutoStage, setAuto } from './auto';
+import {
+  advanceAuto,
+  autoTeamFor,
+  autoTeamOf,
+  clearAutoSummary,
+  pickAutoStage,
+  setAuto,
+} from './auto';
+import { dogPower } from './team';
 import { runExpedition } from './expedition';
 import { runsLeft, spendRun } from './stamina';
 
@@ -27,6 +35,26 @@ describe('自動出征：開關', () => {
   it('用組隊編排裡擁有的狗', () => {
     expect(autoTeamOf(fresh())).toEqual(['daer', 'heixuan', 'changxu']);
     expect(autoTeamOf({ ...fresh(), team: ['tieya', 'abai'] })).toEqual(['abai']);
+  });
+  it('隊伍超過那一關的上陣上限：派戰力最高的幾隻，順序不變（T018）', () => {
+    const five = { ...fresh(), team: ['daer', 'heixuan', 'changxu', 'xiaosuan', 'abai'] };
+    // 第 2 關最多 3 隻
+    const three = autoTeamFor(five, 'luoyepo-2');
+    expect(three).toHaveLength(3);
+    expect(three).toEqual(five.team.filter((id) => three.includes(id)));
+    const weakest = [...five.team].sort((a, b) => dogPower(five, a) - dogPower(five, b));
+    expect(three).not.toContain(weakest[0]);
+    expect(three).not.toContain(weakest[1]);
+    // 可以上 5 隻的關卡就全上
+    expect(autoTeamFor(five, 'luoyepo-1')).toEqual(five.team);
+    // 帶五隻也能自動打第 2 關（經驗比第 1 關高），不會卡住
+    const done = advanceAuto(on({ ...five, cleared: ['luoyepo-1', 'luoyepo-2'] }), T0 + 1, TZ);
+    const second = done.history.filter((r) => r.stageId === 'luoyepo-2');
+    expect(second.length).toBeGreaterThan(0);
+    for (const r of second) expect(r.dogIds).toHaveLength(3);
+    for (const r of done.history.filter((x) => x.stageId === 'luoyepo-1')) {
+      expect(r.dogIds).toHaveLength(5);
+    }
   });
 });
 

@@ -142,7 +142,7 @@ export const MOB_SCALE = 1.1;
 export const BOSS_SCALE = 0.92;
 /** 頭目大絕招（打最前面一整排）每一隻吃到的傷害比例 */
 export const BOSS_ULT_RATE = 0.5;
-/** 野犬的站位：前兩隻站前排，第三隻起站中排（T018 會換成每關自己的陣容） */
+/** 沒給陣容時野犬的站位：前兩隻站前排，第三隻起站中排（關卡的陣容在 src/data/regions.ts） */
 export const MOB_FRONT = 2;
 /** 敵方氣勢：每一場敵方的血量與傷害在 ±這個比例之間浮動 */
 export const MORALE_RANGE = 0.12;
@@ -193,14 +193,42 @@ export interface BattleDog {
   trait?: BattleTrait;
 }
 
+/**
+ * 關卡裡的一隻敵人（T018）：每關自己的陣容。敵人也用和我方一樣的定位規則打
+ * （先鋒會穿透、投石手打後排、藥師會補血…），只有頭目與精銳會放大絕招。
+ */
+export interface BattleEnemy {
+  name: string;
+  role: BattleRole;
+  row: RowIndex;
+  /** 佔這一關敵方總戰力的比重（頭目比小兵大很多）；沒填當 1 */
+  weight?: number;
+  /** 會不會集 EN、放大絕招（頭目、精銳） */
+  canUlt?: boolean;
+  trait?: BattleTrait;
+  /** 畫面上的配色與大小（不影響勝負） */
+  look?: EnemyLook;
+}
+
+export interface EnemyLook {
+  color: number;
+  accent: number;
+  /** 畫大一點（頭目） */
+  big?: boolean;
+}
+
 export interface BattleInput {
   team: readonly BattleDog[];
   /** 關卡建議戰力，敵方血量與攻擊由它推算 */
   recommendedPower: number;
-  /** 敵方的名字，一個名字一隻 */
-  enemyNames: readonly string[];
-  /** Boss 關：敵方是頭目，站中排、會放大絕招；不是的話是站前排的野犬 */
+  /** 敵方的名字，一個名字一隻（沒給 enemies 時用：全部是野犬，或單獨一隻頭目） */
+  enemyNames?: readonly string[];
+  /** Boss 關：敵方是頭目，站中排、會放大絕招；不是的話是站前排的野犬（沒給 enemies 時用） */
   boss?: boolean;
+  /** 這一關的敵人陣容（T018）；有給就不看 enemyNames／boss */
+  enemies?: readonly BattleEnemy[];
+  /** 敵方強度倍率；沒給就照有沒有頭目用 BOSS_SCALE／MOB_SCALE */
+  scale?: number;
   /** 亂數種子 */
   seed: number;
 }
@@ -227,6 +255,8 @@ export interface BattleUnit {
   heal?: boolean;
   /** 專屬特性（T024） */
   trait?: BattleTrait;
+  /** 敵人的配色與大小（T018，畫面用） */
+  look?: EnemyLook;
 }
 
 /** 大絕招的種類（演出用）：單體連打、穿透、整排、補血、強化 */
@@ -383,7 +413,8 @@ export function hpOf(defense: number): number {
   return Math.max(10, Math.round(defense * HP_PER_DEF));
 }
 
-const MELEE: readonly BattleRole[] = ['守護', '突擊', '野犬', '頭目'];
+/** 頭目個頭大，站在小兵後面一樣打得到（T018），所以不算在內 */
+const MELEE: readonly BattleRole[] = ['守護', '突擊', '野犬'];
 const REAR: readonly BattleRole[] = ['謀略', '幸運', '補血'];
 
 const other = (s: BattleSide): BattleSide => (s === 'team' ? 'enemy' : 'team');
@@ -495,26 +526,42 @@ export function createBattle(input: BattleInput): BattleState {
   };
   // 敵方氣勢：這一場敵方的血量與傷害一起浮動
   s.morale = (rand(s) * 2 - 1) * MORALE_RANGE;
-  const strength = (1 + s.morale) * (input.boss ? BOSS_SCALE : MOB_SCALE);
+  // 敵方陣容：有給就照關卡的，沒給就是一群野犬或單獨一隻頭目
+  const names = input.enemyNames?.length ? input.enemyNames : ['敵軍'];
+  const roster: readonly BattleEnemy[] = input.enemies?.length
+    ? input.enemies
+    : names.map((name, i) => ({
+        name,
+        role: input.boss ? '頭目' : '野犬',
+        row: input.boss || i >= MOB_FRONT ? 1 : 0,
+        canUlt: !!input.boss,
+      }));
+  const hasBoss = roster.some((e) => e.role === '頭目');
+  const strength = (1 + s.morale) * (input.scale ?? (hasBoss ? BOSS_SCALE : MOB_SCALE));
 
-  // 敵方：建議戰力攻防各半，平分給每一隻；總血量與每回合總傷害不隨隻數改變
-  const names = input.enemyNames.length ? input.enemyNames : ['敵軍'];
-  const stat = Math.max(1, recommendedPower / 2 / names.length);
-  const role: BattleRole = input.boss ? '頭目' : '野犬';
-  s.enemies = names.map((name, i) => ({
-    id: `enemy-${i + 1}`,
-    name,
-    maxHp: Math.max(10, Math.round(stat * HP_PER_DEF * strength)),
-    attack: Math.max(1, Math.round(stat)),
-    defense: Math.max(1, Math.round(stat)),
-    might: strength,
-    role,
-    row: input.boss || i < MOB_FRONT ? defaultRowOf(role) : 1,
-    canUlt: !!input.boss,
-    enPerAct: EN_PER_ACT,
-    ssr: false,
-    afterHeal: false,
-  }));
+  // 建議戰力攻防各半，照比重分給每一隻；總血量與每回合總傷害不隨隻數改變
+  const weights = roster.map((e) => Math.max(0.01, e.weight ?? 1));
+  const total = weights.reduce((a, b) => a + b, 0);
+  s.enemies = roster.map((e, i) => {
+    const stat = Math.max(1, ((recommendedPower / 2) * weights[i]) / total);
+    return {
+      id: `enemy-${i + 1}`,
+      name: e.name,
+      maxHp: Math.max(10, Math.round(stat * HP_PER_DEF * strength)),
+      attack: Math.max(1, Math.round(stat)),
+      defense: Math.max(1, Math.round(stat)),
+      might: strength,
+      role: e.role,
+      row: e.row,
+      canUlt: !!e.canUlt,
+      enPerAct: EN_PER_ACT,
+      ssr: false,
+      afterHeal: false,
+      ...(e.role === '補血' ? { heal: true } : {}),
+      ...(e.trait ? { trait: e.trait } : {}),
+      ...(e.look ? { look: e.look } : {}),
+    };
+  });
   s.hp.enemy = s.enemies.map((u) => u.maxHp);
   s.en.enemy = s.enemies.map(() => 0);
   s.acts.enemy = s.enemies.map(() => 0);

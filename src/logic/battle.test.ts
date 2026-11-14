@@ -43,6 +43,9 @@ import {
   type BattleRole,
   type BattleState,
   type RowIndex,
+  BOSS_SCALE,
+  MOB_SCALE,
+  type BattleEnemy,
 } from './battle';
 
 const dog = (id: string, role: BattleRole = '守護', o: Partial<BattleDog> = {}): BattleDog => ({
@@ -145,6 +148,103 @@ describe('開場', () => {
   it('隊伍要 1 到 5 隻', () => {
     expect(() => createBattle(input([]))).toThrow();
     expect(() => createBattle(input(Array.from({ length: 6 }, (_, i) => dog(`d${i}`))))).toThrow();
+  });
+});
+
+describe('關卡自己的敵人陣容（T018）', () => {
+  const dog = { id: 'a', name: 'A', attack: 50, defense: 50, level: 1 };
+  const input = (enemies: BattleEnemy[], scale?: number) => ({
+    team: [dog],
+    recommendedPower: 600,
+    enemies,
+    seed: 3,
+    ...(scale ? { scale } : {}),
+  });
+
+  it('照陣容排：定位、站位、會不會放招都照給的；戰力照比重分', () => {
+    const s = createBattle(
+      input([
+        { name: '盾', role: '守護', row: 0, weight: 1 },
+        {
+          name: '王',
+          role: '頭目',
+          row: 1,
+          weight: 4,
+          canUlt: true,
+          look: { color: 1, accent: 2, big: true },
+        },
+        { name: '弓', role: '謀略', row: 2, weight: 1 },
+      ]),
+    );
+    expect(s.enemies.map((u) => `${u.name}:${u.role}:${u.row}:${u.canUlt}`)).toEqual([
+      '盾:守護:0:false',
+      '王:頭目:1:true',
+      '弓:謀略:2:false',
+    ]);
+    // 建議戰力 600 → 攻擊合計 300，照 1：4：1 分
+    expect(s.enemies.map((u) => u.attack)).toEqual([50, 200, 50]);
+    expect(s.enemies[1].maxHp / s.enemies[0].maxHp).toBeCloseTo(4, 1);
+    expect(s.enemies[1].look?.big).toBe(true);
+    expect(s.hp.enemy).toEqual(s.enemies.map((u) => u.maxHp));
+  });
+
+  it('強度倍率：有給就用給的，沒給照有沒有頭目', () => {
+    const mob: BattleEnemy[] = [{ name: '卒', role: '野犬', row: 0 }];
+    const boss: BattleEnemy[] = [{ name: '王', role: '頭目', row: 1, canUlt: true }];
+    const might = (list: BattleEnemy[], scale?: number) => {
+      const s = createBattle(input(list, scale));
+      return s.enemies[0].might / (1 + s.morale);
+    };
+    expect(might(mob)).toBeCloseTo(MOB_SCALE);
+    expect(might(boss)).toBeCloseTo(BOSS_SCALE);
+    expect(might(mob, 1.5)).toBeCloseTo(1.5);
+  });
+
+  it('頭目站在小兵後面一樣打得到（傷害不打折）；敵方的先鋒在後面還是會打折', () => {
+    const hitOf = (role: '頭目' | '突擊') => {
+      // 前排一隻不會動手的靶子擋著，後面那隻出手
+      let s = createBattle({
+        team: [{ ...dog, defense: 5000 }],
+        recommendedPower: 600,
+        enemies: [
+          { name: '前', role: '野犬', row: 0, weight: 1 },
+          { name: '後', role, row: 1, weight: 1 },
+        ],
+        scale: 1,
+        seed: 11,
+      });
+      const damages: number[] = [];
+      while (!s.over && damages.length < 40) {
+        const r = stepBattle(s, false);
+        if (r.action.side === 'enemy' && r.action.actor === 1) {
+          damages.push(r.action.hits[0].damage / s.enemies[1].might);
+        }
+        s = r.state;
+        if (s.round > 20) break;
+      }
+      return damages.reduce((a, b) => a + b, 0) / damages.length;
+    };
+    const boss = hitOf('頭目');
+    const raider = hitOf('突擊');
+    expect(boss).toBeGreaterThan(150 * 0.85);
+    // 先鋒第一下有加成，平均下來還是明顯比頭目低（打折 50%）
+    expect(raider).toBeLessThan(boss * 0.7);
+  });
+
+  it('敵方的藥師會幫受傷的同伴回血', () => {
+    const r = resolveBattle({
+      team: [{ ...dog, attack: 120, defense: 400 }],
+      recommendedPower: 600,
+      enemies: [
+        { name: '卒', role: '野犬', row: 0, weight: 2 },
+        { name: '藥', role: '補血', row: 2, weight: 1, trait: 'smallHeal' },
+      ],
+      scale: 1,
+      seed: 5,
+    });
+    expect(
+      r.actions.some((a) => a.side === 'enemy' && a.kind === 'heal' && (a.hits[0].heal ?? 0) > 0),
+    ).toBe(true);
   });
 });
 

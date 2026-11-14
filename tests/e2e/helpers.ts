@@ -56,8 +56,13 @@ export async function battleFromMap(page: Page, nodeIndex = 0, team?: string[]) 
   await tap(page, (await wgz(page)).map!.stagePanel!.go);
   await waitScene(page, 'ExpeditionScene');
   if (team) {
-    for (const card of (await wgz(page)).expeditionPanel!.teamCards) {
-      if (card.selected !== team.includes(card.id)) await tap(page, card);
+    // 先把不要的拿下來，再把要的放上去：關卡有上陣上限（T018），滿了就加不進去
+    for (const wanted of [false, true]) {
+      for (const card of (await wgz(page)).expeditionPanel!.teamCards) {
+        if (card.selected !== team.includes(card.id) && team.includes(card.id) === wanted) {
+          await tap(page, card);
+        }
+      }
     }
     const picked = (await wgz(page)).expeditionPanel!.teamCards.filter((c) => c.selected);
     if (
@@ -86,4 +91,26 @@ export async function enableSkipBattle(page: Page) {
   await page.waitForFunction(() => window.__WGZ__?.settings?.values.skipBattle === true);
   await tap(page, (await wgz(page)).settings!.rects.close);
   await page.waitForFunction(() => !window.__WGZ__?.settings);
+}
+
+/**
+ * 把存檔改掉再重開遊戲（測試要直接跳到某個進度時用）。會先進一次組隊畫面再回來，確定存檔已經寫出來。
+ * 只在這一頁第一次重開時改一次，之後的重新整理不會再改。
+ */
+export async function patchSave(page: Page, patch: Record<string, unknown>) {
+  await tap(page, (await wgz(page)).lobby!.buttons.team);
+  await waitScene(page, 'TeamScene');
+  await tap(page, (await wgz(page)).backButton!);
+  await waitScene(page, 'LobbyScene');
+  await page.addInitScript((extra) => {
+    if (sessionStorage.getItem('wgz-test-patch')) return;
+    const raw = localStorage.getItem('wgz-save');
+    if (!raw) return;
+    sessionStorage.setItem('wgz-test-patch', '1');
+    const file = JSON.parse(raw);
+    Object.assign(file.state, extra);
+    localStorage.setItem('wgz-save', JSON.stringify(file));
+  }, patch);
+  await page.reload();
+  await waitScene(page, 'LobbyScene');
 }

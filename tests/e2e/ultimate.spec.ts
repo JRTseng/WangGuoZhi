@@ -81,7 +81,7 @@ test('訓練場填台詞，戰鬥中放大絕招會喊招式名與台詞；勝�
   expect(b.ultTotal).toBeGreaterThanOrEqual(2);
   // 開戰時 EN 是 0（CI 比較慢，讀到的時候可能已經有人出手了，那就不比）
   if (b.index === 0) expect(b.team.map((u) => u.en)).toEqual([0, 0]);
-  expect(b.enemies.map((u) => u.en)).toEqual([null, null, null]);
+  expect(b.enemies.map((u) => u.en)).toEqual([null, null, null, null, null]);
   await speedTwo(page);
 
   // 第一招是大耳（EN 集滿 100）：喊「結義」與剛填的台詞；語音掛點有收到提示
@@ -143,7 +143,8 @@ test.describe('手機橫放', () => {
     b = await battle(page);
     expect(b).toMatchObject({ win: true, skipped: false, ult: null });
     expect(b.ults).toBe(b.ultTotal);
-    expect(b.ultTotal).toBe(1);
+    // 敵人變成五隻小卒後打得比較久，放招次數不只一次
+    expect(b.ultTotal).toBeGreaterThanOrEqual(1);
     expect((await wgz(page)).result).toEqual({ food: 120, bones: 5, win: true });
   });
 });

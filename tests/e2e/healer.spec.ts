@@ -32,9 +32,9 @@ test('打贏第 1 章 Boss 送補血狗，之後可以帶牠出征', async ({ pa
   await openLobby(page, '?fast=1&battle=slow&seed=7');
   await tap(page, (await wgz(page)).lobby!.buttons.expedition);
 
-  // 前 4 關：五隻全上，一路打過去（體力 100 剛好打 5 場）
+  // 前 4 關：能上幾隻就上幾隻（T018：5、3、4、4 隻），一路打過去（體力 100 剛好打 5 場）
   for (let i = 0; i < 4; i++) {
-    await battleFromMap(page, i, ALL);
+    await battleFromMap(page, i, ALL.slice(0, [5, 3, 4, 4][i]));
     const r = await skipToResult(page);
     expect(r.win, `第 ${i + 1} 關`).toBe(true);
     expect(r.newDogId).toBeUndefined();
@@ -42,7 +42,8 @@ test('打贏第 1 章 Boss 送補血狗，之後可以帶牠出征', async ({ pa
   }
 
   // 還沒通關：選狗畫面沒有補血狗
-  await battleFromMap(page, 4, ALL);
+  // Boss 關：頭目加兩隻小兵，最多上 4 隻
+  await battleFromMap(page, 4, ALL.slice(0, 4));
   const r = await skipToResult(page);
   expect(r.win).toBe(true);
   expect(r.newDogId).toBe(GIFT);

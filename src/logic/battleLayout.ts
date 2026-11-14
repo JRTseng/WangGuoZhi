@@ -28,6 +28,8 @@ export const BATTLE_BAR_HEIGHT = 56;
 /** 頭的半徑上限；只有一隻敵人（Boss）時放大 */
 const MAX_R = 34;
 const BOSS_SCALE = 1.5;
+/** 頭目旁邊有小兵時放大多少 */
+const BIG_SCALE = 1.35;
 
 /** 一隻角色實際佔的範圍（頭、耳朵、名字、血條） */
 export function slotBounds(s: BattleSlot): Rect {
@@ -56,6 +58,8 @@ function sideSlots(
   landscape: boolean,
   facing: 1 | -1,
   cellLanes?: readonly (number | undefined)[],
+  /** 哪幾隻要畫大一點（頭目，T018） */
+  big?: readonly boolean[],
 ): BattleSlot[] {
   const count = rows.length;
   if (count <= 0) return [];
@@ -90,7 +94,25 @@ function sideSlots(
     ),
   );
   const seen = [0, 0, 0];
+  // 頭目旁邊有小兵時也畫大一點；跑道不夠高就不放大，免得壓到上下的同伴
+  const bigR = (row: number): number => {
+    const room = (field.height / (landscape ? Math.max(1, inRow[row]) : count)) * 0.3;
+    // 左右：不能壓到隔壁那一排的同伴
+    const gap = Math.min(offsets[1] - offsets[0], offsets[2] - offsets[1]);
+    const side = (gap - Math.max(r * 1.3, 40)) / 1.3;
+    return Math.max(r, Math.floor(Math.min(r * BIG_SCALE, room, side)));
+  };
   return rows.map((row, i) => {
+    if (big?.[i] && !solo) {
+      const br = bigR(row);
+      const laneNo = landscape ? seen[row]++ : runway[i];
+      const n = landscape ? inRow[row] : count;
+      return {
+        x: Math.round(mid - facing * offsets[row]),
+        y: Math.round(field.y + (field.height / n) * (laneNo + 0.5) - 14 + br * 0.17),
+        r: br,
+      };
+    }
     const lane = landscape ? (grid && !solo ? cellLanes![i]! : seen[row]++) : runway[i];
     const laneCount = landscape ? (grid && !solo ? 3 : inRow[row]) : count;
     const laneSpacing = field.height / laneCount;
@@ -116,6 +138,8 @@ export function battleLayout(
   teamRows: readonly number[],
   enemyRows: readonly number[],
   teamLanes?: readonly (number | undefined)[],
+  /** 敵方哪幾隻是頭目（畫大一點） */
+  enemyBig?: readonly boolean[],
 ): BattleLayout {
   const bar = BATTLE_BAR_HEIGHT;
   const speed: Rect = { x: w - 84, y: 8, width: 76, height: bar - 16 };
@@ -138,7 +162,7 @@ export function battleLayout(
     auto,
     field,
     team: sideSlots(teamRows, field, landscape, 1, teamLanes),
-    enemies: sideSlots(enemyRows, field, landscape, -1),
+    enemies: sideSlots(enemyRows, field, landscape, -1, undefined, enemyBig),
     rowX: {
       team: offsets.map((o) => Math.round(mid - o)),
       enemy: offsets.map((o) => Math.round(mid + o)),

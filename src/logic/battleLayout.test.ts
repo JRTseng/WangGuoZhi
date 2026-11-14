@@ -61,6 +61,43 @@ describe('battleLayout', () => {
     });
   }
 
+  it('頭目旁邊有小兵（T018）：頭目畫大一點，還是站在自己那一排，不會疊到同伴', () => {
+    // 前排兩隻小兵、中排頭目、後排一隻
+    const rows = [0, 0, 1, 2];
+    const big = [false, false, true, false];
+    for (const landscape of [true, false]) {
+      const [w, h] = landscape ? [844, 390] : [390, 844];
+      const l = battleLayout(w, h, landscape, [0, 0, 1], rows, undefined, big);
+      // 橫式（遊戲固定橫向）會放大；直式跑道太窄就維持一樣大
+      if (landscape) expect(l.enemies[2].r).toBeGreaterThan(l.enemies[0].r);
+      else expect(l.enemies[2].r).toBeGreaterThanOrEqual(l.enemies[0].r);
+      expect(l.enemies[2].x).toBe(l.rowX.enemy[1]);
+      const boxes = l.enemies.map(slotBounds);
+      for (let i = 0; i < boxes.length; i++) {
+        for (let j = i + 1; j < boxes.length; j++) {
+          const a = boxes[i];
+          const b = boxes[j];
+          const apart =
+            a.x + a.width <= b.x ||
+            b.x + b.width <= a.x ||
+            a.y + a.height <= b.y ||
+            b.y + b.height <= a.y;
+          expect(apart, `${landscape}:${i}-${j}`).toBe(true);
+        }
+      }
+    }
+    // 一排站滿三隻時跑道不夠高，頭目就不放大
+    const tight = battleLayout(844, 390, true, [0], [0, 0, 0, 1, 1, 1], undefined, [
+      false,
+      false,
+      false,
+      true,
+      false,
+      false,
+    ]);
+    expect(tight.enemies[3].r).toBeLessThanOrEqual(tight.enemies[0].r * 1.35);
+  });
+
   it('九宮格：橫式照格子站成 3×3（上中下三條橫線對齊）；直式由上而下的順序和陣型面板一樣', () => {
     // 大耳中排中、黑旋前排上、長鬚前排下、小算後排上、阿白後排下
     const rows = [1, 0, 0, 2, 2];

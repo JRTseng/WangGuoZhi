@@ -12,7 +12,8 @@ test('戰鬥畫面：速度 ×1～×4 切換並記住，略過直接到結算（
   let b = await battle(page);
   expect(b).toMatchObject({ stageId: 'luoyepo-1', phase: 'playing', speed: 1, skipped: false });
   expect(b.team.map((u) => u.id)).toEqual(['daer', 'heixuan', 'changxu']);
-  expect(b.enemies).toHaveLength(3);
+  // 第 1 關是五隻小卒（T018）
+  expect(b.enemies).toHaveLength(5);
   expect((await wgz(page)).result ?? null).toBeNull();
   // 放慢 4 倍後還在 40 秒內，也就是正常 1 倍速整場 10 秒內
   expect(b.stepMs * b.total).toBeLessThanOrEqual(40_000);

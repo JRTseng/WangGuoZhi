@@ -10,7 +10,10 @@ test('出征地圖 → 選隊伍 → 開戰 → 戰鬥 → 劇情 → 下一關�
 
   // 1. 三章，只有第一章開放；5 個節點，最後一個是 Boss
   let m = (await wgz(page)).map!;
-  expect(m.chapters.map((c) => c.unlocked)).toEqual([true, false, false]);
+  expect(m.chapters.map((c) => c.unlocked)).toEqual([
+    true,
+    ...Array.from({ length: 9 }, () => false),
+  ]);
   expect(m.nodes.map((n) => n.state)).toEqual(['open', 'locked', 'locked', 'locked', 'locked']);
   expect(m.nodes.map((n) => n.boss)).toEqual([false, false, false, false, true]);
   expect(m.nodes[4].width).toBeGreaterThan(m.nodes[0].width);

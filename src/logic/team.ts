@@ -49,6 +49,8 @@ export function placeDog(
   dogId: string,
   row: RowIndex,
   lane: LaneIndex,
+  /** 最多幾隻（出征選狗時是那一關的上陣上限） */
+  max: number = TEAM_SIZE,
 ): PlaceResult {
   const fail = (error: string): PlaceResult => ({ state, team: [...team], error });
   if (team.includes(dogId)) {
@@ -58,8 +60,8 @@ export function placeDog(
   if (busyDogIds(state).has(dogId)) return fail('寄宿中的狗要先接回來');
   const cells = teamCells(state, team);
   const at = cells.findIndex((c) => c.row === row && c.lane === lane);
-  if (at < 0 && team.length >= TEAM_SIZE) {
-    return fail(`隊伍滿了（最多 ${TEAM_SIZE} 隻），拖到隊友身上換人`);
+  if (at < 0 && team.length >= max) {
+    return fail(`隊伍滿了（最多 ${max} 隻），拖到隊友身上換人`);
   }
   const formation = { ...state.formation };
   team.forEach((id, i) => {

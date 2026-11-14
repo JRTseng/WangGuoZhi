@@ -46,6 +46,17 @@ export const BOSS_SKILLS: Readonly<Record<string, BossSkill>> = {
   雷吼: { name: '震山吼', line: '這座山頭，是我的！' },
   巨影: { name: '遮天踏', line: '抬頭看看，誰比較高？' },
   鎮嶺王: { name: '萬嶺鎮壓', line: '想過關，先問過我。' },
+  // 第四章起（T018）
+  花嶽: { name: '落花掃', line: '別踩到我的花。' },
+  沙牙: { name: '捲沙咬', line: '過路的，留下糧草。' },
+  玄霧: { name: '霧中追蹤', line: '我聞得到你。' },
+  炎錘: { name: '千錘百鍊', line: '這一錘，燙喔。' },
+  潮王: { name: '怒潮拍岸', line: '浪來了，站穩。' },
+  凌霄: { name: '凌空一槍', line: '雲上的路，由我守。' },
+  天狼王: { name: '天狼號令', line: '汪都，不是誰都進得來。' },
 };
+
+/** 精銳小兵（不是 Boss、但會放大絕招）的招式 */
+export const ELITE_SKILL: BossSkill = { name: '猛衝', line: '衝啊！' };
 
 export const BOSS_SKILL_FALLBACK: BossSkill = { name: '王者咆哮', line: '' };
