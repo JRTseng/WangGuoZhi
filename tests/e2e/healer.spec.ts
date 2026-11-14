@@ -1,7 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 import { battleFromMap, openLobby, tap, waitScene, wgz } from './helpers';
 
-const CLOSE = { x: 0, y: 800, width: 390, height: 20 };
+const CLOSE = { x: 0, y: 380, width: 844, height: 6 };
 const ALL = ['daer', 'heixuan', 'changxu', 'xiaosuan', 'abai'];
 const GIFT = 'nuantong';
 
@@ -47,7 +47,7 @@ test('打贏第 1 章 Boss 送補血狗，之後可以帶牠出征', async ({ pa
   expect(r.win).toBe(true);
   expect(r.newDogId).toBe(GIFT);
   await page.waitForTimeout(200);
-  await page.screenshot({ path: 'artifacts/screenshots/portrait/healer-reward.png' });
+  await page.screenshot({ path: 'artifacts/screenshots/landscape/healer-reward.png' });
   await closeResult(page, true);
 
   // 再進第 1 關選隊伍：補血狗在名單裡，定位篩選「補血」只有牠
@@ -62,7 +62,7 @@ test('打贏第 1 章 Boss 送補血狗，之後可以帶牠出征', async ({ pa
   expect(e.teamCards.map((c) => c.id)).toEqual([GIFT]);
   if (!e.teamCards[0].selected) await tap(page, e.teamCards[0]);
   await page.waitForTimeout(200);
-  await page.screenshot({ path: 'artifacts/screenshots/portrait/healer-pick.png' });
+  await page.screenshot({ path: 'artifacts/screenshots/landscape/healer-pick.png' });
 
   // 體力用完了：補一次體力再帶牠開戰
   e = (await wgz(page)).expeditionPanel!;

@@ -33,7 +33,7 @@ test('組隊畫面：3×3 九宮格，拖曳換位置、對調、從清單拖上
     expect(c.x).toBe(p.board.find((o) => o.row === c.row && o.lane === 0)!.x);
     expect(c.y).toBe(p.board.find((o) => o.row === 0 && o.lane === c.lane)!.y);
     expect(c.x).toBeGreaterThanOrEqual(0);
-    expect(c.x + c.width).toBeLessThanOrEqual(390);
+    expect(c.x + c.width).toBeLessThanOrEqual(844);
   }
   expect(p.boardRows[0].x).toBeGreaterThan(p.boardRows[1].x);
   expect(p.boardRows[1].x).toBeGreaterThan(p.boardRows[2].x);
@@ -44,7 +44,7 @@ test('組隊畫面：3×3 九宮格，拖曳換位置、對調、從清單拖上
     ['daer', 1, 1],
   ]);
   await page.waitForTimeout(150);
-  await page.screenshot({ path: 'artifacts/screenshots/portrait/formation.png' });
+  await page.screenshot({ path: 'artifacts/screenshots/landscape/formation.png' });
 
   // 按住長鬚拖到後排上面那一格：換過去
   await drag(page, await cellAt(page, 0, 2), await cellAt(page, 2, 0));
@@ -63,7 +63,7 @@ test('組隊畫面：3×3 九宮格，拖曳換位置、對調、從清單拖上
   expect((await cellAt(page, 1, 1)).id).toBe('heixuan');
   expect((await wgz(page)).picker!.lifting).toBeNull();
   await page.waitForTimeout(150);
-  await page.screenshot({ path: 'artifacts/screenshots/portrait/formation-moved.png' });
+  await page.screenshot({ path: 'artifacts/screenshots/landscape/formation-moved.png' });
 
   // 重新整理後站位還在（有存檔）
   await page.reload();
@@ -125,7 +125,7 @@ test('組隊畫面：3×3 九宮格，拖曳換位置、對調、從清單拖上
     () => window.__WGZ__?.picker?.board.find((c) => c.row === 2 && c.lane === 1)?.id,
   );
   await page.waitForTimeout(150);
-  await page.screenshot({ path: 'artifacts/screenshots/portrait/formation-full.png' });
+  await page.screenshot({ path: 'artifacts/screenshots/landscape/formation-full.png' });
 });
 
 test('戰鬥照陣型站位；關掉自動放招後，點 EN 滿的狗才會放大絕招', async ({ page }) => {
@@ -159,7 +159,7 @@ test('戰鬥照陣型站位；關掉自動放招後，點 EN 滿的狗才會放�
   expect(b.ults).toBe(0);
   expect(b.team[0]).toMatchObject({ en: 100, armed: false });
   expect(b.phase).toBe('playing');
-  await page.screenshot({ path: 'artifacts/screenshots/portrait/manual-ult-ready.png' });
+  await page.screenshot({ path: 'artifacts/screenshots/landscape/manual-ult-ready.png' });
 
   // 點大耳：輪到牠就放大絕招
   const u = b.team[0];
@@ -175,7 +175,7 @@ test('戰鬥照陣型站位；關掉自動放招後，點 EN 滿的狗才會放�
   expect(b.ults).toBe(1);
   expect(b.ult).toMatchObject({ id: 'daer', kind: 'buff' });
   await page.waitForTimeout(450);
-  await page.screenshot({ path: 'artifacts/screenshots/portrait/manual-ult-fire.png' });
+  await page.screenshot({ path: 'artifacts/screenshots/landscape/manual-ult-fire.png' });
 
   // 略過：剩下的自動算完；結算和畫面上的勝負一致，選擇（不自動放招）有存檔
   await tap(page, b.skipButton);

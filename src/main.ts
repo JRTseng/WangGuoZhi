@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import { COLORS } from './config';
-import { gameSizeFor, orientationFor, type Orientation } from './logic/orientation';
+import { gameSizeFor } from './logic/orientation';
 import { BattleScene } from './scenes/BattleScene';
 import { BoardingScene } from './scenes/BoardingScene';
 import { BootScene } from './scenes/BootScene';
@@ -12,15 +12,9 @@ import { StoryScene } from './scenes/StoryScene';
 import { TeamScene } from './scenes/TeamScene';
 import { TrainingScene } from './scenes/TrainingScene';
 
-const parent = document.getElementById('game')!;
-const currentOrientation = (): Orientation =>
-  orientationFor(
-    parent.clientWidth || window.innerWidth,
-    parent.clientHeight || window.innerHeight,
-  );
-
-let orientation = currentOrientation();
-const size = gameSizeFor(orientation);
+// 整個遊戲固定橫向（Jimmy 2026-11-14）：不管手機怎麼拿，遊戲尺寸都是橫式 844 x 390。
+// 直拿的時候由 index.html 的 #rotate 蓋一層「請把手機橫放」。
+const size = gameSizeFor('landscape');
 
 const game = new Phaser.Game({
   type: Phaser.AUTO,
@@ -49,23 +43,13 @@ const game = new Phaser.Game({
 });
 
 /**
- * 手機轉向：直放用 390 x 844、橫放用 844 x 390。
- * 方向改變時換遊戲尺寸，並用原本的參數重開目前的畫面，讓它照新方向重新排版。
+ * 視窗大小或方向改變時，請 Phaser 依目前容器大小重算縮放。
  *
  * iPhone Safari 轉向時，resize 事件常在版面還沒轉完就先觸發，
  * 當下量到的還是舊尺寸，畫布會被縮成舊方向的大小、之後不再更新（看起來變小回不去）。
- * 所以每次事件後再隔幾個時間點重量一次，並且每次都請 Phaser 依目前容器大小重算縮放。
+ * 所以每次事件後再隔幾個時間點重量一次。
  */
 function applyViewport(): void {
-  const next = currentOrientation();
-  if (next !== orientation) {
-    orientation = next;
-    const s = gameSizeFor(next);
-    game.scale.setGameSize(s.width, s.height);
-    for (const scene of game.scene.getScenes(true)) {
-      scene.scene.restart(scene.sys.settings.data);
-    }
-  }
   game.scale.refresh();
 }
 

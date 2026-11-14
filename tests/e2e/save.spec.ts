@@ -1,7 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 import { enableSkipBattle, openLobby, startBattle, tap, waitScene, wgz } from './helpers';
 
-const CLOSE = { x: 0, y: 800, width: 390, height: 20 };
+const CLOSE = { x: 0, y: 380, width: 844, height: 6 };
 const SAVE_KEY = 'wgz-save';
 
 async function openSettings(page: Page) {
@@ -46,7 +46,7 @@ test('存檔：打一關、特訓、改設定後重新整理，進度都還在',
   expect(s.resources!.food).toBe(before.food);
   expect(s.resources!.bones).toBeGreaterThan(50);
   expect(s.stamina).toEqual({ value: 80, max: 100 });
-  await page.screenshot({ path: 'artifacts/screenshots/portrait/save-reloaded.png' });
+  await page.screenshot({ path: 'artifacts/screenshots/landscape/save-reloaded.png' });
 
   // 設定還在
   await openSettings(page);
@@ -92,7 +92,7 @@ test('存檔：壞檔會自動重置，並留一份備份', async ({ page }) => 
   let s = await wgz(page);
   expect(s.save).toEqual({ load: 'reset', saveOk: true });
   expect(s.resources).toEqual({ food: 1200, bones: 50 });
-  await page.screenshot({ path: 'artifacts/screenshots/portrait/save-broken-reset.png' });
+  await page.screenshot({ path: 'artifacts/screenshots/landscape/save-broken-reset.png' });
   expect(await page.evaluate(() => window.localStorage.getItem('wgz-save-broken'))).toBe(
     '{這不是存檔',
   );
@@ -137,7 +137,7 @@ test('設定的「重新開始」要按兩次才會清除存檔', async ({ page 
   await openSettings(page);
   await tap(page, (await wgz(page)).settings!.rects.reset);
   await page.waitForFunction(() => window.__WGZ__?.settings?.resetArmed === true);
-  await page.screenshot({ path: 'artifacts/screenshots/portrait/settings-reset-confirm.png' });
+  await page.screenshot({ path: 'artifacts/screenshots/landscape/settings-reset-confirm.png' });
   await tap(page, (await wgz(page)).settings!.rects.music);
   await page.waitForFunction(() => window.__WGZ__?.settings?.resetArmed === false);
   expect((await wgz(page)).stamina!.value).toBe(80);

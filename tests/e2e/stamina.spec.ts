@@ -9,7 +9,7 @@ import {
   wgz,
 } from './helpers';
 
-const CLOSE = { x: 0, y: 800, width: 390, height: 20 };
+const CLOSE = { x: 0, y: 380, width: 844, height: 6 };
 
 /** 結算出現後關掉；第一次過關會先播劇情，略過後從主頁回到地圖 */
 async function closeResult(page: Page, firstClear: boolean) {
@@ -45,7 +45,7 @@ test('體力與每日次數：打 3 次用完次數、體力打完要等，骨�
   await closeResult(page, false);
   await tap(page, (await wgz(page)).map!.nodes[0]);
   await page.waitForFunction(() => !!window.__WGZ__?.map?.stagePanel);
-  await page.screenshot({ path: 'artifacts/screenshots/portrait/stage-stamina.png' });
+  await page.screenshot({ path: 'artifacts/screenshots/landscape/stage-stamina.png' });
   await tap(page, (await wgz(page)).map!.stagePanel!.go);
   await waitScene(page, 'ExpeditionScene');
   expect((await wgz(page)).expeditionPanel!.runsLeft).toBe(1);
@@ -63,8 +63,8 @@ test('體力與每日次數：打 3 次用完次數、體力打完要等，骨�
   expect(e.confirmButton!.label).toMatch(/^次數用完 \d+:\d\d(:\d\d)?$/);
   expect(e.buyButton).toMatchObject({ kind: 'runs' });
   expect(e.buyButton!.x).toBeGreaterThanOrEqual(e.confirmButton!.x + e.confirmButton!.width);
-  expect(e.buyButton!.x + e.buyButton!.width).toBeLessThanOrEqual(390);
-  await page.screenshot({ path: 'artifacts/screenshots/portrait/no-runs.png' });
+  expect(e.buyButton!.x + e.buyButton!.width).toBeLessThanOrEqual(844);
+  await page.screenshot({ path: 'artifacts/screenshots/landscape/no-runs.png' });
   // 灰掉的按鈕點了沒反應
   await tap(page, e.confirmButton!);
   expect((await wgz(page)).result ?? null).toBeNull();
@@ -74,7 +74,7 @@ test('體力與每日次數：打 3 次用完次數、體力打完要等，骨�
   await page.waitForFunction(() => !!window.__WGZ__?.shop);
   let shop = (await wgz(page)).shop!;
   expect(shop).toMatchObject({ kind: 'runs', enabled: true, left: 5 });
-  await page.screenshot({ path: 'artifacts/screenshots/portrait/shop-runs.png' });
+  await page.screenshot({ path: 'artifacts/screenshots/landscape/shop-runs.png' });
   await tap(page, shop.ok);
   await page.waitForFunction(() => window.__WGZ__?.shop?.left === 4);
   await tap(page, (await wgz(page)).shop!.cancel);
@@ -101,14 +101,14 @@ test('體力與每日次數：打 3 次用完次數、體力打完要等，骨�
   expect(e.confirmButton!.enabled).toBe(false);
   expect(e.confirmButton!.label).toMatch(/^體力不足 1:3\d:\d\d$/);
   expect(e.buyButton).toMatchObject({ kind: 'stamina' });
-  await page.screenshot({ path: 'artifacts/screenshots/portrait/no-stamina.png' });
+  await page.screenshot({ path: 'artifacts/screenshots/landscape/no-stamina.png' });
 
   // 補體力：30 骨頭幣換 60；買 2 次後骨頭幣不夠（50 + 12 × 2 = 74 → 14）
   await tap(page, e.buyButton!);
   await page.waitForFunction(() => !!window.__WGZ__?.shop);
   shop = (await wgz(page)).shop!;
   expect(shop).toMatchObject({ kind: 'stamina', enabled: true, left: 3 });
-  await page.screenshot({ path: 'artifacts/screenshots/portrait/shop-stamina.png' });
+  await page.screenshot({ path: 'artifacts/screenshots/landscape/shop-stamina.png' });
   await tap(page, shop.ok);
   await page.waitForFunction(() => window.__WGZ__?.shop?.left === 2);
   await tap(page, shop.ok);
@@ -161,10 +161,10 @@ test('自動出征：預設關，打開後自動打已通過的關卡，結果�
   expect(s.auto!.banner).not.toBeNull();
   for (const r of [s.auto!.banner!, s.auto!.toggle, s.status!]) {
     expect(r.x).toBeGreaterThanOrEqual(0);
-    expect(r.x + r.width).toBeLessThanOrEqual(390);
+    expect(r.x + r.width).toBeLessThanOrEqual(844);
   }
   await page.waitForTimeout(1800);
-  await page.screenshot({ path: 'artifacts/screenshots/portrait/lobby-auto.png' });
+  await page.screenshot({ path: 'artifacts/screenshots/landscape/lobby-auto.png' });
 
   // 看摘要，關掉後提示消失
   await tap(page, s.auto!.banner!);
@@ -176,7 +176,7 @@ test('自動出征：預設關，打開後自動打已通過的關卡，結果�
     bones: 10,
     stages: { 'luoyepo-1': 2 },
   });
-  await page.screenshot({ path: 'artifacts/screenshots/portrait/auto-summary.png' });
+  await page.screenshot({ path: 'artifacts/screenshots/landscape/auto-summary.png' });
   await tap(page, CLOSE);
   await page.waitForFunction(() => !window.__WGZ__?.autoSummary);
   await page.waitForFunction(() => window.__WGZ__?.auto?.runs === 0);

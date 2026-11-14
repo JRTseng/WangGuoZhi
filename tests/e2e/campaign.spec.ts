@@ -15,7 +15,7 @@ test('出征地圖 → 選隊伍 → 開戰 → 戰鬥 → 劇情 → 下一關�
   expect(m.nodes.map((n) => n.boss)).toEqual([false, false, false, false, true]);
   expect(m.nodes[4].width).toBeGreaterThan(m.nodes[0].width);
   await page.waitForTimeout(300);
-  await page.screenshot({ path: 'artifacts/screenshots/portrait/map.png' });
+  await page.screenshot({ path: 'artifacts/screenshots/landscape/map.png' });
 
   // 鎖住的章節、關卡點了不會動
   await tap(page, m.chapters[1]);
@@ -27,7 +27,7 @@ test('出征地圖 → 選隊伍 → 開戰 → 戰鬥 → 劇情 → 下一關�
   // 2. 點第 1 關 → 關卡詳情 → 選隊伍出發
   await tap(page, m.nodes[0]);
   await page.waitForFunction(() => window.__WGZ__?.map?.stagePanel?.stageId === 'luoyepo-1');
-  await page.screenshot({ path: 'artifacts/screenshots/portrait/stage.png' });
+  await page.screenshot({ path: 'artifacts/screenshots/landscape/stage.png' });
   await tap(page, (await wgz(page)).map!.stagePanel!.go);
   await waitScene(page, 'ExpeditionScene');
 
@@ -66,13 +66,13 @@ test('出征地圖 → 選隊伍 → 開戰 → 戰鬥 → 劇情 → 下一關�
     pk.roleChips.find((c) => c.key === '謀略')!,
   );
   expect((await wgz(page)).expeditionPanel!.teamCards.map((c) => c.id)).toEqual(['xiaosuan']);
-  await page.screenshot({ path: 'artifacts/screenshots/portrait/team-pick-filter.png' });
+  await page.screenshot({ path: 'artifacts/screenshots/landscape/team-pick-filter.png' });
   await tap(page, pk.roleChips[0]);
   // 自動編隊選滿 5 隻；點九宮格上的狗可以移出，滿了再點別隻沒反應
   await tap(page, pk.autoButton);
   pk = (await wgz(page)).picker!;
   expect(pk.slots.map((s) => s.id)).toEqual(['changxu', 'daer', 'heixuan', 'xiaosuan', 'abai']);
-  await page.screenshot({ path: 'artifacts/screenshots/portrait/team-pick-auto.png' });
+  await page.screenshot({ path: 'artifacts/screenshots/landscape/team-pick-auto.png' });
   // 隊伍格現在是九宮格上的格子：點一下移出一隻，重新讀位置再移出下一隻
   await tap(page, pk.slots[3]);
   await tap(page, (await wgz(page)).picker!.slots[3]);
@@ -82,7 +82,7 @@ test('出征地圖 → 選隊伍 → 開戰 → 戰鬥 → 劇情 → 下一關�
     'daer',
     'heixuan',
   ]);
-  await page.screenshot({ path: 'artifacts/screenshots/portrait/team-pick.png' });
+  await page.screenshot({ path: 'artifacts/screenshots/landscape/team-pick.png' });
 
   // 4. 開戰 → 不用等，直接進戰鬥畫面；體力 -20
   await tap(page, e.confirmButton!);
@@ -94,15 +94,15 @@ test('出征地圖 → 選隊伍 → 開戰 → 戰鬥 → 劇情 → 下一關�
   expect(s.battle!.skipped).toBe(false);
   expect(s.battle!.index).toBe(s.battle!.total);
   expect(s.result).toEqual({ food: 120, bones: 5, win: true });
-  await page.screenshot({ path: 'artifacts/screenshots/portrait/result.png' });
+  await page.screenshot({ path: 'artifacts/screenshots/landscape/result.png' });
 
   // 5. 關掉結算 → 第一次過關的劇情自動播放
-  await tap(page, { x: 0, y: 800, width: 390, height: 20 });
+  await tap(page, { x: 0, y: 380, width: 844, height: 6 });
   await waitScene(page, 'StoryScene');
   let story = (await wgz(page)).story!;
   expect(story).toMatchObject({ mode: 'play', playing: 'ch1-first', line: 0, total: 3 });
   await page.waitForTimeout(300);
-  await page.screenshot({ path: 'artifacts/screenshots/portrait/story.png' });
+  await page.screenshot({ path: 'artifacts/screenshots/landscape/story.png' });
   for (let i = 0; i < story.total; i++) await tap(page, { x: 100, y: 300, width: 0, height: 0 });
   await waitScene(page, 'LobbyScene');
   expect((await wgz(page)).resources).toEqual({ food: 1320, bones: 55 });

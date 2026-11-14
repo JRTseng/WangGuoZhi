@@ -8,7 +8,7 @@ test('劇情回顧：序章可看，其餘上鎖；看完紅點消失', async ({
   let s = (await wgz(page)).story!;
   expect(s.mode).toBe('list');
   expect(s.items.map((i) => i.unlocked)).toEqual([true, false, false, false, false]);
-  await page.screenshot({ path: 'artifacts/screenshots/portrait/story-list.png' });
+  await page.screenshot({ path: 'artifacts/screenshots/landscape/story-list.png' });
 
   // 上鎖的點了沒反應
   await tap(page, s.items[1]);

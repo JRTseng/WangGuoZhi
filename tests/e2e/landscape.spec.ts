@@ -83,27 +83,35 @@ test.describe('手機橫放', () => {
   });
 });
 
-test('直放轉橫放：畫面自動重新排版，狀態保留', async ({ page }) => {
+test('固定橫向：直拿手機時蓋一層「請把手機橫放」，遊戲維持橫式、狀態保留', async ({ page }) => {
   await openLobby(page);
-  expect((await wgz(page)).orientation).toBe('portrait');
+  expect((await wgz(page)).orientation).toBe('landscape');
+  const rotate = page.locator('#rotate');
+  await expect(rotate).toBeHidden();
   await tap(page, (await wgz(page)).lobby!.buttons.team);
   await waitScene(page, 'TeamScene');
 
-  await page.setViewportSize({ width: W, height: H });
-  await page.waitForFunction(() => window.__WGZ__?.orientation === 'landscape');
+  // 直拿：提示蓋住整個畫面；遊戲還是橫式尺寸，不重開畫面
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(rotate).toBeVisible();
+  await expect(rotate).toContainText('請把手機橫放');
+  const cover = await rotate.boundingBox();
+  expect(cover!.width).toBeCloseTo(390, 0);
+  expect(cover!.height).toBeCloseTo(844, 0);
   let s = await wgz(page);
   expect(s.scene).toBe('TeamScene');
+  expect(s.orientation).toBe('landscape');
   expect(s.size).toEqual({ width: W, height: H });
-  expect(s.team!.slots.map((x) => x.id)).toEqual(['daer', 'heixuan', 'changxu', null, null]);
+  await page.screenshot({ path: 'artifacts/screenshots/landscape/rotate-hint.png' });
 
-  await page.setViewportSize({ width: 390, height: 844 });
-  await page.waitForFunction(() => window.__WGZ__?.orientation === 'portrait');
+  // 橫放回來：提示消失，畫布放大回填滿畫面
+  await page.setViewportSize({ width: W, height: H });
+  await expect(rotate).toBeHidden();
+  await page.waitForTimeout(800);
   s = await wgz(page);
   expect(s.scene).toBe('TeamScene');
-  expect(s.size).toEqual({ width: 390, height: 844 });
-  // 轉回直放後畫布要放大回填滿畫面，不能停在橫放時的小尺寸
-  await page.waitForTimeout(800);
+  expect(s.team!.slots.map((x) => x.id)).toEqual(['daer', 'heixuan', 'changxu', null, null]);
   const box = await page.locator('canvas').boundingBox();
-  expect(box!.width).toBeCloseTo(390, 0);
-  expect(box!.height).toBeCloseTo(844, 0);
+  expect(box!.width).toBeCloseTo(W, 0);
+  expect(box!.height).toBeCloseTo(H, 0);
 });

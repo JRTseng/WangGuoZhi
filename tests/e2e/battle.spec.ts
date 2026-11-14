@@ -33,7 +33,7 @@ test('戰鬥畫面：速度 ×1～×4 切換並記住，略過直接到結算（
   await page.waitForFunction(() => (window.__WGZ__?.battle?.index ?? 0) >= 3);
   b = await battle(page);
   expect([...b.team, ...b.enemies].some((u) => u.hp < u.maxHp)).toBe(true);
-  await page.screenshot({ path: 'artifacts/screenshots/portrait/battle.png' });
+  await page.screenshot({ path: 'artifacts/screenshots/landscape/battle.png' });
   // 停在 ×2，等一下檢查有沒有被記住
   await tap(page, b.speedButton);
   await page.waitForFunction(() => window.__WGZ__?.battle?.speed === 2);
@@ -51,10 +51,10 @@ test('戰鬥畫面：速度 ×1～×4 切換並記住，略過直接到結算（
   expect(b.team.some((u) => u.hp > 0)).toBe(true);
   expect((await wgz(page)).result).toEqual({ food: 120, bones: 5, win: true });
   await page.waitForTimeout(200);
-  await page.screenshot({ path: 'artifacts/screenshots/portrait/battle-win.png' });
+  await page.screenshot({ path: 'artifacts/screenshots/landscape/battle-win.png' });
 
   // 關掉結算 → 過關劇情 → 主頁；倍速有被記住
-  await tap(page, { x: 0, y: 800, width: 390, height: 20 });
+  await tap(page, { x: 0, y: 380, width: 844, height: 6 });
   await waitScene(page, 'StoryScene');
   await tap(page, (await wgz(page)).story!.skip!);
   await waitScene(page, 'LobbyScene');
@@ -77,10 +77,10 @@ test('打輸：播完顯示敗北，只拿三成獎勵，關卡沒通過', async
   expect(b.enemies.some((u) => u.hp > 0)).toBe(true);
   expect((await wgz(page)).result).toEqual({ food: 36, bones: 1, win: false });
   await page.waitForTimeout(200);
-  await page.screenshot({ path: 'artifacts/screenshots/portrait/battle-lose.png' });
+  await page.screenshot({ path: 'artifacts/screenshots/landscape/battle-lose.png' });
 
   // 沒有過關劇情，直接回出征地圖；關卡還是沒通過
-  await tap(page, { x: 0, y: 800, width: 390, height: 20 });
+  await tap(page, { x: 0, y: 380, width: 844, height: 6 });
   await waitScene(page, 'CampaignScene');
   expect((await wgz(page)).map!.nodes.map((n) => n.state)).toEqual([
     'open',
@@ -106,7 +106,7 @@ test('設定打開「略過戰鬥畫面」：開戰直接顯示結算，不進�
   expect(s.battle).toBeUndefined();
   expect(s.result).toEqual({ food: 120, bones: 5, win: true });
   expect(s.resources).toEqual({ food: 1320, bones: 55 });
-  await page.screenshot({ path: 'artifacts/screenshots/portrait/result-skip.png' });
+  await page.screenshot({ path: 'artifacts/screenshots/landscape/result-skip.png' });
 });
 
 test.describe('手機橫放', () => {
