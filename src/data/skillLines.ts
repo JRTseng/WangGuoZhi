@@ -23,6 +23,17 @@ export const DEFAULT_SKILL_LINES: Readonly<Record<string, string>> = {
   xiongyue: '山不會動，我也不會。',
   xueling: '雪地上，沒有我的腳印。',
   nuantong: '別怕，喝一口就暖了。',
+  liuxing: '眨眼之前，我已經到了。',
+  songling: '聽我號令，一步都別亂！',
+  fuqiu: '好運滾過來囉，接好！',
+  haiyan: '抓緊我，浪再大也帶你回來。',
+  shuangtong: '看著我的眼睛，慢慢來。',
+  jinling: '好消息！好消息來啦！',
+  caiyi: '抓不到，抓不到～',
+  ronger: '加油加油，尾巴借你搖！',
+  maisui: '藥草來了，一人一口！',
+  shidun: '此路不通，請繞道。',
+  zhouzhou: '呼嚕……大家睡飽再打。',
 };
 
 export interface BossSkill {

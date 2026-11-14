@@ -52,6 +52,7 @@ export interface BattleSceneData {
 const MOB_LOOK = { color: 0x7d746c, accent: 0xcfc6bb };
 const HP_COLOR = { team: 0x4f8a3c, enemy: 0xb0413e };
 const HEAL_TEXT = '#9df08a';
+const SHIELD_TEXT = '#9fd8ff';
 /** EN 條的顏色：集氣中是藍的，滿了變金色 */
 const EN_COLOR = { charging: 0x4aa3e0, full: 0xffd75e };
 /** 大絕招演出的深度：壓暗遮罩在角色之上，施放者、字卡、傷害數字再疊上去；略過按鈕永遠最上面 */
@@ -547,7 +548,7 @@ export class BattleScene extends Phaser.Scene {
   private apply(e: BattleAction): void {
     for (const h of e.hits) {
       this.units[h.side][h.target].hp = h.targetHp;
-      if (h.heal !== undefined) this.heals++;
+      if (h.heal !== undefined && !h.shield) this.heals++;
     }
     for (const side of ['team', 'enemy'] as const) {
       this.units[side].forEach((u, i) => {
@@ -622,7 +623,8 @@ export class BattleScene extends Phaser.Scene {
     } else {
       bounce(actor);
     }
-    if (e.buff) this.floatText(actor, e.buff === 'taunt' ? '嘲諷！' : '鼓舞！', 22, '#fff3c4', d);
+    const buffText = { taunt: '嘲諷！', inspire: '鼓舞！', command: '號令！' };
+    if (e.buff) this.floatText(actor, buffText[e.buff], 22, '#fff3c4', d);
     // 同一隻被打好幾下（連打）：數字往上疊
     const seen = new Map<UnitView, number>();
     for (const h of e.hits) {
@@ -642,8 +644,13 @@ export class BattleScene extends Phaser.Scene {
     d: number,
     big: boolean,
   ): void {
+    if (h.shield) {
+      this.floatText(target, '護盾', 22, SHIELD_TEXT, d, nth);
+      return;
+    }
     if (h.heal !== undefined) {
-      this.floatText(target, `+${h.heal}`, big ? 30 : 22, HEAL_TEXT, d, nth);
+      const text = h.revive ? `救起 +${h.heal}` : h.cheer ? `+${h.heal} 打氣` : `+${h.heal}`;
+      this.floatText(target, text, big || h.revive ? 30 : 22, HEAL_TEXT, d, nth);
       return;
     }
     const dir = e.side === 'team' ? 1 : -1;
@@ -660,7 +667,9 @@ export class BattleScene extends Phaser.Scene {
     }
     this.floatText(
       target,
-      h.dodged ? '閃過' : `${h.crit ? '爆擊 ' : ''}-${h.damage}`,
+      h.dodged
+        ? '閃過'
+        : `${h.crit ? '爆擊 ' : ''}${h.shielded ? '護盾 ' : ''}-${h.damage}${h.slowed ? ' 慢' : ''}`,
       big || h.crit ? 30 : h.defeated ? 26 : 21,
       h.dodged ? '#ffffff' : e.side === 'team' ? '#ffe08a' : '#ff9a8a',
       d,

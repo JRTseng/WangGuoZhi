@@ -107,7 +107,7 @@ export class DogInfoPanel {
     const wrap = box.width - 48;
     let y = box.y + 140;
     const line = (s: string, size: number, color: string = COLORS.ink, bold = false, gap = 30) => {
-      const t = addText(scene, left, y, s, size, color, bold).setWordWrapWidth(wrap);
+      const t = addText(scene, left, y, s, size, color, bold).setWordWrapWidth(wrap, true);
       layer.add(t);
       y += gap;
     };

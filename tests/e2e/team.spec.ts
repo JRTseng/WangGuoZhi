@@ -7,23 +7,34 @@ test('組隊：全部角色、未擁有變暗、編隊與設定主頁角色', as
   await waitScene(page, 'TeamScene');
 
   let t = (await wgz(page)).team!;
-  // T007 起共 19 隻
-  expect(t.dogs).toHaveLength(19);
+  // T024 起共 30 隻
+  expect(t.dogs).toHaveLength(30);
   // 預設：全部、戰力高到低，擁有的排前面
   const unowned = [
     'nuantong',
     'xiongyue',
+    'liuxing',
+    'songling',
     'xueling',
+    'fuqiu',
+    'haiyan',
     'tieya',
     'jiying',
     'shanlan',
+    'shuangtong',
+    'jinling',
     'yuandun',
     'modian',
+    'maisui',
     'zhuifeng',
+    'caiyi',
+    'ronger',
     'shuangyan',
     'duantui',
+    'shidun',
     'chanbi',
     'changgong',
+    'zhouzhou',
     'douding',
   ];
   expect(t.dogs.map((d) => d.id)).toEqual([
@@ -97,11 +108,11 @@ test('組隊：篩選、排序、自動編隊', async ({ page }) => {
   let p = (await wgz(page)).picker!;
   expect(p.filter).toEqual({ role: 'all', status: 'all' });
   expect(p.sort).toBe('power');
-  expect(p.cells).toHaveLength(19);
+  expect(p.cells).toHaveLength(30);
 
   // 定位：守護（擁有的排前面，其餘依戰力）
   await tap(page, await chip('roleChips', '守護'));
-  expect(await ids()).toEqual(['changxu', 'xiongyue', 'tieya', 'yuandun']);
+  expect(await ids()).toEqual(['changxu', 'xiongyue', 'tieya', 'yuandun', 'shidun']);
   await page.screenshot({ path: 'artifacts/screenshots/landscape/team-filter.png' });
   // 再疊狀態：可出征（未擁有的不算）
   await tap(page, await chip('statusChips', 'idle'));
@@ -113,7 +124,7 @@ test('組隊：篩選、排序、自動編隊', async ({ page }) => {
   // 回到全部
   await tap(page, await chip('statusChips', 'all'));
   await tap(page, await chip('roleChips', 'all'));
-  expect(await ids()).toHaveLength(19);
+  expect(await ids()).toHaveLength(30);
 
   // 排序：等級
   await tap(page, (await wgz(page)).picker!.sortChip);

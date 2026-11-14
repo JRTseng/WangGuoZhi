@@ -81,6 +81,57 @@ export const LUCKY_ULT_HITS = 3;
  */
 export const MELEE_BACK_RATE = 0.5;
 export const REAR_FRONT_TAKEN = 1.4;
+/**
+ * 專屬特性（T024）：同定位的狗多半共用一套打法，有特性的狗再多一點自己的東西。數值都是暫定。
+ * - pierce3（流星）：一般攻擊就穿透三排；大絕招傷害更高
+ * - command（松嶺）：大絕招「號令」多撐一回合，期間全隊受到的傷害也減少
+ * - fortune（福球）：爆擊機率加倍，爆擊時再多打一下
+ * - rescue（海晏）：不做單體補血；攻擊後給血量最低的隊友一層護盾，
+ *   大絕招全隊回血並救起一隻倒下的隊友（一場一次），全隊受到整排、穿透攻擊的傷害減少
+ * - slow（雙瞳）：大絕招打到的敵人慢一拍，到下一回合結束前傷害變少
+ * - double（金鈴）：一般攻擊亂打兩次
+ * - evasive（彩翼）：閃避機率加倍
+ * - cheer（絨耳）：被牠補血的隊友，到下一回合結束前攻擊提高
+ * - rowHeal（麥穗）：一次補同一排受傷的隊友
+ * - shortTaunt（石墩）：嘲諷只到這一回合結束
+ * - smallHeal（皺皺）：補血量比較少
+ */
+export type BattleTrait =
+  | 'pierce3'
+  | 'command'
+  | 'fortune'
+  | 'rescue'
+  | 'slow'
+  | 'double'
+  | 'evasive'
+  | 'cheer'
+  | 'rowHeal'
+  | 'shortTaunt'
+  | 'smallHeal';
+
+/** 流星大絕招的傷害倍率（一般突擊是 PIERCE_ULT_RATE） */
+export const PIERCE3_ULT_RATE = 1.5;
+/** 松嶺「號令」：期間全隊受到的傷害比例（等於防禦 +15%） */
+export const RALLY_TAKEN = 1 / 1.15;
+/** 福球的爆擊機率、彩翼的閃避機率 */
+export const FORTUNE_CRIT_CHANCE = CRIT_CHANCE * 2;
+export const EVASIVE_DODGE_CHANCE = DODGE_CHANCE * 2;
+/** 海晏的護盾：擋掉下一次傷害的這個比例，擋一次就沒了 */
+export const SHIELD_RATE = 0.3;
+/** 海晏大絕招：全隊各回這個比例；救起來的隊友回到這個比例的血量；一場能救幾次 */
+export const RESCUE_ULT_RATE = 0.15;
+export const REVIVE_RATE = 0.3;
+export const REVIVE_MAX = 1;
+/** 海晏在場時，全隊受到整排、穿透攻擊的傷害比例 */
+export const RESCUE_AREA_TAKEN = 0.9;
+/** 雙瞳「慢一拍」：被打到的敵人傷害比例 */
+export const SLOW_RATE = 0.7;
+/** 絨耳「打氣」：被補的隊友攻擊倍率 */
+export const CHEER_RATE = 1.1;
+/** 麥穗一次補一排，每隻回這個比例；皺皺的補血量 */
+export const ROW_HEAL_RATE = 0.2;
+export const SMALL_HEAL_RATE = 0.15;
+
 /** 每一下傷害的隨機浮動：±10% */
 export const DAMAGE_SPREAD = 0.1;
 
@@ -138,6 +189,8 @@ export interface BattleDog {
   rarity?: BattleRarity;
   /** 攻擊後補血（暖桶）：每次攻擊完接著補血量最低的兩位隊友，不是「補血或攻擊二選一」 */
   afterHeal?: boolean;
+  /** 專屬特性（T024） */
+  trait?: BattleTrait;
 }
 
 export interface BattleInput {
@@ -172,6 +225,8 @@ export interface BattleUnit {
   afterHeal: boolean;
   /** 是不是補血狗（畫面在名字前面加 ✚） */
   heal?: boolean;
+  /** 專屬特性（T024） */
+  trait?: BattleTrait;
 }
 
 /** 大絕招的種類（演出用）：單體連打、穿透、整排、補血、強化 */
@@ -191,6 +246,16 @@ export interface BattleHit {
   defeated: boolean;
   dodged?: boolean;
   crit?: boolean;
+  /** 這一下是給護盾（海晏）：heal 會是 0，血量不變 */
+  shield?: boolean;
+  /** 這一下傷害被護盾擋掉一部分 */
+  shielded?: boolean;
+  /** 這一下是把倒下的隊友救起來（海晏的大絕招） */
+  revive?: boolean;
+  /** 被打的那隻慢一拍（雙瞳的大絕招） */
+  slowed?: boolean;
+  /** 被補的那隻攻擊提高（絨耳） */
+  cheer?: boolean;
 }
 
 /** 一次出手（一隻角色的一個回合）：可能打到好幾隻、後面接著補血 */
@@ -205,8 +270,8 @@ export interface BattleAction {
   /** 是不是大絕招 */
   ult: boolean;
   kind: ActionKind;
-  /** 這次放的強化（嘲諷／鼓舞） */
-  buff?: 'taunt' | 'inspire';
+  /** 這次放的強化（嘲諷／鼓舞／松嶺的號令） */
+  buff?: 'taunt' | 'inspire' | 'command';
   hits: BattleHit[];
   /** 這次出手之後雙方每一隻的 EN 值（0～100） */
   en: { team: number[]; enemy: number[] };
@@ -224,6 +289,16 @@ export interface BattleState {
   taunt: { team: number[]; enemy: number[] };
   /** 鼓舞持續到第幾回合結束 */
   inspire: { team: number; enemy: number };
+  /** 號令（松嶺）：全隊減傷持續到第幾回合結束 */
+  rally: { team: number; enemy: number };
+  /** 身上有沒有護盾（1 有、0 沒有） */
+  shield: { team: number[]; enemy: number[] };
+  /** 慢一拍持續到第幾回合結束 */
+  weak: { team: number[]; enemy: number[] };
+  /** 打氣（攻擊提高）持續到第幾回合結束 */
+  cheer: { team: number[]; enemy: number[] };
+  /** 這一場已經救起幾隻倒下的隊友 */
+  revived: { team: number; enemy: number };
   round: number;
   /** 這一回合輪到出手順序裡的第幾個 */
   cursor: number;
@@ -391,6 +466,7 @@ export function createBattle(input: BattleInput): BattleState {
       ssr: !!d.ssr,
       afterHeal: !!d.afterHeal,
       ...(role === '補血' ? { heal: true } : {}),
+      ...(d.trait ? { trait: d.trait } : {}),
     };
   });
 
@@ -402,6 +478,11 @@ export function createBattle(input: BattleInput): BattleState {
     acts: { team: team.map(() => 0), enemy: [] },
     taunt: { team: team.map(() => 0), enemy: [] },
     inspire: { team: 0, enemy: 0 },
+    rally: { team: 0, enemy: 0 },
+    shield: { team: team.map(() => 0), enemy: [] },
+    weak: { team: team.map(() => 0), enemy: [] },
+    cheer: { team: team.map(() => 0), enemy: [] },
+    revived: { team: 0, enemy: 0 },
     round: 1,
     cursor: 0,
     turn: 0,
@@ -438,6 +519,9 @@ export function createBattle(input: BattleInput): BattleState {
   s.en.enemy = s.enemies.map(() => 0);
   s.acts.enemy = s.enemies.map(() => 0);
   s.taunt.enemy = s.enemies.map(() => 0);
+  s.shield.enemy = s.enemies.map(() => 0);
+  s.weak.enemy = s.enemies.map(() => 0);
+  s.cheer.enemy = s.enemies.map(() => 0);
   settleCursor(s);
   return s;
 }
@@ -450,6 +534,11 @@ export function cloneBattle(s: BattleState): BattleState {
     acts: { team: [...s.acts.team], enemy: [...s.acts.enemy] },
     taunt: { team: [...s.taunt.team], enemy: [...s.taunt.enemy] },
     inspire: { ...s.inspire },
+    rally: { ...s.rally },
+    shield: { team: [...s.shield.team], enemy: [...s.shield.enemy] },
+    weak: { team: [...s.weak.team], enemy: [...s.weak.enemy] },
+    cheer: { team: [...s.cheer.team], enemy: [...s.cheer.enemy] },
+    revived: { ...s.revived },
   };
 }
 
@@ -470,6 +559,10 @@ export function autoUlt(s: BattleState): boolean {
   const u = unitsOf(s, a.side)[a.index];
   if (u.role !== '補血') return true;
   const mates = unitsOf(s, a.side);
+  // 海晏：有隊友倒下、還沒救過，就放
+  if (u.trait === 'rescue' && s.revived[a.side] < REVIVE_MAX && s.hp[a.side].some((h) => h <= 0)) {
+    return true;
+  }
   return mates.some((m, i) => s.hp[a.side][i] > 0 && s.hp[a.side][i] < m.maxHp * HEAL_ULT_BELOW);
 }
 
@@ -515,12 +608,13 @@ function strike(
   actor: number,
   target: number,
   rate: number,
-  canCrit = false,
+  opts: { crit?: boolean; area?: boolean } = {},
 ): BattleHit {
   const foe = other(side);
   const a = unitsOf(s, side)[actor];
   const t = unitsOf(s, foe)[target];
-  if (t.role === '幸運' && rand(s) < DODGE_CHANCE) {
+  const dodge = t.trait === 'evasive' ? EVASIVE_DODGE_CHANCE : DODGE_CHANCE;
+  if (t.role === '幸運' && rand(s) < dodge) {
     return {
       side: foe,
       target,
@@ -530,8 +624,17 @@ function strike(
       dodged: true,
     };
   }
-  const crit = canCrit && rand(s) < CRIT_CHANCE;
-  const attack = a.attack * (s.inspire[side] >= s.round ? INSPIRE_RATE : 1);
+  const critChance = a.trait === 'fortune' ? FORTUNE_CRIT_CHANCE : CRIT_CHANCE;
+  const crit = !!opts.crit && rand(s) < critChance;
+  const attack =
+    a.attack *
+    (s.inspire[side] >= s.round ? INSPIRE_RATE : 1) *
+    (s.cheer[side][actor] >= s.round ? CHEER_RATE : 1) *
+    (s.weak[side][actor] >= s.round ? SLOW_RATE : 1);
+  // 海晏在場：整排、穿透攻擊打得比較不痛
+  const sheltered =
+    !!opts.area && unitsOf(s, foe).some((m, i) => m.trait === 'rescue' && s.hp[foe][i] > 0);
+  const shielded = s.shield[foe][target] > 0;
   // 補給的被動：同一排有（別隻）補給站著，受到的傷害減少
   const supplied = unitsOf(s, foe).some(
     (m, i) => i !== target && m.role === '補給' && m.row === t.row && s.hp[foe][i] > 0,
@@ -550,6 +653,12 @@ function strike(
     (1 - DAMAGE_SPREAD + rand(s) * DAMAGE_SPREAD * 2);
   if (s.taunt[foe][target] >= s.round) dmg *= TAUNT_TAKEN;
   else if (t.role === '守護') dmg *= GUARD_TAKEN;
+  if (s.rally[foe] >= s.round) dmg *= RALLY_TAKEN;
+  if (sheltered) dmg *= RESCUE_AREA_TAKEN;
+  if (shielded) {
+    dmg *= 1 - SHIELD_RATE;
+    s.shield[foe][target] = 0;
+  }
   const damage = Math.min(s.hp[foe][target], Math.max(1, Math.round(dmg)));
   s.hp[foe][target] -= damage;
   const defeated = s.hp[foe][target] <= 0;
@@ -562,7 +671,19 @@ function strike(
     targetHp: s.hp[foe][target],
     defeated,
     ...(crit ? { crit: true } : {}),
+    ...(shielded ? { shielded: true } : {}),
   };
+}
+
+/** 幸運的亂打：隨機一隻、會爆擊；福球爆擊時再多打一下（多打的那一下不會再連） */
+function luckyStrike(s: BattleState, side: BattleSide, actor: number, target: number): BattleHit[] {
+  const foe = other(side);
+  const hits = [strike(s, side, actor, target, 1, { crit: true })];
+  if (unitsOf(s, side)[actor].trait === 'fortune' && hits[0].crit) {
+    const list = aliveOf(s, foe);
+    if (list.length) hits.push(strike(s, side, actor, pick(s, list), 1, { crit: true }));
+  }
+  return hits;
 }
 
 /** 補一下：回復最大血量的某個比例；沒受傷回傳 null */
@@ -602,11 +723,15 @@ function normalAttack(s: BattleState, side: BattleSide, actor: number): BattleHi
     // 穿透 1×2：最前排一隻，再穿到牠後面最近一排的一隻
     const rate = first ? FIRST_STRIKE_RATE : 1;
     const t = frontTarget(s, foe);
-    const behind = [1, 2]
+    const rows = [1, 2]
       .map((d) => inRow(s, foe, foes[t].row + d))
-      .find((list) => list.length > 0);
-    hits.push(strike(s, side, actor, t, rate));
-    if (behind) hits.push(strike(s, side, actor, pick(s, behind), rate * PIERCE_RATE));
+      .filter((list) => list.length > 0)
+      // 流星：後面每一排都穿到
+      .slice(0, u.trait === 'pierce3' ? 2 : 1);
+    hits.push(strike(s, side, actor, t, rate, { area: true }));
+    for (const list of rows) {
+      hits.push(strike(s, side, actor, pick(s, list), rate * PIERCE_RATE, { area: true }));
+    }
   } else if (u.role === '謀略') {
     // 越排：鎖定中後排（最前排後面的）血量最少的一隻；後面沒人就打剩下裡血最少的
     const front = frontRowOf(s, foe);
@@ -614,9 +739,13 @@ function normalAttack(s: BattleState, side: BattleSide, actor: number): BattleHi
     const t = taunter >= 0 ? taunter : weakest(s, foe, back.length ? back : aliveOf(s, foe));
     hits.push(strike(s, side, actor, t, 1));
   } else if (u.role === '幸運') {
-    // 亂打：不分排隨機一隻，有機率爆擊
-    const t = taunter >= 0 ? taunter : pick(s, aliveOf(s, foe));
-    hits.push(strike(s, side, actor, t, 1, true));
+    // 亂打：不分排隨機一隻，有機率爆擊；金鈴打兩次
+    for (let n = 0; n < (u.trait === 'double' ? 2 : 1); n++) {
+      const list = aliveOf(s, foe);
+      if (!list.length) break;
+      const tn = taunterOf(s, foe);
+      hits.push(...luckyStrike(s, side, actor, tn >= 0 ? tn : pick(s, list)));
+    }
   } else {
     hits.push(strike(s, side, actor, frontTarget(s, foe), 1));
   }
@@ -640,7 +769,8 @@ function act(s: BattleState, useUlt: boolean): BattleAction {
       kind = 'pierce';
       for (const row of [0, 1, 2]) {
         const list = inRow(s, foe, row);
-        if (list.length) hits.push(strike(s, side, actor, pick(s, list), PIERCE_ULT_RATE));
+        const rate = u.trait === 'pierce3' ? PIERCE3_ULT_RATE : PIERCE_ULT_RATE;
+        if (list.length) hits.push(strike(s, side, actor, pick(s, list), rate, { area: true }));
       }
     } else if (u.role === '謀略' || u.role === '頭目') {
       // 整排：謀略打狗最多的一排（SSR 打兩排）；頭目打最前面那一排
@@ -656,7 +786,15 @@ function act(s: BattleState, useUlt: boolean): BattleAction {
               .map((r) => r.row);
       for (const row of rows) {
         for (const t of inRow(s, foe, row)) {
-          hits.push(strike(s, side, actor, t, u.role === '頭目' ? BOSS_ULT_RATE : 1));
+          const h = strike(s, side, actor, t, u.role === '頭目' ? BOSS_ULT_RATE : 1, {
+            area: true,
+          });
+          // 雙瞳：被打到的慢一拍
+          if (u.trait === 'slow' && !h.dodged && !h.defeated) {
+            s.weak[foe][t] = s.round + BUFF_ROUNDS;
+            h.slowed = true;
+          }
+          hits.push(h);
         }
       }
     } else if (u.role === '幸運') {
@@ -665,21 +803,43 @@ function act(s: BattleState, useUlt: boolean): BattleAction {
       for (let i = 0; i < LUCKY_ULT_HITS; i++) {
         const list = aliveOf(s, foe);
         if (!list.length) break;
-        hits.push(strike(s, side, actor, pick(s, list), 1, true));
+        hits.push(...luckyStrike(s, side, actor, pick(s, list)));
       }
     } else if (u.role === '補血') {
       // 全隊回血
       kind = 'heal';
+      const rescue = u.trait === 'rescue';
       for (const i of aliveOf(s, side)) {
-        const h = mend(s, side, i, HEAL_ULT_RATE);
+        const h = mend(s, side, i, rescue ? RESCUE_ULT_RATE : HEAL_ULT_RATE);
         if (h) hits.push(h);
+      }
+      // 海晏：救起一隻倒下的隊友（隊伍順序最前面的），一場一次
+      const fallen = s.hp[side].findIndex((h) => h <= 0);
+      if (rescue && fallen >= 0 && s.revived[side] < REVIVE_MAX) {
+        const amount = Math.max(1, Math.round(unitsOf(s, side)[fallen].maxHp * REVIVE_RATE));
+        s.hp[side][fallen] = amount;
+        s.revived[side]++;
+        hits.push({
+          side,
+          target: fallen,
+          damage: 0,
+          heal: amount,
+          targetHp: amount,
+          defeated: false,
+          revive: true,
+        });
       }
     } else {
       // 守護嘲諷、補給鼓舞：放完接著照常攻擊
       kind = 'buff';
       if (u.role === '守護') {
         buff = 'taunt';
-        s.taunt[side][actor] = s.round + BUFF_ROUNDS + (u.ssr ? 1 : 0);
+        s.taunt[side][actor] =
+          u.trait === 'shortTaunt' ? s.round : s.round + BUFF_ROUNDS + (u.ssr ? 1 : 0);
+      } else if (u.trait === 'command') {
+        buff = 'command';
+        s.inspire[side] = s.round + BUFF_ROUNDS + 1;
+        s.rally[side] = s.round + BUFF_ROUNDS + 1;
       } else {
         buff = 'inspire';
         s.inspire[side] = s.round + BUFF_ROUNDS;
@@ -689,12 +849,25 @@ function act(s: BattleState, useUlt: boolean): BattleAction {
   } else {
     if (u.canUlt) s.en[side][actor] = Math.min(EN_MAX, s.en[side][actor] + u.enPerAct);
     const hurt = hurtMates(s, side);
-    if (u.role === '補血' && !u.afterHeal && hurt.length) {
+    if (u.role === '補血' && !u.afterHeal && u.trait !== 'rescue' && hurt.length) {
       const units = unitsOf(s, side);
       const low = hurt.find((i) => s.hp[side][i] < units[i].maxHp * HEAL_BELOW);
       if (low !== undefined) {
         kind = 'heal';
-        hits.push(mend(s, side, low, HEAL_RATE)!);
+        if (u.trait === 'rowHeal') {
+          // 麥穗：同一排受傷的都補
+          for (const i of hurt.filter((m) => units[m].row === units[low].row)) {
+            hits.push(mend(s, side, i, ROW_HEAL_RATE)!);
+          }
+        } else {
+          const h = mend(s, side, low, u.trait === 'smallHeal' ? SMALL_HEAL_RATE : HEAL_RATE)!;
+          // 絨耳：被補的隊友攻擊提高
+          if (u.trait === 'cheer') {
+            s.cheer[side][low] = s.round + BUFF_ROUNDS;
+            h.cheer = true;
+          }
+          hits.push(h);
+        }
       }
     }
     if (kind === 'attack') {
@@ -704,6 +877,26 @@ function act(s: BattleState, useUlt: boolean): BattleAction {
         for (const i of hurtMates(s, side).slice(0, HEAL_TARGETS)) {
           const h = mend(s, side, i, HEAL_RATE);
           if (h) hits.push(h);
+        }
+      }
+      // 海晏：攻擊後給血量比例最低、身上還沒有護盾的隊友一層護盾
+      if (u.trait === 'rescue' && aliveOf(s, foe).length > 0) {
+        const units = unitsOf(s, side);
+        const ratio = (i: number): number => s.hp[side][i] / units[i].maxHp;
+        const t = aliveOf(s, side)
+          .filter((i) => s.shield[side][i] === 0)
+          .sort((a, b) => ratio(a) - ratio(b) || a - b)[0];
+        if (t !== undefined) {
+          s.shield[side][t] = 1;
+          hits.push({
+            side,
+            target: t,
+            damage: 0,
+            heal: 0,
+            targetHp: s.hp[side][t],
+            defeated: false,
+            shield: true,
+          });
         }
       }
     }

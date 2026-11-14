@@ -42,7 +42,7 @@ test('召募：單抽與十連，新狗加入、重複換碎片，到訓練場�
   await seedRandom(page, 20261113);
   await openRecruit(page);
   let r = (await wgz(page)).recruit!;
-  expect(r).toMatchObject({ pulls: 0, toPity: 50, owned: 5, total: 19, results: [] });
+  expect(r).toMatchObject({ pulls: 0, toPity: 50, owned: 5, total: 30, results: [] });
   for (const b of [r.buttons.one, r.buttons.ten]) {
     expect(b.x).toBeGreaterThanOrEqual(0);
     expect(b.x + b.width).toBeLessThanOrEqual(844);
@@ -141,13 +141,18 @@ test('召募：單抽與十連，新狗加入、重複換碎片，到訓練場�
   expect(target).toBeTruthy();
   // 捲到看得到那一列再按
   const inView = (b: R) => b.y >= t.list.y && b.y + b.height <= t.list.y + t.list.height;
-  if (!inView(target.star)) {
-    await page.mouse.move(195, 400);
-    await page.mouse.wheel(0, target.star.y - t.list.y - 200);
-    await page.waitForTimeout(200);
+  // （滑鼠要放在清單裡面；一次捲不到位就再捲，等清單停下來再量座標）
+  let before = target;
+  for (let i = 0; i < 8 && !inView(before.star); i++) {
+    await page.mouse.move(t.list.x + t.list.width / 2, t.list.y + t.list.height / 2);
+    await page.mouse.wheel(
+      0,
+      before.star.y + before.star.height / 2 - (t.list.y + t.list.height / 2),
+    );
+    await page.waitForTimeout(300);
     t = (await wgz(page)).training!;
+    before = t.rows.find((row) => row.id === target.id)!;
   }
-  const before = t.rows.find((row) => row.id === target.id)!;
   expect(inView(before.star)).toBe(true);
   // 沒碎片的按了沒反應
   const none = t.rows.find((row) => !row.star.enabled && inView(row.star));

@@ -33,8 +33,18 @@ describe('狗狗資料（T007）', () => {
     }
   });
 
-  it('共 19 隻：T007 新增 10 隻，小中大體型與四種稀有度都有', () => {
-    expect(DOGS).toHaveLength(19);
+  it('共 30 隻（T024）：六種定位各 5 隻、每種定位都有 SSR，小中大體型與四種稀有度都有', () => {
+    expect(DOGS).toHaveLength(30);
+    for (const role of ['補給', '突擊', '守護', '謀略', '幸運', '補血']) {
+      const list = DOGS.filter((d) => d.role.endsWith(role));
+      expect(list.length, role).toBe(5);
+      expect(
+        list.some((d) => d.rarity === 'SSR'),
+        role,
+      ).toBe(true);
+    }
+    const count = (r: string) => DOGS.filter((d) => d.rarity === r).length;
+    expect(RARITIES.map(count)).toEqual([8, 10, 5, 7]);
     for (const size of ['小型', '中型', '大型']) {
       expect(DOGS.filter((d) => d.size === size).length, size).toBeGreaterThanOrEqual(3);
     }
@@ -110,7 +120,15 @@ describe('pickDog', () => {
     const seen = new Set<string>();
     const rng = createRng(3);
     for (let i = 0; i < 200; i++) seen.add(pickDog(pool, 'SSR', rng)!.id);
-    expect([...seen].sort()).toEqual(['nuantong', 'xiongyue', 'xueling']);
+    expect([...seen].sort()).toEqual([
+      'fuqiu',
+      'haiyan',
+      'liuxing',
+      'nuantong',
+      'songling',
+      'xiongyue',
+      'xueling',
+    ]);
     const noSSR = pool.filter((d) => d.rarity !== 'SSR');
     expect(pickDog(noSSR, 'SSR', () => 0)!.rarity).toBe('SR');
     expect(pickDog([], 'N', () => 0)).toBeUndefined();
@@ -135,17 +153,17 @@ describe('pull', () => {
 
   it('抽到已經有的狗換成碎片，等級與隊伍不動', () => {
     const s0 = fresh();
-    // 0.2 → R；R 有 7 隻，0.2 落在第 2 隻：黑旋（開局就有）
+    // 0.2 → R；R 有 10 隻，0.2 落在第 3 隻：長鬚（開局就有）
     const r = pull(s0, 1, () => 0.2);
-    expect(gachaPool().filter((d) => d.rarity === 'R')[1].id).toBe('heixuan');
+    expect(gachaPool().filter((d) => d.rarity === 'R')[2].id).toBe('changxu');
     expect(r.items).toEqual([
-      { dogId: 'heixuan', rarity: 'R', isNew: false, shards: SHARDS_PER_DUPLICATE },
+      { dogId: 'changxu', rarity: 'R', isNew: false, shards: SHARDS_PER_DUPLICATE },
     ]);
     expect(r.state.owned).toEqual(s0.owned);
     expect(r.state.dogs).toEqual(s0.dogs);
-    expect(r.state.shards).toEqual({ heixuan: 10 });
+    expect(r.state.shards).toEqual({ changxu: 10 });
     expect(r.state.gacha).toEqual({ pulls: 1, sinceSSR: 1 });
-    expect(pull(r.state, 1, () => 0.2).state.shards).toEqual({ heixuan: 20 });
+    expect(pull(r.state, 1, () => 0.2).state.shards).toEqual({ changxu: 20 });
   });
 
   it('十連：剛好 10 隻，同一次裡第二次抽到同一隻算重複', () => {
@@ -211,7 +229,7 @@ describe('pull', () => {
     expect(a).toEqual(b);
     let s = fresh();
     const rng = createRng(5);
-    for (let i = 0; i < 100; i++) s = pull(s, 10, rng).state;
+    for (let i = 0; i < 300; i++) s = pull(s, 10, rng).state;
     expect(collection(s.owned)).toEqual({ owned: DOGS.length, total: DOGS.length });
     // 關卡送的補血狗也抽得到，拿到的是牠原本的等級
     expect(s.owned).toContain('nuantong');
