@@ -3,7 +3,7 @@ import { openLobby, tap, waitScene, wgz } from './helpers';
 
 test('出征地圖 → 選隊伍 → 開戰 → 戰鬥 → 劇情 → 下一關開放', async ({ page }) => {
   // 完整流程多次換畫面，給比預設 30 秒寬的時間
-  test.setTimeout(60_000);
+  test.setTimeout(120_000);
   await openLobby(page, '?fast=1');
   await tap(page, (await wgz(page)).lobby!.buttons.expedition);
   await waitScene(page, 'CampaignScene');

@@ -33,7 +33,8 @@ async function openStage(page: Page, nodeIndex: number) {
 }
 
 test('體力與每日次數：打 3 次用完次數、體力打完要等，骨頭幣可以補', async ({ page }) => {
-  test.setTimeout(90_000);
+  // 本機約 65 秒，CI 忙的時候慢到 1.7 倍以上，90 秒不夠（2026-11-15 合併後 main 因此逾時、沒有部署）
+  test.setTimeout(180_000);
   // 不開測試模式：體力 5 分鐘才回 1 點，數字不會在測試途中變動
   await openLobby(page);
   await enableSkipBattle(page);
