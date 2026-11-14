@@ -10,8 +10,8 @@ export default defineConfig({
   use: {
     baseURL: 'http://localhost:4173',
     browserName: 'chromium',
-    // 模擬 iPhone 直式尺寸
-    viewport: { width: 390, height: 844 },
+    // 模擬 iPhone 橫放的尺寸（遊戲固定橫向）
+    viewport: { width: 844, height: 390 },
     deviceScaleFactor: 3,
     isMobile: true,
     hasTouch: true,

@@ -53,7 +53,7 @@ test('板凳寄宿：放進去慢慢拿經驗，離線也算；寄宿中不能�
   await waitScene(page, 'TrainingScene');
   const button = (await wgz(page)).training!.boardingButton;
   expect(button).toMatchObject({ count: 0, slots: 2 });
-  expect(button.x + button.width).toBeLessThanOrEqual(390);
+  expect(button.x + button.width).toBeLessThanOrEqual(844);
   expect(button.height).toBeGreaterThanOrEqual(40);
   await tap(page, button);
   await waitScene(page, 'BoardingScene');
@@ -71,11 +71,11 @@ test('板凳寄宿：放進去慢慢拿經驗，離線也算；寄宿中不能�
   expect(b.rows.map((r) => r.block)).toEqual([null, null, 'in-team', 'in-team', 'in-team']);
   for (const r of [...b.slots, ...b.rows]) {
     expect(r.x).toBeGreaterThanOrEqual(0);
-    expect(r.x + r.width).toBeLessThanOrEqual(390);
-    expect(r.y + r.height).toBeLessThanOrEqual(844);
+    expect(r.x + r.width).toBeLessThanOrEqual(844);
+    expect(r.y + r.height).toBeLessThanOrEqual(390);
   }
   for (const r of b.rows) expect(r.button.height).toBeGreaterThanOrEqual(40);
-  await page.screenshot({ path: 'artifacts/screenshots/portrait/boarding-empty.png' });
+  await page.screenshot({ path: 'artifacts/screenshots/landscape/boarding-empty.png' });
 
   // 點隊伍裡的狗沒有反應
   await tap(page, b.rows.find((r) => r.id === 'daer')!.button);
@@ -103,7 +103,7 @@ test('板凳寄宿：放進去慢慢拿經驗，離線也算；寄宿中不能�
     expect(s.exp).toBeLessThan(486 + 27);
     expect(s).toMatchObject({ level: 5, levels: 4 });
   }
-  await page.screenshot({ path: 'artifacts/screenshots/portrait/boarding.png' });
+  await page.screenshot({ path: 'artifacts/screenshots/landscape/boarding.png' });
 
   // 訓練場看得到「寄宿中」與新的等級
   await tap(page, (await wgz(page)).backButton!);
@@ -117,7 +117,7 @@ test('板凳寄宿：放進去慢慢拿經驗，離線也算；寄宿中不能�
       .sort(),
   ).toEqual(['abai', 'xiaosuan']);
   expect(t.rows.find((r) => r.id === 'xiaosuan')!.level).toBe(5);
-  await page.screenshot({ path: 'artifacts/screenshots/portrait/boarding-training.png' });
+  await page.screenshot({ path: 'artifacts/screenshots/landscape/boarding-training.png' });
 
   // 組隊：寄宿中的狗有標記，加不進隊伍
   await tap(page, (await wgz(page)).backButton!);
@@ -136,13 +136,13 @@ test('板凳寄宿：放進去慢慢拿經驗，離線也算；寄宿中不能�
     p.cells.find((c) => c.id === 'xiaosuan')!,
   );
   await page.waitForFunction(() => window.__WGZ__?.team?.panel === 'xiaosuan');
-  await page.screenshot({ path: 'artifacts/screenshots/portrait/boarding-team.png' });
+  await page.screenshot({ path: 'artifacts/screenshots/landscape/boarding-team.png' });
   await tap(page, (await wgz(page)).team!.panelButtons!.team!);
   await page.waitForTimeout(150);
   p = (await wgz(page)).picker!;
   expect(p.cells.find((c) => c.id === 'xiaosuan')!.selected).toBe(false);
   expect(p.cells.filter((c) => c.selected)).toHaveLength(3);
-  await tap(page, { x: 0, y: 0, width: 390, height: 40 }, 0.5, 0.9);
+  await tap(page, { x: 0, y: 380, width: 844, height: 6 });
   await page.waitForFunction(() => window.__WGZ__?.team?.panel === null);
 
   // 接回小算：位子空出來，等級留著，又可以再放

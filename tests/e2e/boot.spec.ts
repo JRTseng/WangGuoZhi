@@ -7,9 +7,9 @@ test('開機畫面顯示標題與版本號', async ({ page }) => {
   const version = await page.evaluate(() => window.__WGZ__?.version);
   expect(version).toMatch(/^v\d+\.\d+\.\d+/);
 
-  // 畫布要填滿直式寬度
+  // 畫布要填滿橫式寬度
   const box = await page.locator('canvas').boundingBox();
-  expect(box?.width).toBeCloseTo(390, 0);
+  expect(box?.width).toBeCloseTo(844, 0);
 
-  await page.screenshot({ path: 'artifacts/screenshots/portrait/boot.png' });
+  await page.screenshot({ path: 'artifacts/screenshots/landscape/boot.png' });
 });

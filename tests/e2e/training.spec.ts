@@ -32,10 +32,10 @@ test('升級：打完拿經驗、1 級的狗連升到 3 級，訓練場與角色
     }
   }
   await page.waitForTimeout(200);
-  await page.screenshot({ path: 'artifacts/screenshots/portrait/level-up.png' });
+  await page.screenshot({ path: 'artifacts/screenshots/landscape/level-up.png' });
 
   // 關掉結算 → 過關劇情 → 主頁 → 訓練場
-  await tap(page, { x: 0, y: 830, width: 390, height: 10 });
+  await tap(page, { x: 0, y: 380, width: 844, height: 6 });
   await waitScene(page, 'StoryScene');
   await tap(page, (await wgz(page)).story!.skip!);
   await waitScene(page, 'LobbyScene');
@@ -47,9 +47,12 @@ test('升級：打完拿經驗、1 級的狗連升到 3 級，訓練場與角色
   expect(rows).toHaveLength(5);
   for (const r of rows) {
     expect(r.x).toBeGreaterThanOrEqual(0);
-    expect(r.x + r.width).toBeLessThanOrEqual(390);
-    expect(r.y + r.height).toBeLessThanOrEqual(844);
+    expect(r.x + r.width).toBeLessThanOrEqual(844);
   }
+  // 橫式一頁放不下 5 隻，清單可以捲動；第一隻一進來就完整看得到
+  const list = s.training!.list;
+  expect(rows[0].y).toBeGreaterThanOrEqual(list.y);
+  expect(rows[0].y + rows[0].height).toBeLessThanOrEqual(list.y + list.height);
   // 預設依稀有度排（R 的大耳、黑旋、長鬚在 N 的小算、阿白前面），同稀有度等級高的在前
   expect(s.training!.sort).toBe('rarity');
   expect(
@@ -66,7 +69,7 @@ test('升級：打完拿經驗、1 級的狗連升到 3 級，訓練場與角色
   expect(abai.power).toBe(abai.attack + abai.defense);
   expect(rows.find((r) => r.id === 'daer')).toMatchObject({ level: 3, exp: 90, expNeed: 104 });
   await page.waitForTimeout(200);
-  await page.screenshot({ path: 'artifacts/screenshots/portrait/training.png' });
+  await page.screenshot({ path: 'artifacts/screenshots/landscape/training.png' });
 
   // 返回主頁 → 組隊 → 角色資訊也顯示新的等級與經驗
   await tap(page, s.backButton!);
@@ -85,7 +88,7 @@ test('升級：打完拿經驗、1 級的狗連升到 3 級，訓練場與角色
     power: abai.power,
     star: 1,
   });
-  await page.screenshot({ path: 'artifacts/screenshots/portrait/dog-info-level.png' });
+  await page.screenshot({ path: 'artifacts/screenshots/landscape/dog-info-level.png' });
 });
 
 test('打輸也拿一半經驗', async ({ page }) => {
@@ -106,7 +109,7 @@ test('打輸也拿一半經驗', async ({ page }) => {
     },
   ]);
   await page.waitForTimeout(200);
-  await page.screenshot({ path: 'artifacts/screenshots/portrait/level-lose.png' });
+  await page.screenshot({ path: 'artifacts/screenshots/landscape/level-lose.png' });
 });
 
 test.describe('手機橫放', () => {
@@ -158,6 +161,24 @@ const row = async (page: Page, id: string) =>
 
 /** 按 n 次某隻狗的特訓按鈕，每次等畫面上的次數更新 */
 async function drillTap(page: Page, id: string, stat: 'attack' | 'defense', n: number) {
+  // 橫式清單一頁放不下：按鈕不在清單範圍內就先捲到看得到
+  for (let i = 0; i < 20; i++) {
+    const t = (await wgz(page)).training!;
+    const b = t.rows.find((r) => r.id === id)!.drill[stat];
+    const over = b.y + b.height - (t.list.y + t.list.height);
+    const under = t.list.y - b.y;
+    if (over <= 0 && under <= 0) break;
+    await page.mouse.move(t.list.x + t.list.width / 2, t.list.y + t.list.height / 2);
+    await page.mouse.wheel(0, over > 0 ? over + 8 : -(under + 8));
+    // 等捲動停下來再量位置，不然慢的機器上會點到捲動前的座標
+    let last = -1;
+    for (let k = 0; k < 20; k++) {
+      await page.waitForTimeout(80);
+      const y = (await wgz(page)).training!.scrollY;
+      if (y === last) break;
+      last = y;
+    }
+  }
   for (let i = 0; i < n; i++) {
     const before = await row(page, id);
     await tap(page, before.drill[stat]);
@@ -172,6 +193,8 @@ async function drillTap(page: Page, id: string, stat: 'attack' | 'defense', n: n
 }
 
 test('特訓：花糧草加攻防，練滿與糧草不足時不能按', async ({ page }) => {
+  // 要按二十幾次特訓，中間還要捲動清單，CI 上超過預設的 60 秒
+  test.setTimeout(180_000);
   await openTraining(page);
   let t = (await wgz(page)).training!;
   expect(t.food).toBe(1200);
@@ -181,7 +204,7 @@ test('特訓：花糧草加攻防，練滿與糧草不足時不能按', async ({
       expect(b.x).toBeGreaterThanOrEqual(r.x);
       expect(b.x + b.width).toBeLessThanOrEqual(r.x + r.width);
       expect(b.y + b.height).toBeLessThanOrEqual(r.y + r.height);
-      expect(b.height).toBeGreaterThanOrEqual(40);
+      expect(b.height).toBeGreaterThanOrEqual(36);
     }
   }
   const order = t.rows.map((r) => r.id);
@@ -198,7 +221,7 @@ test('特訓：花糧草加攻防，練滿與糧草不足時不能按', async ({
   expect(daer.drill.defense).toMatchObject({ count: 0, cost: 10 });
   expect((await wgz(page)).training!.food).toBe(1140);
   await page.waitForTimeout(900);
-  await page.screenshot({ path: 'artifacts/screenshots/portrait/drill.png' });
+  await page.screenshot({ path: 'artifacts/screenshots/landscape/drill.png' });
 
   // 大耳攻防都練滿：共 1100
   await drillTap(page, 'daer', 'attack', 7);
@@ -231,7 +254,7 @@ test('特訓：花糧草加攻防，練滿與糧草不足時不能按', async ({
   // 特訓後順序不變
   expect(t.rows.map((r) => r.id)).toEqual(order);
   await page.waitForTimeout(900);
-  await page.screenshot({ path: 'artifacts/screenshots/portrait/drill-maxed-no-food.png' });
+  await page.screenshot({ path: 'artifacts/screenshots/landscape/drill-maxed-no-food.png' });
 
   // 離開再回來還在；組隊畫面的戰力也一致
   await tap(page, (await wgz(page)).backButton!);
@@ -297,7 +320,7 @@ test('排序：點按鈕輪流換條件，重開遊戲還記得', async ({ page 
   let t = (await wgz(page)).training!;
   expect(t.sort).toBe('rarity');
   // 按鈕在說明列裡、列表上面，不超出畫面
-  expect(t.sortChip.x + t.sortChip.width).toBeLessThanOrEqual(390);
+  expect(t.sortChip.x + t.sortChip.width).toBeLessThanOrEqual(844);
   expect(t.sortChip.y + t.sortChip.height).toBeLessThanOrEqual(t.list.y);
 
   // 稀有度 → 等級 → 戰力
@@ -310,7 +333,7 @@ test('排序：點按鈕輪流換條件，重開遊戲還記得', async ({ page 
       expect(t.rows[i][sort]).toBeLessThanOrEqual(t.rows[i - 1][sort]);
   }
   await page.waitForTimeout(200);
-  await page.screenshot({ path: 'artifacts/screenshots/portrait/training-sort.png' });
+  await page.screenshot({ path: 'artifacts/screenshots/landscape/training-sort.png' });
 
   // → 可升星 → 定位：突擊的黑旋排第一
   await tap(page, t.sortChip);

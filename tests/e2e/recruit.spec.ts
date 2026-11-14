@@ -45,11 +45,11 @@ test('召募：單抽與十連，新狗加入、重複換碎片，到訓練場�
   expect(r).toMatchObject({ pulls: 0, toPity: 50, owned: 5, total: 19, results: [] });
   for (const b of [r.buttons.one, r.buttons.ten]) {
     expect(b.x).toBeGreaterThanOrEqual(0);
-    expect(b.x + b.width).toBeLessThanOrEqual(390);
-    expect(b.y + b.height).toBeLessThanOrEqual(844);
+    expect(b.x + b.width).toBeLessThanOrEqual(844);
+    expect(b.y + b.height).toBeLessThanOrEqual(390);
     expect(b.height).toBeGreaterThanOrEqual(48);
   }
-  await page.screenshot({ path: 'artifacts/screenshots/portrait/recruit.png' });
+  await page.screenshot({ path: 'artifacts/screenshots/landscape/recruit.png' });
 
   // 單抽
   r = await pullOnce(page, 'one');
@@ -67,7 +67,7 @@ test('召募：單抽與十連，新狗加入、重複換碎片，到訓練場�
   };
   track(r.results);
   expect(r.owned).toBe(owned.length);
-  await page.screenshot({ path: 'artifacts/screenshots/portrait/recruit-single.png' });
+  await page.screenshot({ path: 'artifacts/screenshots/landscape/recruit-single.png' });
 
   // 十連：剛好 10 隻，至少一隻 SR 以上，卡片都在畫面內
   r = await pullOnce(page, 'ten');
@@ -76,12 +76,12 @@ test('召募：單抽與十連，新狗加入、重複換碎片，到訓練場�
   expect(r.results.some((it) => it.rarity === 'SR' || it.rarity === 'SSR')).toBe(true);
   for (const c of r.results) {
     expect(c.x).toBeGreaterThanOrEqual(0);
-    expect(c.x + c.width).toBeLessThanOrEqual(390);
-    expect(c.y + c.height).toBeLessThanOrEqual(r.buttons.one.y);
+    expect(c.x + c.width).toBeLessThanOrEqual(844);
+    expect(c.y + c.height).toBeLessThanOrEqual(390);
   }
   track(r.results);
   expect(r.owned).toBe(owned.length);
-  await page.screenshot({ path: 'artifacts/screenshots/portrait/recruit-ten.png' });
+  await page.screenshot({ path: 'artifacts/screenshots/landscape/recruit-ten.png' });
 
   // 再抽幾次十連，直到手上有重複換來的碎片
   for (let i = 0; i < 5 && Object.keys(shards).length === 0; i++) {
@@ -112,11 +112,11 @@ test('召募：單抽與十連，新狗加入、重複換碎片，到訓練場�
       .map((d) => d.id)
       .sort(),
   ).toEqual([...owned].sort());
-  await page.screenshot({ path: 'artifacts/screenshots/portrait/recruit-team.png' });
+  await page.screenshot({ path: 'artifacts/screenshots/landscape/recruit-team.png' });
   await tap(page, team.dogs[0]);
   await page.waitForFunction(() => !!window.__WGZ__?.team?.panel);
-  await page.screenshot({ path: 'artifacts/screenshots/portrait/recruit-dog-info.png' });
-  await tap(page, { x: 0, y: 820, width: 390, height: 10 });
+  await page.screenshot({ path: 'artifacts/screenshots/landscape/recruit-dog-info.png' });
+  await tap(page, { x: 0, y: 380, width: 844, height: 6 });
   await page.waitForFunction(() => window.__WGZ__?.team?.panel === null);
 
   // 訓練場：有碎片的狗可以升星
@@ -156,7 +156,7 @@ test('召募：單抽與十連，新狗加入、重複換碎片，到訓練場�
     await page.waitForTimeout(150);
     expect((await wgz(page)).training!.rows.find((row) => row.id === none.id)!.star.star).toBe(1);
   }
-  await page.screenshot({ path: 'artifacts/screenshots/portrait/star-before.png' });
+  await page.screenshot({ path: 'artifacts/screenshots/landscape/star-before.png' });
   await tap(page, before.star);
   await page.waitForFunction(
     (id) => window.__WGZ__?.training?.rows.find((row) => row.id === id)?.star.star === 2,
@@ -170,7 +170,7 @@ test('召募：單抽與十連，新狗加入、重複換碎片，到訓練場�
   expect(after.power).toBe(after.attack + after.defense);
   expect(after.level).toBe(before.level);
   await page.waitForTimeout(250);
-  await page.screenshot({ path: 'artifacts/screenshots/portrait/star-up.png' });
+  await page.screenshot({ path: 'artifacts/screenshots/landscape/star-up.png' });
 
   // 重新整理：狗、星數、碎片都還在
   await page.reload();

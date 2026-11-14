@@ -46,7 +46,7 @@ test('訓練場填台詞，戰鬥中放大絕招會喊招式名與台詞；勝�
   const input = prompt.locator('input');
   await expect(input).toHaveAttribute('maxlength', '16');
   await input.fill(LINE);
-  await page.screenshot({ path: 'artifacts/screenshots/portrait/skill-line-editor.png' });
+  await page.screenshot({ path: 'artifacts/screenshots/landscape/skill-line-editor.png' });
   await prompt.locator('button[data-act="ok"]').click();
   await expect(prompt).toHaveCount(0);
   row = (await wgz(page)).training!.rows.find((r) => r.id === 'daer')!;
@@ -54,7 +54,7 @@ test('訓練場填台詞，戰鬥中放大絕招會喊招式名與台詞；勝�
   // 沒有不小心按到特訓
   expect(row.drill.attack.count).toBe(0);
   await page.waitForTimeout(150);
-  await page.screenshot({ path: 'artifacts/screenshots/portrait/skill-line-saved.png' });
+  await page.screenshot({ path: 'artifacts/screenshots/landscape/skill-line-saved.png' });
 
   // 取消不會改；重新整理後還在（有進存檔）
   await tap(page, row.skillLine);
@@ -89,7 +89,7 @@ test('訓練場填台詞，戰鬥中放大絕招會喊招式名與台詞；勝�
   expect(b.ult).toEqual({ id: 'daer', side: 'team', skill: '結義', line: LINE, kind: 'buff' });
   expect(b.voiceCue).toBe('daer.ultimate');
   expect(b.phase).toBe('playing');
-  await page.screenshot({ path: 'artifacts/screenshots/portrait/ultimate-buff.png' });
+  await page.screenshot({ path: 'artifacts/screenshots/landscape/ultimate-buff.png' });
   // 放完 EN 歸零
   const hitIndex = b.index;
   await page.waitForFunction((i) => (window.__WGZ__?.battle?.index ?? 0) > i, hitIndex);
@@ -106,7 +106,7 @@ test('訓練場填台詞，戰鬥中放大絕招會喊招式名與台詞；勝�
   expect(b.ult).toMatchObject({ id: 'xiaosuan', skill: '借箭', kind: 'row' });
   expect(b.ult!.line.length).toBeGreaterThan(0);
   await page.waitForTimeout(450);
-  await page.screenshot({ path: 'artifacts/screenshots/portrait/ultimate-row.png' });
+  await page.screenshot({ path: 'artifacts/screenshots/landscape/ultimate-row.png' });
   for (const u of b.team) {
     expect(u.en).toBeGreaterThanOrEqual(0);
     expect(u.en).toBeLessThanOrEqual(b.enMax);

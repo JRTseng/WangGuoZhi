@@ -23,10 +23,67 @@
         width: 100%;
         height: 100%;
       }
+      /* 遊戲固定橫向：直拿的時候蓋一層提示，請玩家把手機橫放 */
+      #rotate {
+        display: none;
+        position: fixed;
+        inset: 0;
+        z-index: 1000;
+        background: #2b2118;
+        color: #f4e9d8;
+        font-family:
+          system-ui,
+          -apple-system,
+          'PingFang TC',
+          'Noto Sans TC',
+          sans-serif;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 18px;
+        text-align: center;
+      }
+      #rotate .phone {
+        width: 54px;
+        height: 96px;
+        border: 5px solid #f4e9d8;
+        border-radius: 12px;
+        animation: wgz-rotate 2.4s ease-in-out infinite;
+      }
+      #rotate .title {
+        font-size: 24px;
+        font-weight: 700;
+      }
+      #rotate .hint {
+        font-size: 14px;
+        opacity: 0.75;
+        padding: 0 32px;
+        line-height: 1.6;
+      }
+      @keyframes wgz-rotate {
+        0%,
+        25% {
+          transform: rotate(0deg);
+        }
+        60%,
+        100% {
+          transform: rotate(-90deg);
+        }
+      }
+      @media (orientation: portrait) {
+        #rotate {
+          display: flex;
+        }
+      }
     </style>
   </head>
   <body>
     <div id="game"></div>
+    <div id="rotate" role="alert">
+      <div class="phone"></div>
+      <div class="title">請把手機橫放</div>
+      <div class="hint">汪國志是橫向遊戲。<br />如果畫面沒有跟著轉，請關掉手機的直向鎖定。</div>
+    </div>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

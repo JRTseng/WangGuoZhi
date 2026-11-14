@@ -1,10 +1,10 @@
 import { expect, test } from '@playwright/test';
 import { openLobby, tap, wgz } from './helpers';
 
-test('主頁：左上帳號、左側選單、右上資源與小圖示、下方大卡片，狗狗會換動作', async ({ page }) => {
+test('主頁：左上帳號、左側選單、右上資源與小圖示、右側大卡片，狗狗會換動作', async ({ page }) => {
   await openLobby(page);
   const s = await wgz(page);
-  expect(s.orientation).toBe('portrait');
+  expect(s.orientation).toBe('landscape');
   expect(s.resources).toEqual({ food: 1200, bones: 50 });
   expect(s.lobby!.dogId).toBe('daer');
   expect(s.lobby!.background).toBe('slope');
@@ -14,17 +14,23 @@ test('主頁：左上帳號、左側選單、右上資源與小圖示、下方�
   expect(b.account.y).toBeLessThan(40);
   // 左側選單由上而下：武將、任務、倉庫、背景
   const menu = [b.team, b.quest, b.bag, b.background];
-  for (const r of menu) expect(r.x + r.width).toBeLessThan(390 / 2);
+  for (const r of menu) expect(r.x + r.width).toBeLessThan(844 / 2);
   for (let i = 1; i < menu.length; i++) expect(menu[i].y).toBeGreaterThan(menu[i - 1].y);
   // 右上：召募／商城／獎勵／信箱
   for (const r of [b.recruit, b.shop, b.reward, b.mail]) {
-    expect(r.x + r.width).toBeLessThanOrEqual(390);
+    expect(r.x + r.width).toBeLessThanOrEqual(844);
     expect(r.y).toBeLessThan(200);
   }
-  // 下方：劇情與小卡在上、出征大卡在最下面（拇指好按）
-  expect(b.story.y).toBeGreaterThan(844 / 2);
-  expect(b.expedition.y).toBeGreaterThan(b.story.y);
+  // 右側：出征大卡在上（體力條貼在卡片底）、劇情在中、活動與訓練兩張小卡在最下面
+  for (const r of [b.expedition, b.story, b.event, b.train]) {
+    expect(r.x).toBeGreaterThan(844 / 2);
+    expect(r.x + r.width).toBeLessThanOrEqual(844);
+    expect(r.y + r.height).toBeLessThanOrEqual(390);
+  }
   expect(s.status!.y).toBeGreaterThan(b.expedition.y);
+  expect(b.story.y).toBeGreaterThan(s.status!.y);
+  expect(b.event.y).toBeGreaterThan(b.story.y);
+  expect(b.train.y).toBe(b.event.y);
 
   // 還沒做的功能點了顯示「即將開放」，不會換畫面
   await tap(page, b.quest);
@@ -42,7 +48,7 @@ test('主頁：左上帳號、左側選單、右上資源與小圖示、下方�
   await page.waitForFunction((a) => window.__WGZ__?.lobby?.dogAction !== a, first, {
     timeout: 8000,
   });
-  await page.screenshot({ path: 'artifacts/screenshots/portrait/lobby.png' });
+  await page.screenshot({ path: 'artifacts/screenshots/landscape/lobby.png' });
 });
 
 test('帳號與設定：開關、畫質、優惠碼', async ({ page }) => {
@@ -91,7 +97,7 @@ test('帳號與設定：開關、畫質、優惠碼', async ({ page }) => {
   await page.waitForFunction(() => window.__WGZ__?.resources?.bones === 150);
   st = (await wgz(page)).settings!;
   expect(st.message).toContain('兌換成功');
-  await page.screenshot({ path: 'artifacts/screenshots/portrait/settings.png' });
+  await page.screenshot({ path: 'artifacts/screenshots/landscape/settings.png' });
 
   await tap(page, st.rects.close);
   await page.waitForFunction(() => window.__WGZ__?.settings === undefined);
@@ -101,7 +107,7 @@ test('帳號與設定：開關、畫質、優惠碼', async ({ page }) => {
   await tap(page, bg);
   await page.waitForFunction(() => window.__WGZ__?.lobby?.background === 'lantern');
   await page.waitForTimeout(500);
-  await page.screenshot({ path: 'artifacts/screenshots/portrait/lobby-lantern.png' });
+  await page.screenshot({ path: 'artifacts/screenshots/landscape/lobby-lantern.png' });
   await tap(page, bg);
   await page.waitForFunction(() => window.__WGZ__?.lobby?.background === 'slope');
 });

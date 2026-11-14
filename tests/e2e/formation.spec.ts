@@ -33,7 +33,7 @@ test('組隊畫面：3×3 九宮格，拖曳換位置、對調、從清單拖上
     expect(c.x).toBe(p.board.find((o) => o.row === c.row && o.lane === 0)!.x);
     expect(c.y).toBe(p.board.find((o) => o.row === 0 && o.lane === c.lane)!.y);
     expect(c.x).toBeGreaterThanOrEqual(0);
-    expect(c.x + c.width).toBeLessThanOrEqual(390);
+    expect(c.x + c.width).toBeLessThanOrEqual(844);
   }
   expect(p.boardRows[0].x).toBeGreaterThan(p.boardRows[1].x);
   expect(p.boardRows[1].x).toBeGreaterThan(p.boardRows[2].x);
@@ -44,7 +44,7 @@ test('組隊畫面：3×3 九宮格，拖曳換位置、對調、從清單拖上
     ['daer', 1, 1],
   ]);
   await page.waitForTimeout(150);
-  await page.screenshot({ path: 'artifacts/screenshots/portrait/formation.png' });
+  await page.screenshot({ path: 'artifacts/screenshots/landscape/formation.png' });
 
   // 按住長鬚拖到後排上面那一格：換過去
   await drag(page, await cellAt(page, 0, 2), await cellAt(page, 2, 0));
@@ -63,7 +63,7 @@ test('組隊畫面：3×3 九宮格，拖曳換位置、對調、從清單拖上
   expect((await cellAt(page, 1, 1)).id).toBe('heixuan');
   expect((await wgz(page)).picker!.lifting).toBeNull();
   await page.waitForTimeout(150);
-  await page.screenshot({ path: 'artifacts/screenshots/portrait/formation-moved.png' });
+  await page.screenshot({ path: 'artifacts/screenshots/landscape/formation-moved.png' });
 
   // 重新整理後站位還在（有存檔）
   await page.reload();
@@ -125,7 +125,7 @@ test('組隊畫面：3×3 九宮格，拖曳換位置、對調、從清單拖上
     () => window.__WGZ__?.picker?.board.find((c) => c.row === 2 && c.lane === 1)?.id,
   );
   await page.waitForTimeout(150);
-  await page.screenshot({ path: 'artifacts/screenshots/portrait/formation-full.png' });
+  await page.screenshot({ path: 'artifacts/screenshots/landscape/formation-full.png' });
 });
 
 test('戰鬥照陣型站位；關掉自動放招後，點 EN 滿的狗才會放大絕招', async ({ page }) => {
@@ -159,7 +159,7 @@ test('戰鬥照陣型站位；關掉自動放招後，點 EN 滿的狗才會放�
   expect(b.ults).toBe(0);
   expect(b.team[0]).toMatchObject({ en: 100, armed: false });
   expect(b.phase).toBe('playing');
-  await page.screenshot({ path: 'artifacts/screenshots/portrait/manual-ult-ready.png' });
+  await page.screenshot({ path: 'artifacts/screenshots/landscape/manual-ult-ready.png' });
 
   // 點大耳：輪到牠就放大絕招
   const u = b.team[0];
@@ -175,7 +175,7 @@ test('戰鬥照陣型站位；關掉自動放招後，點 EN 滿的狗才會放�
   expect(b.ults).toBe(1);
   expect(b.ult).toMatchObject({ id: 'daer', kind: 'buff' });
   await page.waitForTimeout(450);
-  await page.screenshot({ path: 'artifacts/screenshots/portrait/manual-ult-fire.png' });
+  await page.screenshot({ path: 'artifacts/screenshots/landscape/manual-ult-fire.png' });
 
   // 略過：剩下的自動算完；結算和畫面上的勝負一致，選擇（不自動放招）有存檔
   await tap(page, b.skipButton);
@@ -277,4 +277,81 @@ test.describe('手機橫放', () => {
     await page.waitForFunction(() => (window.__WGZ__?.battle?.index ?? 0) >= 3);
     await page.screenshot({ path: 'artifacts/screenshots/landscape/formation-battle.png' });
   });
+});
+
+test('五組隊伍：切換分頁各自記成員與站位，出征選隊也能換，重開還在', async ({ page }) => {
+  await openLobby(page, '?fast=1');
+  await tap(page, (await wgz(page)).lobby!.buttons.team);
+  await waitScene(page, 'TeamScene');
+  let p = (await wgz(page)).picker!;
+  expect(p.teamTabs).toHaveLength(5);
+  expect(p.teamIndex).toBe(0);
+  for (const t of p.teamTabs) {
+    expect(t.x).toBeGreaterThanOrEqual(0);
+    expect(t.y + t.height).toBeLessThanOrEqual(p.boardRows[0].y);
+    expect(t.x + t.width).toBeLessThanOrEqual(p.grid.x);
+  }
+  const first = p.board.filter((c) => c.id).map((c) => `${c.id}@${c.row}${c.lane}`);
+  expect(first).toHaveLength(3);
+
+  // 二隊一開始是空的：拖阿白到前排中間、小算到後排上面
+  await tap(page, p.teamTabs[1]);
+  await page.waitForFunction(() => window.__WGZ__?.picker?.teamIndex === 1);
+  p = (await wgz(page)).picker!;
+  expect(p.board.filter((c) => c.id)).toHaveLength(0);
+  const cellOf = (pk: typeof p, row: number, lane: number) =>
+    pk.board.find((c) => c.row === row && c.lane === lane)!;
+  await drag(
+    page,
+    p.cells.find((c) => c.id === 'abai')!,
+    cellOf(p, 0, 1),
+    400,
+  );
+  await page.waitForFunction(
+    () => window.__WGZ__?.picker?.board.find((c) => c.row === 0 && c.lane === 1)?.id === 'abai',
+  );
+  p = (await wgz(page)).picker!;
+  await drag(
+    page,
+    p.cells.find((c) => c.id === 'xiaosuan')!,
+    cellOf(p, 2, 0),
+    400,
+  );
+  await page.waitForFunction(
+    () => window.__WGZ__?.picker?.board.find((c) => c.row === 2 && c.lane === 0)?.id === 'xiaosuan',
+  );
+  await page.waitForTimeout(200);
+  await page.screenshot({ path: 'artifacts/screenshots/landscape/team-presets.png' });
+
+  // 切回一隊：原本三隻與站位都沒變
+  await tap(page, (await wgz(page)).picker!.teamTabs[0]);
+  await page.waitForFunction(() => window.__WGZ__?.picker?.teamIndex === 0);
+  p = (await wgz(page)).picker!;
+  expect(p.board.filter((c) => c.id).map((c) => `${c.id}@${c.row}${c.lane}`)).toEqual(first);
+
+  // 重開遊戲：停在一隊，二隊還在
+  await page.reload();
+  await waitScene(page, 'LobbyScene');
+  await tap(page, (await wgz(page)).lobby!.buttons.expedition);
+  await waitScene(page, 'CampaignScene');
+  await tap(page, (await wgz(page)).map!.nodes[0]);
+  await page.waitForFunction(() => !!window.__WGZ__?.map?.stagePanel);
+  await tap(page, (await wgz(page)).map!.stagePanel!.go);
+  await waitScene(page, 'ExpeditionScene');
+  p = (await wgz(page)).picker!;
+  expect(p.teamIndex).toBe(0);
+  expect(p.board.filter((c) => c.id)).toHaveLength(3);
+  // 出征選隊直接換成二隊
+  await tap(page, p.teamTabs[1]);
+  await page.waitForFunction(() => window.__WGZ__?.picker?.teamIndex === 1);
+  p = (await wgz(page)).picker!;
+  expect(cellOf(p, 0, 1).id).toBe('abai');
+  expect(cellOf(p, 2, 0).id).toBe('xiaosuan');
+  expect(
+    (await wgz(page))
+      .expeditionPanel!.teamCards.filter((c) => c.selected)
+      .map((c) => c.id)
+      .sort(),
+  ).toEqual(['abai', 'xiaosuan']);
+  await page.screenshot({ path: 'artifacts/screenshots/landscape/team-presets-expedition.png' });
 });

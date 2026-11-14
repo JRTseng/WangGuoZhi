@@ -15,7 +15,15 @@ describe('選狗畫面排版', () => {
       const l = layoutPicker({ ...c, roleCount: 6, statusCount: 3 });
       const screen: Rect = { x: 0, y: 0, width: c.w, height: c.h };
       const cells = l.boardCells.flat();
-      const all = [l.autoButton, ...cells, ...l.roleChips, ...l.statusChips, l.sortChip, l.grid];
+      const all = [
+        l.autoButton,
+        ...l.teamTabs,
+        ...cells,
+        ...l.roleChips,
+        ...l.statusChips,
+        l.sortChip,
+        l.grid,
+      ];
       // 陣型九宮格：三排各三格，九格一樣大、橫的直的都對齊，都在各自那一排裡
       expect(l.boardCells).toHaveLength(3);
       expect(cells).toHaveLength(9);
