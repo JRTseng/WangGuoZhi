@@ -122,7 +122,8 @@ export class ResultPanel extends Phaser.GameObjects.Container {
         const d = findDog(g.dogId);
         const up = g.toLevel > g.fromLevel;
         const head = scene.add.graphics();
-        if (d) drawDogHead(head, gx + 12, y + 12, 11, d.color, d.accent);
+        // 打輸：出戰的狗全部掛彩（T014，純外觀）
+        if (d) drawDogHead(head, gx + 12, y + 12, 11, d.color, d.accent, { hurt: win ? 0 : 2 });
         items.push(head, text(gx + 30, y, d?.name ?? g.dogId, 16, COLORS.ink, true));
         const lv = up ? `Lv.${g.fromLevel} → Lv.${g.toLevel} 升級！` : `Lv.${g.toLevel}`;
         items.push(

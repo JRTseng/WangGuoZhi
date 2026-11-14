@@ -215,6 +215,8 @@ export interface GameState {
   gear: Record<string, number>;
   /** 每隻狗每個部位穿哪一件裝備，以狗狗 id 為鍵（規則見 src/logic/equipment.ts） */
   equipped: Record<string, Partial<Record<GearSlot, string>>>;
+  /** 受傷外觀（T014）：哪些狗剛出征回來或掛彩、到什麼時候為止；純外觀（見 src/logic/wounds.ts） */
+  wounds: Record<string, { until: number; level: 1 | 2 }>;
 }
 
 /** 體力上限；新遊戲從滿體力開始 */
@@ -259,5 +261,6 @@ export function createInitialState(now: number = Date.now()): GameState {
     pending: null,
     gear: {},
     equipped: {},
+    wounds: {},
   };
 }

@@ -30,6 +30,7 @@ import {
 } from './leveling';
 import { isStageUnlocked, unlockedBackgrounds } from './progress';
 import { runBlock, spendRun, type TimeOptions } from './stamina';
+import { markWounds } from './wounds';
 
 /** 一支出征隊伍最多幾隻 */
 export const TEAM_SIZE = BATTLE_TEAM_MAX;
@@ -293,6 +294,8 @@ function settleBattle(
   const next: GameState = {
     ...state,
     pending: null,
+    // 受傷外觀：出戰的狗休息一下，打輸的全部掛彩（不影響數值）
+    wounds: markWounds(state, exp.dogIds, win, ticket.at),
     gear: dropGearId ? addGear(state, dropGearId).gear : state.gear,
     resources: {
       food: state.resources.food + reward.food,
@@ -379,8 +382,10 @@ export function resultNotes(
   record: ExpeditionRecord,
 ): string[] {
   const notes: string[] = [];
-  if (!record.win) notes.push('只帶回三成物資，關卡還沒通過');
-  else if (!before.cleared.includes(record.stageId)) notes.push('通過關卡！下一關已開放');
+  if (!record.win) {
+    notes.push('只帶回三成物資，關卡還沒通過');
+    notes.push('狗狗們掛彩了，休息一下就好（不影響能力）');
+  } else if (!before.cleared.includes(record.stageId)) notes.push('通過關卡！下一關已開放');
   const drop = findGear(record.dropGearId ?? '');
   if (drop) notes.push(dropNote(drop));
   const gift = record.newDogId ? findDog(record.newDogId) : undefined;

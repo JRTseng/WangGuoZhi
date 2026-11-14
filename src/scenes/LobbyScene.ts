@@ -9,6 +9,8 @@ import { clearAutoSummary, setAuto } from '../logic/auto';
 import { formatAmount, formatCountdown } from '../logic/format';
 import type { Rect } from '../logic/layout';
 import { gearOf } from '../logic/equipment';
+import { woundLevel, type WoundLevel } from '../logic/wounds';
+import { headLook } from './components/headLook';
 import { findGear } from '../data/equipment';
 import { dogStats } from '../logic/leveling';
 import { lobbyLayout, tappableRects, type LobbyLayout } from '../logic/lobbyLayout';
@@ -24,7 +26,7 @@ import { teamPower } from '../logic/team';
 import { acknowledgeLoad, getState, saveStatus, setState, tick, timeOptions } from '../state/store';
 import { Button } from './components/Button';
 import { drawDogHead } from './components/dogArt';
-import { DogSprite } from './components/DogSprite';
+import { DogSprite, HURT_ACTIONS } from './components/DogSprite';
 import { makeTapArea } from './components/hitArea';
 import { drawLobbyIcon, drawPanel, drawPaw } from './components/lobbyIcons';
 import { LOBBY, LobbyCard, MenuItem, RoundShortcut } from './components/LobbyWidgets';
@@ -59,6 +61,8 @@ export class LobbyScene extends Phaser.Scene {
   private autoBanner!: Button;
   private shop: StaminaShop | null = null;
   private summary: Phaser.GameObjects.Container | null = null;
+  /** 主頁狗狗畫出來時的受傷程度；恢復了要重畫 */
+  private dogHurt: WoundLevel = 0;
   private resourceTexts: Partial<Record<keyof Resources, Phaser.GameObjects.Text>> = {};
   private settings: SettingsPanel | null = null;
   private storyCard!: LobbyCard;
@@ -97,6 +101,7 @@ export class LobbyScene extends Phaser.Scene {
       lobby: {
         dogId: getState().lobbyDogId,
         dogAction: this.dog.action,
+        dogHurt: this.dogHurt,
         background: getState().backgroundId,
         buttons: buttons as NonNullable<WgzDebugState['lobby']>['buttons'],
       },
@@ -139,11 +144,13 @@ export class LobbyScene extends Phaser.Scene {
       color: d.color,
       accent: d.accent,
       gear: gearOf(getState(), d.id),
+      hurt: (this.dogHurt = woundLevel(getState(), d.id, Date.now())),
     });
     this.dog.setScale(scale);
     this.dog.onActionChange = (a) =>
       patchDebug({ lobby: { ...window.__WGZ__!.lobby!, dogAction: a } });
-    this.dog.startCycle(ACTION_MS);
+    // 剛出征回來或掛彩：多半在舔傷口、休息（T014，純外觀）
+    this.dog.startCycle(ACTION_MS, this.dogHurt > 0 ? HURT_ACTIONS : undefined);
 
     // 名牌
     addText(this, x, y + 8, `${d.name}\u3000Lv.${level}`, 16, '#ffffff', true)
@@ -191,7 +198,7 @@ export class LobbyScene extends Phaser.Scene {
     const d = findDog(st.lobbyDogId) ?? DOGS[0];
     g.fillStyle(0xfff6e8, 1);
     g.fillCircle(cx, cy, R);
-    drawDogHead(g, cx, cy + 4, R * 0.62, d.color, d.accent);
+    drawDogHead(g, cx, cy + 4, R * 0.62, d.color, d.accent, headLook(st, d.id));
     g.lineStyle(4, LOBBY.gold, 1);
     g.strokeCircle(cx, cy, R);
     g.lineStyle(1.5, 0x8a5a1a, 1);
@@ -530,6 +537,11 @@ export class LobbyScene extends Phaser.Scene {
   private refresh(): void {
     const now = Date.now();
     const state = tick(now);
+    // 主頁狗狗的傷好了（或剛掛彩）：整個畫面重畫一次
+    if (!this.busyWithPanel && woundLevel(state, state.lobbyDogId, now) !== this.dogHurt) {
+      this.scene.restart();
+      return;
+    }
 
     for (const key of Object.keys(this.resourceTexts) as (keyof Resources)[]) {
       const text = `${RESOURCE_LABELS[key]} ${formatAmount(state.resources[key])}`;

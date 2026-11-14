@@ -41,6 +41,7 @@ import { TEAM_PRESET_NAMES } from '../../logic/teams';
 import { getState } from '../../state/store';
 import { addText, darken, viewOf } from '../ui';
 import { drawDogHead } from './dogArt';
+import { headLook } from './headLook';
 import { makeTapArea } from './hitArea';
 
 export interface DogPickerOptions {
@@ -459,7 +460,15 @@ export class DogPicker {
       if (c.height >= 64) {
         // 高的格子：頭在上、名字與定位在下
         const hr = Math.min(22, (c.height - 48) / 2);
-        drawDogHead(g, c.x + c.width / 2, c.y + 7 + hr, hr, d.color, d.accent);
+        drawDogHead(
+          g,
+          c.x + c.width / 2,
+          c.y + 7 + hr,
+          hr,
+          d.color,
+          d.accent,
+          headLook(getState(), d.id),
+        );
         this.layer.add([
           addText(
             this.scene,
@@ -482,7 +491,15 @@ export class DogPicker {
       } else {
         // 矮的格子：頭在左、名字在右
         const hr = Math.min(18, c.height / 2 - 6);
-        drawDogHead(g, c.x + 8 + hr, c.y + c.height / 2 + 2, hr, d.color, d.accent);
+        drawDogHead(
+          g,
+          c.x + 8 + hr,
+          c.y + c.height / 2 + 2,
+          hr,
+          d.color,
+          d.accent,
+          headLook(getState(), d.id),
+        );
         this.layer.add(
           addText(
             this.scene,
@@ -557,7 +574,7 @@ export class DogPicker {
     g.lineStyle(3, COLORS.button, 1);
     g.fillRoundedRect(-40, -40, 80, 80, 12);
     g.strokeRoundedRect(-40, -40, 80, 80, 12);
-    drawDogHead(g, 0, -8, 22, d.color, d.accent);
+    drawDogHead(g, 0, -8, 22, d.color, d.accent, headLook(getState(), d.id));
     ghost.add([g, addText(this.scene, 0, 26, d.name, 14, COLORS.ink, true).setOrigin(0.5)]);
     this.lift = { id, from, ghost };
     this.render();
@@ -598,7 +615,10 @@ export class DogPicker {
     g.fillRoundedRect(0, 0, r.width, r.height, 14);
     g.strokeRoundedRect(0, 0, r.width, r.height, 14);
     const hr = Math.min(30, r.height * 0.19);
-    drawDogHead(g, r.width / 2, hr + 16, hr, d.color, d.accent, { dark: !s.owned });
+    drawDogHead(g, r.width / 2, hr + 16, hr, d.color, d.accent, {
+      dark: !s.owned,
+      ...headLook(getState(), d.id),
+    });
     c.add(g);
 
     const nameY = hr * 2 + 22;

@@ -34,6 +34,7 @@ import type { GameState } from '../state/gameState';
 import { getState, setState, tick } from '../state/store';
 import { makeTapArea } from './components/hitArea';
 import { drawDogHead } from './components/dogArt';
+import { headLook } from './components/headLook';
 import { drawExpBar, expLabel } from './components/ExpBar';
 import { closeTextPrompt, isTextPromptOpen, openTextPrompt } from './components/TextPrompt';
 import { addText, drawHeader, patchDebug, resetDebug, viewOf } from './ui';
@@ -222,7 +223,7 @@ export class TrainingScene extends Phaser.Scene {
       const hr = 26;
       const top = landscape ? 9 : 10;
       const gapY = landscape ? 23 : 24;
-      drawDogHead(g, 16 + hr, top + gapY + 12, hr, d.color, d.accent);
+      drawDogHead(g, 16 + hr, top + gapY + 12, hr, d.color, d.accent, headLook(st, d.id));
       const lb = trainingLineButton(l, i);
       g.fillStyle(LINE_BUTTON_COLOR, 1);
       g.fillRoundedRect(lb.x - r.x, lb.y - r.y, lb.width, lb.height, 13);

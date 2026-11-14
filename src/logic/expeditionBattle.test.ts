@@ -117,7 +117,10 @@ describe('出征與陣型（T023）', () => {
     const lose = runExpedition(st, 'luoyepo-1', ['abai'], NOW, { seed: 9 });
     if (!lose.ok) throw new Error('應該可以出征');
     expect(lose.record.win).toBe(false);
-    expect(resultNotes(st, lose.state, lose.record)).toEqual(['只帶回三成物資，關卡還沒通過']);
+    expect(resultNotes(st, lose.state, lose.record)).toEqual([
+      '只帶回三成物資，關卡還沒通過',
+      '狗狗們掛彩了，休息一下就好（不影響能力）',
+    ]);
   });
 
   it('選隊伍畫面的勝率：模擬出來的，陣型排錯會變低，隊伍不合法是 0', () => {
