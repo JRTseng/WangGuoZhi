@@ -59,6 +59,7 @@ test('帳號與設定：開關、畫質、優惠碼', async ({ page }) => {
   expect(st.values).toEqual({
     voice: true,
     music: true,
+    sfx: true,
     push: false,
     quality: 'high',
     skipBattle: false,
