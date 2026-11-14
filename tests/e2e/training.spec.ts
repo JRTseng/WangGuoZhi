@@ -170,7 +170,14 @@ async function drillTap(page: Page, id: string, stat: 'attack' | 'defense', n: n
     if (over <= 0 && under <= 0) break;
     await page.mouse.move(t.list.x + t.list.width / 2, t.list.y + t.list.height / 2);
     await page.mouse.wheel(0, over > 0 ? over + 8 : -(under + 8));
-    await page.waitForTimeout(120);
+    // 等捲動停下來再量位置，不然慢的機器上會點到捲動前的座標
+    let last = -1;
+    for (let k = 0; k < 20; k++) {
+      await page.waitForTimeout(80);
+      const y = (await wgz(page)).training!.scrollY;
+      if (y === last) break;
+      last = y;
+    }
   }
   for (let i = 0; i < n; i++) {
     const before = await row(page, id);
@@ -186,6 +193,8 @@ async function drillTap(page: Page, id: string, stat: 'attack' | 'defense', n: n
 }
 
 test('特訓：花糧草加攻防，練滿與糧草不足時不能按', async ({ page }) => {
+  // 要按二十幾次特訓，中間還要捲動清單，CI 上超過預設的 60 秒
+  test.setTimeout(180_000);
   await openTraining(page);
   let t = (await wgz(page)).training!;
   expect(t.food).toBe(1200);
