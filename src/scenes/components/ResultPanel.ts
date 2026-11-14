@@ -4,8 +4,10 @@ import { findDog } from '../../data/dogs';
 import { RESOURCE_LABELS, type Resources } from '../../data/resources';
 import { formatAmount } from '../../logic/format';
 import { formatGain, type DogExpGain } from '../../logic/leveling';
+import type { Rect } from '../../logic/layout';
 import { viewOf } from '../ui';
 import { playSfx } from './audio';
+import { Button } from './Button';
 import { drawDogHead } from './dogArt';
 
 const WIN_COLOR = { text: '#4f8a3c', border: COLORS.harvest };
@@ -19,9 +21,13 @@ const GAINS_HEAD = 34;
 /**
  * 收成結算面板：勝／敗大字 + 獎勵 + 隊伍每隻狗的經驗與升級成長。
  * 半透明遮罩 + 中央卡片，點任何地方關閉。
+ * 有給 next 的話，下方多一顆「下一關」按鈕：按它直接挑戰下一關，點其他地方照舊關閉。
  * 直式由上往下排；橫式高度不夠，經驗區放到右半邊。
  */
 export class ResultPanel extends Phaser.GameObjects.Container {
+  /** 「下一關」按鈕的位置（沒有按鈕為 null；測試用） */
+  readonly nextRect: Rect | null = null;
+
   constructor(
     scene: Phaser.Scene,
     stageName: string,
@@ -32,6 +38,8 @@ export class ResultPanel extends Phaser.GameObjects.Container {
     extra: string[] = [],
     /** 隊伍每隻狗拿到的經驗與升級結果 */
     gains: readonly DogExpGain[] = [],
+    /** 「下一關」按鈕（打贏而且下一關可以打才給） */
+    next?: { label: string; onTap: () => void },
   ) {
     super(scene, 0, 0);
     const { w: GAME_WIDTH, h: GAME_HEIGHT, landscape } = viewOf(scene);
@@ -47,7 +55,8 @@ export class ResultPanel extends Phaser.GameObjects.Container {
     const gainsHeight = gains.length
       ? GAINS_HEAD + gains.reduce((s, g) => s + rowHeightOf(g), 0)
       : 0;
-    const mainHeight = 240 + extra.length * 26;
+    const NEXT_HEIGHT = 40;
+    const mainHeight = 240 + extra.length * 26 + (next ? NEXT_HEIGHT + 8 : 0);
     const pw = Math.min(GAME_WIDTH - 48, split ? 660 : 360);
     const ph = Math.min(
       GAME_HEIGHT - 24,
@@ -101,8 +110,26 @@ export class ResultPanel extends Phaser.GameObjects.Container {
       ...extra.map((e, i) =>
         center(py + 132 + keys.length * 30 + i * 26, e, 15, win ? '#b5651d' : tone.text, true),
       ),
-      text(px + pw / 2, py + ph - 22, '點一下關閉', 14, COLORS.inkSoft).setOrigin(0.5),
+      text(
+        px + pw / 2,
+        py + ph - 22,
+        next ? '點其他地方回地圖' : '點一下關閉',
+        14,
+        COLORS.inkSoft,
+      ).setOrigin(0.5),
     ];
+    if (next) {
+      const bw = Math.min(220, mainW - 40);
+      this.nextRect = {
+        x: cx - bw / 2,
+        y: py + ph - 40 - NEXT_HEIGHT,
+        width: bw,
+        height: NEXT_HEIGHT,
+      };
+      const button = new Button(scene, this.nextRect, next.label, next.onTap, 20);
+      button.setColor(COLORS.harvest);
+      items.push(button);
+    }
 
     // ---- 經驗與升級 ----
     if (gains.length > 0) {

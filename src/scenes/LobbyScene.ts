@@ -21,7 +21,7 @@ import {
   stageNodeState,
   unlockedBackgrounds,
 } from '../logic/progress';
-import { STAMINA_MAX, msUntilNextPoint } from '../logic/stamina';
+import { STAMINA_MAX, limits, msUntilNextPoint, staminaText } from '../logic/stamina';
 import { teamPower } from '../logic/team';
 import { acknowledgeLoad, getState, saveStatus, setState, tick, timeOptions } from '../state/store';
 import { Button } from './components/Button';
@@ -452,7 +452,8 @@ export class LobbyScene extends Phaser.Scene {
   }
 
   private openShop(): void {
-    if (this.busyWithPanel) return;
+    // 體力先設成無限的期間不用補體力
+    if (this.busyWithPanel || !limits.stamina) return;
     this.shop = new StaminaShop(this, 'stamina', '', () => {
       this.shop = null;
       this.refresh();
@@ -561,11 +562,13 @@ export class LobbyScene extends Phaser.Scene {
     const value = state.stamina.value;
     const wait = msUntilNextPoint(state, now, timeOptions());
     this.statusButton.setText(
-      value >= STAMINA_MAX
-        ? `體力 ${value}/${STAMINA_MAX} ＋`
-        : `體力 ${value}/${STAMINA_MAX}・${formatCountdown(wait)} ＋`,
+      !limits.stamina
+        ? staminaText(value)
+        : value >= STAMINA_MAX
+          ? `${staminaText(value)} ＋`
+          : `${staminaText(value)}・${formatCountdown(wait)} ＋`,
     );
-    const p = Math.min(1, value / STAMINA_MAX);
+    const p = limits.stamina ? Math.min(1, value / STAMINA_MAX) : 1;
     this.progressBar.clear();
     this.progressBar.fillStyle(COLORS.cardBorder, 1);
     this.progressBar.fillRoundedRect(r.x, r.y - 7, r.width, 4, 2);
