@@ -63,7 +63,15 @@ export class StoryScene extends Phaser.Scene {
     const area: Rect = landscape
       ? { x: 60, y: BAR + 14, width: w - 120, height: h - BAR - 26 }
       : { x: 16, y: BAR + 20, width: w - 32, height: h - BAR - 40 };
-    const rects = layoutList(STORIES.length, { area, gap: landscape ? 8 : 12, maxCardHeight: 96 });
+    // 橫式排兩欄（十章共 12 段，一欄放不下）：先排左欄由上而下，再排右欄
+    const gap = landscape ? 8 : 12;
+    const perCol = landscape ? Math.ceil(STORIES.length / 2) : STORIES.length;
+    const colW = landscape ? (area.width - 16) / 2 : area.width;
+    const col = layoutList(perCol, { area: { ...area, width: colW }, gap, maxCardHeight: 96 });
+    const rects = STORIES.map((_, i) => {
+      const r = col[i % perCol];
+      return { ...r, x: r.x + Math.floor(i / perCol) * (colW + 16) };
+    });
     const items = STORIES.map((s, i) => {
       const r = rects[i];
       const unlocked = isStoryUnlocked(st, s);
@@ -80,7 +88,7 @@ export class StoryScene extends Phaser.Scene {
           addText(
             this,
             18,
-            r.height / 2 - 12,
+            r.height / 2 - 11,
             s.title,
             landscape ? 17 : 19,
             COLORS.ink,
@@ -91,8 +99,8 @@ export class StoryScene extends Phaser.Scene {
           addText(
             this,
             18,
-            r.height / 2 + 14,
-            s.lines[0].text.slice(0, 18) + '…',
+            r.height / 2 + 12,
+            s.lines[0].text.slice(0, landscape ? 14 : 18) + '…',
             13,
             COLORS.inkSoft,
           ).setOrigin(0, 0.5),
@@ -115,10 +123,18 @@ export class StoryScene extends Phaser.Scene {
       } else {
         const stage = s.unlockAfter ? findStage(s.unlockAfter)?.name : '';
         c.add(
-          addText(this, 18, r.height / 2 - 12, '🔒 ？？？', 19, '#6d5f52', true).setOrigin(0, 0.5),
+          addText(
+            this,
+            18,
+            r.height / 2 - 11,
+            '🔒 ？？？',
+            landscape ? 16 : 19,
+            '#6d5f52',
+            true,
+          ).setOrigin(0, 0.5),
         );
         c.add(
-          addText(this, 18, r.height / 2 + 14, `通過「${stage}」後解鎖`, 13, '#6d5f52').setOrigin(
+          addText(this, 18, r.height / 2 + 12, `通過「${stage}」後解鎖`, 13, '#6d5f52').setOrigin(
             0,
             0.5,
           ),

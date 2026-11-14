@@ -7,7 +7,21 @@ test('劇情回顧：序章可看，其餘上鎖；看完紅點消失', async ({
   await waitScene(page, 'StoryScene');
   let s = (await wgz(page)).story!;
   expect(s.mode).toBe('list');
-  expect(s.items.map((i) => i.unlocked)).toEqual([true, false, false, false, false]);
+  // 序章加十章的劇情共 12 段，只有序章一開始就能看
+  expect(s.items.map((i) => i.unlocked)).toEqual([
+    true,
+    ...Array.from({ length: 11 }, () => false),
+  ]);
+  // 兩欄都排在畫面裡，卡片不重疊
+  for (const [i, a] of s.items.entries()) {
+    expect(a.x).toBeGreaterThanOrEqual(0);
+    expect(a.x + a.width).toBeLessThanOrEqual(844);
+    expect(a.y + a.height).toBeLessThanOrEqual(390);
+    expect(a.height).toBeGreaterThanOrEqual(40);
+    for (const b of s.items.slice(i + 1)) {
+      expect(a.x + a.width <= b.x || b.x + b.width <= a.x || a.y + a.height <= b.y).toBe(true);
+    }
+  }
   await page.screenshot({ path: 'artifacts/screenshots/landscape/story-list.png' });
 
   // 上鎖的點了沒反應

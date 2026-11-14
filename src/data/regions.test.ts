@@ -78,6 +78,8 @@ describe('regions', () => {
     it('上陣數量跟著敵人數量：頭目算兩隻，最多 5 隻', () => {
       expect(teamMaxOf(parseLineup('ee', gang))).toBe(2);
       expect(teamMaxOf(parseLineup('mm/m', gang))).toBe(3);
+      expect(findStage('luoyepo-1')?.teamMax).toBe(5);
+      expect(findStage('luoyepo-2')?.teamMax).toBe(3);
       expect(teamMaxOf(parseLineup('mm/B', gang, boss))).toBe(4);
       expect(teamMaxOf(parseLineup('mmm/mmm', gang))).toBe(5);
       expect(teamMaxOf(parseLineup('gg/B/s', gang, boss))).toBe(5);

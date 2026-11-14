@@ -240,7 +240,8 @@ export const REGIONS: readonly RegionData[] = [
     theme: 'slope',
     gang: G1,
     stages: [
-      stage(G1, 'luoyepo-1', '坡腳小徑', 'mm/m', 1, 150, 120, 5),
+      // 第一關五隻小卒：五隻新手狗都能上場；第二關起上陣數量才有限制
+      stage(G1, 'luoyepo-1', '坡腳小徑', 'mmm/mm', 1, 150, 120, 5),
       stage(G1, 'luoyepo-2', '紅葉林', 'mmm', 2, 250, 260, 12),
       stage(G1, 'luoyepo-3', '坡頂哨站', 'mam/s', 3, 350, 560, 25),
       stage(G1, 'luoyepo-4', '山風隘口', 'gmg/s', 3, 400, 640, 30),

@@ -7,7 +7,7 @@
  * 沒列到的陣容倍率是 1。
  */
 export const LINEUP_SCALE: Readonly<Record<string, number>> = {
-  'mm/m': 1.23,
+  'mmm/mm': 1.25,
   mmm: 1.08,
   'mam/s': 1.12,
   'gmg/s': 1.12,

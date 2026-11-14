@@ -44,14 +44,14 @@ describe('出征與陣型（T023）', () => {
     });
   });
 
-  it('每一關用自己的敵人陣容（T018）：第 1 關三隻小卒，Boss 關是頭目加兩隻小兵', () => {
+  it('每一關用自己的敵人陣容（T018）：第 2 關三隻小卒，Boss 關是頭目加兩隻小兵', () => {
     const team = battleTeamOf(fresh(), TEAM);
-    const first = battleInputOf({ stageId: 'luoyepo-1', team, seed: 1 });
-    expect(first.recommendedPower).toBe(150);
-    expect(first.enemies!.map((e) => `${e.name}:${e.role}:${e.row}`)).toEqual([
+    expect(battleInputOf({ stageId: 'luoyepo-1', team, seed: 1 }).recommendedPower).toBe(150);
+    const second = battleInputOf({ stageId: 'luoyepo-2', team, seed: 1 });
+    expect(second.enemies!.map((e) => `${e.name}:${e.role}:${e.row}`)).toEqual([
       '坡匪小卒甲:野犬:0',
       '坡匪小卒乙:野犬:0',
-      '坡匪小卒丙:野犬:1',
+      '坡匪小卒丙:野犬:0',
     ]);
     const boss = battleInputOf({ stageId: 'luoyepo-5', team, seed: 1 });
     expect(boss.enemies!.map((e) => `${e.name}:${e.role}:${e.row}`)).toEqual([
@@ -126,8 +126,8 @@ describe('出征與陣型（T023）', () => {
     expect(stageWinChance(st, 'luoyepo-1', TEAM)).toBe(1);
     expect(stageWinChance(st, 'luoyepo-1', ['abai'])).toBeLessThan(0.05);
     expect(stageWinChance(st, 'luoyepo-1', [])).toBe(0);
-    // 超過這一關的上陣上限（第 1 關 3 隻、第 1 章 Boss 關 4 隻）也是 0
-    expect(stageWinChance(st, 'luoyepo-1', all.slice(0, 4))).toBe(0);
+    // 超過這一關的上陣上限（第 2 關 3 隻、第 1 章 Boss 關 4 隻）也是 0
+    expect(stageWinChance(st, 'luoyepo-2', all.slice(0, 4))).toBe(0);
     expect(stageWinChance(st, 'luoyepo-5', all)).toBe(0);
     const four = ['heixuan', 'changxu', 'xiaosuan', 'abai'];
     const good = stageWinChance(st, STAGE4, four);

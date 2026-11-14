@@ -80,14 +80,19 @@ describe('runExpedition', () => {
     expect(b.state.stamina.value).toBe(STAMINA_MAX - STAMINA_COST * 2);
   });
 
-  it('隊伍可帶 1 隻到這一關的上陣上限（T018：第 1 關三隻敵人，最多 3 隻）；不重複、要存在', () => {
+  it('隊伍可帶 1 隻到這一關的上陣上限（T018：跟著敵人數量）；不重複、要存在', () => {
     const s = fresh();
     const tz = TZ;
-    expect(stageTeamMax('luoyepo-1')).toBe(3);
-    for (let n = 1; n <= 3; n++) {
+    // 第 1 關五隻小卒，可以上 5 隻
+    expect(stageTeamMax('luoyepo-1')).toBe(5);
+    for (let n = 1; n <= 5; n++) {
       expect(run(s, 'luoyepo-1', ALL.slice(0, n)).record.dogIds).toEqual(ALL.slice(0, n));
     }
-    expect(runExpedition(s, 'luoyepo-1', ALL.slice(0, 4), T0, tz)).toEqual({
+    // 第 2 關三隻敵人，最多 3 隻
+    expect(stageTeamMax('luoyepo-2')).toBe(3);
+    const second = { ...s, cleared: ['luoyepo-1'] };
+    expect(run(second, 'luoyepo-2', ALL.slice(0, 3)).record.dogIds).toEqual(ALL.slice(0, 3));
+    expect(runExpedition(second, 'luoyepo-2', ALL.slice(0, 4), T0, tz)).toEqual({
       ok: false,
       error: 'wrong-team-size',
     });
