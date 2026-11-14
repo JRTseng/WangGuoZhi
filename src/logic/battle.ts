@@ -5,7 +5,7 @@ import { calcPower } from './power';
  *
  * - 雙方各有前排、中排、後排（row 0／1／2）。一般攻擊只打得到對方「最前面還有狗的那一排」，
  *   各定位另有自己的範圍（突擊穿透、謀略越排、幸運亂打、補血補隊友）。
- * - 每隻有血量、攻擊、防禦與 EN 值。EN 出手 +25、被打 +15，滿 100 可以放大絕招，放完歸零。
+ * - 每隻有血量、攻擊、防禦與 EN 值。EN 出手 +34～100（照稀有度，SSR 一次就滿）、被打 +20，滿 100 可以放大絕招，放完歸零。
  * - 模擬可以「一步一步往前推」：stepBattle(目前狀態, 這一步要不要放大絕招) → 下一個狀態。
  *   玩家手動放招時畫面一步一步推；全自動（略過、自動出征、估勝率）用 resolveBattle 一次算完。
  * - 亂數只來自種子，狀態裡帶著亂數的進度：同種子、同隊伍、同陣型、同關卡、同樣的放招時機，
@@ -26,10 +26,21 @@ export const ROW_MAX = 3;
 /** 敗北時拿到的獎勵比例 */
 export const DEFEAT_REWARD_RATE = 0.3;
 
-/** EN 值：滿了才能放大絕招 */
+/** EN 值：滿了才能放大絕招。2026-11-14 Jimmy 同意調快（原本 25／15，新手第 1 關多半看不到大絕招） */
 export const EN_MAX = 100;
-export const EN_PER_ACT = 25;
-export const EN_PER_HIT = 15;
+/** 出手一次集多少：沒標稀有度的狗與頭目用這個 */
+export const EN_PER_ACT = 40;
+/**
+ * 稀有度越高集得越快（Jimmy 2026-11-14）：SSR 出手一次就滿，下一次出手就能放；
+ * SR 兩次；R 兩次再被打一下、或三次；N 三次。
+ */
+export const EN_PER_ACT_BY_RARITY: Readonly<Record<BattleRarity, number>> = {
+  N: 34,
+  R: 40,
+  SR: 50,
+  SSR: 100,
+};
+export const EN_PER_HIT = 20;
 
 /** 補血量：被補的那隻最大血量的 25% */
 export const HEAL_RATE = 0.25;
@@ -76,7 +87,7 @@ export const DAMAGE_SPREAD = 0.1;
 /** 血量 = 防禦 × HP_PER_DEF */
 export const HP_PER_DEF = 6;
 /** 敵方強度的倍率（調勝率用）：野犬群、單獨一隻的頭目各一個 */
-export const MOB_SCALE = 1.04;
+export const MOB_SCALE = 1.1;
 export const BOSS_SCALE = 0.92;
 /** 頭目大絕招（打最前面一整排）每一隻吃到的傷害比例 */
 export const BOSS_ULT_RATE = 0.5;
@@ -102,6 +113,8 @@ export function defaultRowOf(role: BattleRole | undefined): RowIndex {
   return 0;
 }
 
+export type BattleRarity = 'N' | 'R' | 'SR' | 'SSR';
+
 /** 參戰的狗：傳入攻防等級，不直接讀資料檔。攻防已含升級成長值，等級只是顯示用 */
 export interface BattleDog {
   id: string;
@@ -119,6 +132,8 @@ export interface BattleDog {
   row?: RowIndex;
   /** SSR：大絕招再強一級（守護嘲諷多一回合、謀略一次打兩排） */
   ssr?: boolean;
+  /** 稀有度：決定出手一次集多少 EN；沒填的話 ssr 當 SSR，其餘用 EN_PER_ACT */
+  rarity?: BattleRarity;
   /** 攻擊後補血（暖桶）：每次攻擊完接著補血量最低的兩位隊友，不是「補血或攻擊二選一」 */
   afterHeal?: boolean;
 }
@@ -147,6 +162,8 @@ export interface BattleUnit {
   row: RowIndex;
   /** 會不會集 EN、放大絕招 */
   canUlt: boolean;
+  /** 出手一次集多少 EN */
+  enPerAct: number;
   ssr: boolean;
   afterHeal: boolean;
   /** 是不是補血狗（畫面在名字前面加 ✚） */
@@ -276,6 +293,12 @@ export function scaleReward<T extends Record<string, number>>(reward: T, rate: n
   return out as T;
 }
 
+/** 這隻狗出手一次集多少 EN（照稀有度） */
+export function enPerActOf(d: Pick<BattleDog, 'rarity' | 'ssr'>): number {
+  const rarity = d.rarity ?? (d.ssr ? 'SSR' : undefined);
+  return rarity ? EN_PER_ACT_BY_RARITY[rarity] : EN_PER_ACT;
+}
+
 /** 由防禦推出血量 */
 export function hpOf(defense: number): number {
   return Math.max(10, Math.round(defense * HP_PER_DEF));
@@ -359,6 +382,7 @@ export function createBattle(input: BattleInput): BattleState {
       role,
       row: d.row ?? defaultRowOf(role),
       canUlt: !!d.hasSkill,
+      enPerAct: enPerActOf(d),
       ssr: !!d.ssr,
       afterHeal: !!d.afterHeal,
       ...(role === '補血' ? { heal: true } : {}),
@@ -401,6 +425,7 @@ export function createBattle(input: BattleInput): BattleState {
     role,
     row: input.boss || i < MOB_FRONT ? defaultRowOf(role) : 1,
     canUlt: !!input.boss,
+    enPerAct: EN_PER_ACT,
     ssr: false,
     afterHeal: false,
   }));
@@ -657,7 +682,7 @@ function act(s: BattleState, useUlt: boolean): BattleAction {
       hits.push(...normalAttack(s, side, actor));
     }
   } else {
-    if (u.canUlt) s.en[side][actor] = Math.min(EN_MAX, s.en[side][actor] + EN_PER_ACT);
+    if (u.canUlt) s.en[side][actor] = Math.min(EN_MAX, s.en[side][actor] + u.enPerAct);
     const hurt = hurtMates(s, side);
     if (u.role === '補血' && !u.afterHeal && hurt.length) {
       const units = unitsOf(s, side);

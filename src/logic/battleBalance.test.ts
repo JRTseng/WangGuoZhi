@@ -55,10 +55,10 @@ describe('戰鬥數值（大量模擬）', () => {
     const avg = rates.reduce((a, b) => a + b, 0) / rates.length;
     expect(avg).toBeGreaterThanOrEqual(0.55);
     expect(avg).toBeLessThanOrEqual(0.65);
-    // 隊伍組成不同會有高有低，但沒有哪一支穩贏或穩輸
+    // 隊伍組成不同會有高有低（有 SSR 的放招快，比較強），但沒有哪一支穩贏或穩輸
     for (const r of rates) {
-      expect(r).toBeGreaterThan(0.3);
-      expect(r).toBeLessThan(0.85);
+      expect(r).toBeGreaterThan(0.25);
+      expect(r).toBeLessThan(0.9);
     }
   });
 
@@ -83,11 +83,12 @@ describe('戰鬥數值（大量模擬）', () => {
     const good = winRate(teamAt(ids, POWER));
     const bad = winRate(teamAt(ids, POWER, [2, 2, 2, 0, 0]));
     expect(good - bad).toBeGreaterThan(0.12);
-    // 帶暖桶的隊伍：熊嶽（守護）放後排、暖桶（補血）放前排
+    // 帶三隻 SSR 的隊伍（熊嶽、雪綾、暖桶）：SSR 出手一次就能放大絕招（2026-11-14），
+    // 同戰力下很強，排錯也多半會贏；至少排錯不會比較好
     const healer = ['xiongyue', 'heixuan', 'daer', 'xueling', 'nuantong'];
     const ok = winRate(teamAt(healer, POWER));
     const wrong = winRate(teamAt(healer, POWER, [2, 0, 1, 2, 0]));
-    expect(ok - wrong).toBeGreaterThan(0.25);
+    expect(ok).toBeGreaterThanOrEqual(wrong);
     // 打 Boss 也一樣
     expect(
       winRate(teamAt(ids, POWER), true) - winRate(teamAt(ids, POWER, [2, 2, 2, 0, 0]), true),

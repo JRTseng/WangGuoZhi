@@ -5,6 +5,7 @@ import {
   EN_MAX,
   EN_PER_ACT,
   EN_PER_HIT,
+  enPerActOf,
   FIRST_STRIKE_RATE,
   GUARD_TAKEN,
   HEAL_RATE,
@@ -408,7 +409,29 @@ describe('站位的影響', () => {
 });
 
 describe('EN 值與大絕招', () => {
-  it('出手 +25、被打 +15，上限 100；沒有技能的不集氣', () => {
+  it('稀有度越高集得越快：SSR 出手一次就滿，下一次出手就放', () => {
+    expect(enPerActOf({ rarity: 'SSR' })).toBe(EN_MAX);
+    expect(enPerActOf({ ssr: true })).toBe(EN_MAX);
+    expect(enPerActOf({ rarity: 'SR' }) * 2).toBeGreaterThanOrEqual(EN_MAX);
+    expect(enPerActOf({ rarity: 'R' }) * 2).toBeLessThan(EN_MAX);
+    expect(enPerActOf({ rarity: 'R' }) * 3).toBeGreaterThanOrEqual(EN_MAX);
+    expect(enPerActOf({ rarity: 'N' }) * 3).toBeGreaterThanOrEqual(EN_MAX);
+    expect(enPerActOf({ rarity: 'N' })).toBeLessThan(enPerActOf({ rarity: 'R' }));
+    expect(enPerActOf({})).toBe(EN_PER_ACT);
+
+    let s = createBattle(
+      input([dog('a', '守護', { rarity: 'SSR', ...TANK })], { recommendedPower: 3000 }),
+    );
+    const mine: boolean[] = [];
+    for (let i = 0; i < 16 && mine.length < 2; i++) {
+      const r = stepBattle(s, true);
+      if (r.action.side === 'team') mine.push(r.action.ult);
+      s = r.state;
+    }
+    expect(mine).toEqual([false, true]);
+  });
+
+  it('沒標稀有度的出手 +40、被打 +20，上限 100；沒有技能的不集氣', () => {
     const team = [dog('a', '守護'), dog('b', '補給', { hasSkill: false })];
     let s = createBattle(input(team, { recommendedPower: 300 }));
     const en = [0, 0];
