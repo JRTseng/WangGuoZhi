@@ -103,6 +103,7 @@ export class LobbyScene extends Phaser.Scene {
         dogAction: this.dog.action,
         dogHurt: this.dogHurt,
         background: getState().backgroundId,
+        backgroundMoving: this.scenery?.moving ?? 0,
         buttons: buttons as NonNullable<WgzDebugState['lobby']>['buttons'],
       },
       result: null,
@@ -134,6 +135,8 @@ export class LobbyScene extends Phaser.Scene {
       landscape ? 0.6 : 0.5,
     );
     this.scenery.setDepth(-10);
+    const lobby = window.__WGZ__?.lobby;
+    if (lobby) patchDebug({ lobby: { ...lobby, backgroundMoving: this.scenery.moving } });
   }
 
   private drawDog(): void {

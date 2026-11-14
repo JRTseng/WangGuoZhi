@@ -210,6 +210,7 @@ function settings(v: unknown, fallback: Settings): Settings {
   return {
     voice: bool(v.voice, fallback.voice),
     music: bool(v.music, fallback.music),
+    sfx: bool(v.sfx, fallback.sfx),
     push: bool(v.push, fallback.push),
     quality,
     skipBattle: bool(v.skipBattle, fallback.skipBattle),

@@ -144,10 +144,13 @@ export interface GachaState {
 
 export type Quality = 'low' | 'medium' | 'high';
 
-/** 帳號設定（語音／音樂／推播目前只記住開關，還沒有實際功能） */
+/** 帳號設定（語音／推播目前只記住開關，還沒有實際功能；音樂與音效見 T016） */
 export interface Settings {
   voice: boolean;
+  /** 背景音樂 */
   music: boolean;
+  /** 音效（點按、攻擊、勝利等） */
+  sfx: boolean;
   push: boolean;
   quality: Quality;
   /** 略過戰鬥畫面：開啟後開戰直接看結算 */
@@ -242,6 +245,7 @@ export function createInitialState(now: number = Date.now()): GameState {
     settings: {
       voice: true,
       music: true,
+      sfx: true,
       push: false,
       quality: 'high',
       skipBattle: false,

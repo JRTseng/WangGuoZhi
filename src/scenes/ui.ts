@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { COLORS, FONT_FAMILY } from '../config';
 import type { Rect } from '../logic/layout';
 import { orientationFor } from '../logic/orientation';
+import { audioDebug, playSfx } from './components/audio';
 
 /** 目前的畫面尺寸與方向（直式 390 x 844，橫式 844 x 390） */
 export interface View {
@@ -55,6 +56,7 @@ export function resetDebug(scene: Phaser.Scene): WgzDebugState {
     version: window.__WGZ__?.version ?? '',
     orientation: v.landscape ? 'landscape' : 'portrait',
     size: { width: v.w, height: v.h },
+    audio: audioDebug(),
   };
   return window.__WGZ__;
 }
@@ -84,6 +86,7 @@ export function drawHeader(
     .setOrigin(0, 0)
     .setDepth(50)
     .setInteractive({ cursor: 'pointer' })
+    .on('pointerdown', () => playSfx('tap'))
     .on('pointerup', onBack);
   return back;
 }

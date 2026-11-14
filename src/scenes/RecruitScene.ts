@@ -21,6 +21,7 @@ import {
 } from '../logic/recruitLayout';
 import { getState, setState } from '../state/store';
 import { Button } from './components/Button';
+import { playSfx } from './components/audio';
 import { drawDogHead } from './components/dogArt';
 import { addText, drawHeader, patchDebug, resetDebug, viewOf } from './ui';
 
@@ -146,6 +147,8 @@ export class RecruitScene extends Phaser.Scene {
     this.gifts = totalGear(next) - before;
     setState(next);
     this.items = r.items;
+    const rare = r.items.some((i) => i.rarity === 'SSR' || i.rarity === 'SR');
+    playSfx(rare ? 'rare' : 'recruit');
     this.refreshTexts();
     this.renderResults(true);
   }

@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { COLORS } from './config';
+import { musicForScene } from './logic/music';
 import { gameSizeFor } from './logic/orientation';
 import { BattleScene } from './scenes/BattleScene';
 import { BoardingScene } from './scenes/BoardingScene';
@@ -12,6 +13,7 @@ import { RecruitScene } from './scenes/RecruitScene';
 import { StoryScene } from './scenes/StoryScene';
 import { TeamScene } from './scenes/TeamScene';
 import { TrainingScene } from './scenes/TrainingScene';
+import { initAudio, setMusic } from './scenes/components/audio';
 
 // 整個遊戲固定橫向（Jimmy 2026-11-14）：不管手機怎麼拿，遊戲尺寸都是橫式 844 x 390。
 // 直拿的時候由 index.html 的 #rotate 蓋一層「請把手機橫放」。
@@ -42,6 +44,14 @@ const game = new Phaser.Game({
     BattleScene,
     StoryScene,
   ],
+});
+
+// 音樂（T016）：每個畫面一開始就決定要播哪一首，各畫面不用自己管
+initAudio();
+game.events.once(Phaser.Core.Events.READY, () => {
+  for (const s of game.scene.scenes) {
+    s.events.on(Phaser.Scenes.Events.CREATE, () => setMusic(musicForScene(s.scene.key)));
+  }
 });
 
 /**

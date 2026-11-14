@@ -5,6 +5,7 @@ import { RESOURCE_LABELS, type Resources } from '../../data/resources';
 import { formatAmount } from '../../logic/format';
 import { formatGain, type DogExpGain } from '../../logic/leveling';
 import { viewOf } from '../ui';
+import { playSfx } from './audio';
 import { drawDogHead } from './dogArt';
 
 const WIN_COLOR = { text: '#4f8a3c', border: COLORS.harvest };
@@ -34,6 +35,7 @@ export class ResultPanel extends Phaser.GameObjects.Container {
   ) {
     super(scene, 0, 0);
     const { w: GAME_WIDTH, h: GAME_HEIGHT, landscape } = viewOf(scene);
+    playSfx(win ? 'win' : 'lose');
 
     const shade = scene.add.rectangle(0, 0, GAME_WIDTH, GAME_HEIGHT, COLORS.overlay, 0.45);
     shade.setOrigin(0, 0);

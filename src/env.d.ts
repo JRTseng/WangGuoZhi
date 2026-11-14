@@ -13,6 +13,15 @@ interface WgzDebugState {
   size?: { width: number; height: number };
   resources?: { food: number; bones: number };
   backButton?: WgzRect;
+  /** 音樂與音效（T016）：想播哪首、實際在播哪首、有沒有操作過、播過幾個音效 */
+  audio?: {
+    wanted: 'lobby' | 'battle' | null;
+    playing: 'lobby' | 'battle' | null;
+    unlocked: boolean;
+    running: boolean;
+    sfxCount: number;
+    lastSfx: string | null;
+  };
   /** 存檔狀態（T006）：這次是新遊戲／讀檔成功／壞檔重置，以及最後一次存檔有沒有成功 */
   save?: { load: 'new' | 'ok' | 'reset'; saveOk: boolean };
 
@@ -23,6 +32,8 @@ interface WgzDebugState {
     /** 主頁狗狗的受傷外觀（T014）：0 沒事、1 剛回來、2 掛彩 */
     dogHurt?: number;
     background: string;
+    /** 背景裡有幾個會動的東西（低畫質是 0） */
+    backgroundMoving?: number;
     buttons: Record<
       | 'account'
       | 'mail'
@@ -238,6 +249,7 @@ interface WgzDebugState {
     values: {
       voice: boolean;
       music: boolean;
+      sfx: boolean;
       push: boolean;
       quality: string;
       skipBattle: boolean;
