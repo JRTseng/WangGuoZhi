@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { openLobby, startBattle, tap, waitScene, wgz, type R } from './helpers';
+import { openLobby, patchSave, startBattle, tap, waitScene, wgz, type R } from './helpers';
 
 const ALL = ['daer', 'heixuan', 'changxu', 'xiaosuan', 'abai'];
 
@@ -348,4 +348,55 @@ test('排序：點按鈕輪流換條件，重開遊戲還記得', async ({ page 
   t = (await wgz(page)).training!;
   expect(t.sort).toBe('role');
   expect(t.rows[0].id).toBe('heixuan');
+});
+
+test('長按特訓按鈕會自動連續練；「全部升星」一次升完', async ({ page }) => {
+  await openLobby(page);
+  await patchSave(page, { shards: { daer: 35, heixuan: 100, changxu: 9 } });
+  await tap(page, (await wgz(page)).lobby!.buttons.train);
+  await waitScene(page, 'TrainingScene');
+
+  // 點一下還是只練 1 次
+  let daer = (await wgz(page)).training!.rows.find((r) => r.id === 'daer')!;
+  await tap(page, daer.drill.attack);
+  await page.waitForFunction(
+    () => window.__WGZ__?.training?.rows.find((r) => r.id === 'daer')?.drill.attack.count === 1,
+  );
+
+  // 按住不放：自動一直練，練到滿 10 次自己停；放開時不會多算
+  const box = (await page.locator('canvas').boundingBox())!;
+  const scale = box.width / 844;
+  const b = daer.drill.attack;
+  await page.mouse.move(box.x + (b.x + b.width / 2) * scale, box.y + (b.y + b.height / 2) * scale);
+  await page.mouse.down();
+  await page.waitForFunction(
+    () =>
+      (window.__WGZ__?.training?.rows.find((r) => r.id === 'daer')?.drill.attack.count ?? 0) >= 4,
+  );
+  await page.screenshot({ path: 'artifacts/screenshots/landscape/drill-hold.png' });
+  await page.waitForFunction(
+    () => window.__WGZ__?.training?.rows.find((r) => r.id === 'daer')?.drill.attack.count === 10,
+  );
+  await page.mouse.up();
+  await page.waitForTimeout(300);
+  let t = (await wgz(page)).training!;
+  daer = t.rows.find((r) => r.id === 'daer')!;
+  expect(daer.drill.attack).toMatchObject({ count: 10, enabled: false });
+  expect(daer.drill.defense.count).toBe(0);
+  // 1200 糧草扣掉 10+20+…+100 = 550
+  expect(t.food).toBe(650);
+
+  // 全部升星：大耳 35 個碎片升到 3 星剩 5，黑旋 100 個升到滿星，長鬚 9 個不夠
+  expect(t.starAll).toMatchObject({ ready: 2, enabled: true });
+  expect(t.starAll.x + t.starAll.width).toBeLessThanOrEqual(t.sortChip.x);
+  await page.screenshot({ path: 'artifacts/screenshots/landscape/star-all-before.png' });
+  await tap(page, t.starAll);
+  await page.waitForFunction(() => window.__WGZ__?.training?.starAll.ready === 0);
+  t = (await wgz(page)).training!;
+  const star = (id: string) => t.rows.find((r) => r.id === id)!.star;
+  expect(star('daer')).toMatchObject({ star: 3, shards: 5 });
+  expect(star('heixuan')).toMatchObject({ star: 5, shards: 0 });
+  expect(star('changxu')).toMatchObject({ star: 1, shards: 9 });
+  expect(t.starAll.enabled).toBe(false);
+  await page.screenshot({ path: 'artifacts/screenshots/landscape/star-all.png' });
 });

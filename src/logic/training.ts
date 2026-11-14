@@ -14,6 +14,10 @@ export const DRILL_COST_STEP = 10;
 
 export type DrillStat = 'attack' | 'defense';
 
+/** 長按特訓按鈕：按住這麼久之後開始自動連續特訓，之後每隔一段時間再練一次（毫秒） */
+export const DRILL_HOLD_DELAY_MS = 400;
+export const DRILL_HOLD_REPEAT_MS = 130;
+
 export const DRILL_LABELS: Record<DrillStat, string> = {
   attack: '攻擊',
   defense: '防禦',

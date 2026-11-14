@@ -102,6 +102,38 @@ export function starUp<S extends StarState>(
   };
 }
 
+/** 一鍵升星的結果：哪幾隻狗從幾星升到幾星 */
+export interface StarUpAllResult<S> {
+  state: S;
+  ups: { dogId: string; from: number; to: number }[];
+}
+
+/** 現在有幾隻狗的碎片夠升星（「全部升星」按鈕上的數字） */
+export function starReadyCount(state: Omit<StarState, 'boarding'>): number {
+  return state.owned.filter((id) => checkStarUp(state, id).ok).length;
+}
+
+/**
+ * 一鍵全部升星：擁有的每隻狗，碎片夠就一直升，升到碎片不夠或滿星為止。
+ * 碎片是每隻狗各自的，誰先誰後結果都一樣。沒有狗可以升時狀態原封不動回傳、ups 是空的。
+ */
+export function starUpAll<S extends StarState>(state: S, now?: number): StarUpAllResult<S> {
+  let s = state;
+  const ups: StarUpAllResult<S>['ups'] = [];
+  for (const dogId of state.owned) {
+    const from = checkStarUp(s, dogId).star;
+    let to = from;
+    for (let i = 0; i < STAR_MAX; i++) {
+      const r = starUp(s, dogId, now);
+      if (!r.check.ok) break;
+      s = r.state;
+      to = r.check.star + 1;
+    }
+    if (to > from) ups.push({ dogId, from, to });
+  }
+  return { state: s, ups };
+}
+
 /** 「★★★☆☆」 */
 export function starText(star: number): string {
   const s = Math.min(STAR_MAX, Math.max(0, Math.floor(star)));

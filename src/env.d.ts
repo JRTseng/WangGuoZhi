@@ -102,6 +102,8 @@ interface WgzDebugState {
     /** 目前的排序條件，以及說明列右邊的排序按鈕 */
     sort: 'rarity' | 'level' | 'power' | 'star' | 'role';
     sortChip: WgzRect;
+    /** 「全部升星」按鈕：有幾隻狗的碎片夠升星（0 隻就不能按） */
+    starAll: { ready: number; enabled: boolean } & WgzRect;
     scrollY: number;
     scrollMax: number;
     /** 目前糧草 */
