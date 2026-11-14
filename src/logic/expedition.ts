@@ -16,8 +16,8 @@ import {
   type BattleInput,
   type BattleResult,
 } from './battle';
-import { addGear, dropNote, rollDrop } from './equipment';
-import { findGear } from '../data/equipment';
+import { addGear, dropNote, grantExclusives, rollDrop } from './equipment';
+import { exclusiveGearOf, findGear } from '../data/equipment';
 import { battleRoleOf, teamCells } from './formation';
 import {
   addExp,
@@ -290,32 +290,29 @@ function settleBattle(
     ...(newDog ? { newDogId: newDog.id } : {}),
     ...(giftShards ? { giftShards } : {}),
   };
-  return {
-    record,
-    state: {
-      ...state,
-      pending: null,
-      gear: dropGearId ? addGear(state, dropGearId).gear : state.gear,
-      resources: {
-        food: state.resources.food + reward.food,
-        bones: state.resources.bones + reward.bones,
-      },
-      dogs: newDog ? { ...growth.dogs, [newDog.id]: initialProgress(newDog) } : growth.dogs,
-      owned: newDog ? [...state.owned, newDog.id] : state.owned,
-      shards: giftShards
-        ? {
-            ...state.shards,
-            [giftShards.dogId]: (state.shards[giftShards.dogId] ?? 0) + giftShards.amount,
-          }
-        : state.shards,
-      nextExpeditionNo: state.nextExpeditionNo + 1,
-      cleared:
-        !win || state.cleared.includes(exp.stageId)
-          ? state.cleared
-          : [...state.cleared, exp.stageId],
-      history: [...state.history, record].slice(-HISTORY_MAX),
+  const next: GameState = {
+    ...state,
+    pending: null,
+    gear: dropGearId ? addGear(state, dropGearId).gear : state.gear,
+    resources: {
+      food: state.resources.food + reward.food,
+      bones: state.resources.bones + reward.bones,
     },
+    dogs: newDog ? { ...growth.dogs, [newDog.id]: initialProgress(newDog) } : growth.dogs,
+    owned: newDog ? [...state.owned, newDog.id] : state.owned,
+    shards: giftShards
+      ? {
+          ...state.shards,
+          [giftShards.dogId]: (state.shards[giftShards.dogId] ?? 0) + giftShards.amount,
+        }
+      : state.shards,
+    nextExpeditionNo: state.nextExpeditionNo + 1,
+    cleared:
+      !win || state.cleared.includes(exp.stageId) ? state.cleared : [...state.cleared, exp.stageId],
+    history: [...state.history, record].slice(-HISTORY_MAX),
   };
+  // 新夥伴有專屬裝備的話一起送（T014）
+  return { record, state: newDog ? grantExclusives(next) : next };
 }
 
 /**
@@ -389,6 +386,8 @@ export function resultNotes(
   const gift = record.newDogId ? findDog(record.newDogId) : undefined;
   if (gift) {
     notes.push(`新夥伴「${gift.name}」加入！（${gift.breed}・${battleRoleOf(gift.role) ?? ''}）`);
+    const own = exclusiveGearOf(gift.id);
+    if (own) notes.push(`附贈專屬裝備「${own.name}」`);
   }
   if (record.giftShards) {
     const name = findDog(record.giftShards.dogId)?.name ?? '';

@@ -11,6 +11,7 @@ import {
   pullsToPity,
   type PullItem,
 } from '../logic/gacha';
+import { grantExclusives, totalGear } from '../logic/equipment';
 import type { Rect } from '../logic/layout';
 import {
   RESULT_SUMMARY_HEIGHT,
@@ -42,6 +43,8 @@ export class RecruitScene extends Phaser.Scene {
   private pityText!: Phaser.GameObjects.Text;
   private ownedText!: Phaser.GameObjects.Text;
   private items: PullItem[] = [];
+  /** 這次召募附了幾件專屬裝備（T014） */
+  private gifts = 0;
   private cells: Rect[] = [];
   /** 這次結果的卡片還有幾張沒跳完 */
   private revealing = 0;
@@ -137,7 +140,11 @@ export class RecruitScene extends Phaser.Scene {
   private doPull(count: number): void {
     const r = pull(getState(), count, Math.random);
     if (r.items.length === 0) return;
-    setState(r.state);
+    // 新抽到的 SR、SSR 附專屬裝備（T014）
+    const before = totalGear(r.state);
+    const next = grantExclusives(r.state);
+    this.gifts = totalGear(next) - before;
+    setState(next);
     this.items = r.items;
     this.refreshTexts();
     this.renderResults(true);
@@ -187,6 +194,7 @@ export class RecruitScene extends Phaser.Scene {
     const parts = [
       fresh > 0 ? `新夥伴 ${fresh} 隻` : '',
       shards > 0 ? `碎片 +${shards}（到訓練場升星）` : '',
+      this.gifts > 0 ? `專屬裝備 +${this.gifts}（到倉庫穿上）` : '',
     ].filter(Boolean);
     this.results.add(
       addText(

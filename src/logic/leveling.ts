@@ -1,7 +1,7 @@
 import { findDog, type DogData, type DogRarity } from '../data/dogs';
 import type { StageData } from '../data/regions';
 import type { DogProgress, GameState } from '../state/gameState';
-import { gearBonus } from './equipment';
+import { gearBonus, gearPct } from './equipment';
 import { calcPower } from './power';
 
 /**
@@ -279,9 +279,17 @@ export function dogStats(state: HasDogs, dog: DogData): DogStats {
   const levelCap = levelCapForStar(star);
   const starAttack = starBonus(dog.baseAttack, star);
   const starDefense = starBonus(dog.baseDefense, star);
-  const gear = gearBonus(state, dog.id);
-  const attack = dog.baseAttack + starAttack + p.growthAttack + drillAttack + gear.attack;
-  const defense = dog.baseDefense + starDefense + p.growthDefense + drillDefense + gear.defense;
+  // 裝備：固定加成，加上專屬裝備的比例加成（以沒算裝備的攻防為準）
+  const flat = gearBonus(state, dog.id);
+  const pct = gearPct(state, dog.id);
+  const rawAttack = dog.baseAttack + starAttack + p.growthAttack + drillAttack;
+  const rawDefense = dog.baseDefense + starDefense + p.growthDefense + drillDefense;
+  const gear = {
+    attack: flat.attack + Math.round(rawAttack * pct),
+    defense: flat.defense + Math.round(rawDefense * pct),
+  };
+  const attack = rawAttack + gear.attack;
+  const defense = rawDefense + gear.defense;
   const drift = bonusDrift(p);
   const expNeed = expNeeded(p.level, levelCap);
   return {

@@ -17,7 +17,7 @@ import {
 } from '../state/gameState';
 import { findGear } from '../data/equipment';
 import { boardingSlotCount } from './boarding';
-import { sanitizeGear } from './equipment';
+import { grantExclusives, sanitizeGear } from './equipment';
 import { HISTORY_MAX, TEAM_SIZE, battleTeamOf } from './expedition';
 import { isFormationValue } from './formation';
 import { TEAM_PRESETS } from './teams';
@@ -351,7 +351,11 @@ export function sanitizeState(raw: unknown, now: number): GameState {
   });
 
   // 裝備（T014）：只留認得的裝備與擁有的狗，穿著的不能比擁有的多
-  const { gear, equipped } = sanitizeGear(raw.gear, raw.equipped, isOwned);
+  // 擁有的 SR、SSR 狗還沒有專屬裝備的補一件（專屬裝備上線前就有的狗也拿得到）
+  const { gear, equipped } = grantExclusives({
+    owned,
+    ...sanitizeGear(raw.gear, raw.equipped, isOwned),
+  });
 
   // 開戰到一半的仗（T023）：關卡與隊伍要認得，隊伍的攻防與站位用現在的資料重新排
   let pending: PendingBattle | null = null;

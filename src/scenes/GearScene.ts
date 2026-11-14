@@ -170,7 +170,12 @@ export class GearScene extends Phaser.Scene {
       this.note = `脫下「${g.name}」`;
     } else {
       const r = equip(st, this.dogId, g.id);
-      if (!r.ok) return;
+      if (!r.ok) {
+        if (r.error !== 'exclusive') return;
+        this.note = `「${g.name}」是${findDog(g.exclusive ?? '')?.name ?? ''}的專屬裝備，別的狗穿不下`;
+        this.render();
+        return;
+      }
       setState(r.state);
       const from = r.from ? findDog(r.from)?.name : undefined;
       this.note = from ? `從${from}身上換來「${g.name}」` : `「${g.name}」（${g.pun}）：${g.note}`;
@@ -397,11 +402,16 @@ export class GearScene extends Phaser.Scene {
       g.fillRoundedRect(8, 8, 48, 48, 8);
       g.strokeRoundedRect(8, 8, 48, 48, 8);
       drawGearIcon(g, 32, 32, 17, item);
+      const owner = item.exclusive ? (findDog(item.exclusive)?.name ?? '') : '';
       const status = mine
-        ? '穿著中・點一下脫下'
-        : spare > 0
-          ? '點一下穿上'
-          : `${findDog(others[0])?.name ?? ''}穿著・點一下換過來`;
+        ? `${owner ? '專屬・' : ''}穿著中・點一下脫下`
+        : item.exclusive && item.exclusive !== this.dogId
+          ? `${owner}專屬・別的狗不能穿`
+          : owner
+            ? `${owner}專屬・點一下穿上`
+            : spare > 0
+              ? '點一下穿上'
+              : `${findDog(others[0])?.name ?? ''}穿著・點一下換過來`;
       c.add([
         g,
         addText(this, 64, 7, item.name, 15, COLORS.ink, true),
@@ -419,12 +429,18 @@ export class GearScene extends Phaser.Scene {
           this,
           64 + item.rarity.length * 9 + 6,
           27,
-          `${GEAR_SLOT_LABEL[item.slot]}\u3000${gearBonusLabel(item)}`,
-          13,
+          item.pct
+            ? gearBonusLabel(item)
+            : `${GEAR_SLOT_LABEL[item.slot]}\u3000${gearBonusLabel(item)}`,
+          item.pct ? 12 : 13,
           COLORS.ink,
         ),
         addText(this, 64, 45, status, 12, mine ? '#2f7d32' : COLORS.inkSoft, mine),
       ]);
+      // 專屬裝備：圖示角落一顆星
+      if (item.exclusive) {
+        c.add(addText(this, 44, 4, '✦', 15, rarityHex(item.rarity), true).setStroke('#ffffff', 3));
+      }
       this.cards.add(c);
     });
   }
@@ -468,6 +484,7 @@ export class GearScene extends Phaser.Scene {
             count: ownedCount(st, item.id),
             spare: spareCount(st, item.id),
             wearing: st.equipped[this.dogId]?.[item.slot] === item.id,
+            exclusive: item.exclusive ?? null,
             visible: y >= l.list.y && y + r.height <= l.list.y + l.list.height + 0.5,
             ...r,
             y,

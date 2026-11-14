@@ -153,3 +153,42 @@ test('角色資訊的「裝備」按鈕進倉庫看那隻狗，返回回到組�
   await tap(page, (await wgz(page)).backButton!);
   await waitScene(page, 'TeamScene');
 });
+
+test('專屬裝備：有那隻狗就送，只有牠能穿，SSR 的攻防再多 5%', async ({ page }) => {
+  await openLobby(page, '?fast=1');
+  await patchSave(page, {
+    owned: ['daer', 'heixuan', 'changxu', 'xiaosuan', 'abai', 'tieya', 'xiongyue'],
+    lobbyDogId: 'daer',
+  });
+  await tap(page, (await wgz(page)).lobby!.buttons.bag);
+  await waitScene(page, 'GearScene');
+  let s = (await wgz(page)).gear!;
+  // 讀檔時補發：鐵牙（SR）、熊嶽（SSR）各一件
+  expect(s.total).toBe(2);
+  expect(s.items.map((i) => [i.id, i.exclusive])).toEqual([
+    ['ex-tieya', 'tieya'],
+    ['ex-xiongyue', 'xiongyue'],
+  ]);
+  // 大耳穿不了熊嶽的專屬
+  await tap(page, s.items[1]);
+  await page.waitForFunction(() => window.__WGZ__?.gear?.note.includes('專屬'));
+  expect((await wgz(page)).gear!.slots.every((x) => x.gearId === null)).toBe(true);
+
+  // 換到熊嶽，穿上自己的專屬
+  for (let i = 0; i < 8 && (await wgz(page)).gear!.dogId !== 'xiongyue'; i++) {
+    const cur = (await wgz(page)).gear!.dogId;
+    await tap(page, (await wgz(page)).gear!.next);
+    await page.waitForFunction((id) => window.__WGZ__?.gear?.dogId !== id, cur);
+  }
+  s = (await wgz(page)).gear!;
+  expect(s.dogId).toBe('xiongyue');
+  const before = s.stats;
+  await tap(page, s.items[1]);
+  await page.waitForFunction(() => window.__WGZ__?.gear?.slots[2].gearId === 'ex-xiongyue');
+  s = (await wgz(page)).gear!;
+  expect(s.stats.gearAttack).toBe(4 + Math.round(before.attack * 0.05));
+  expect(s.stats.gearDefense).toBe(12 + Math.round(before.defense * 0.05));
+  expect(s.stats.power).toBe(before.power + s.stats.gearAttack + s.stats.gearDefense);
+  await page.waitForTimeout(300);
+  await page.screenshot({ path: `${SHOTS}/gear-exclusive.png` });
+});
