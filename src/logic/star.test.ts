@@ -2,7 +2,15 @@ import { describe, expect, it } from 'vitest';
 import { createInitialState } from '../state/gameState';
 import { board, settleBoarding } from './boarding';
 import { dogStatsById, STAR_MAX } from './leveling';
-import { checkStarUp, shardsOf, starText, starUp, starUpCost } from './star';
+import {
+  checkStarUp,
+  shardsOf,
+  starReadyCount,
+  starText,
+  starUp,
+  starUpAll,
+  starUpCost,
+} from './star';
 
 const NOW = 1_800_000_000_000;
 const fresh = () => createInitialState(NOW);
@@ -101,6 +109,36 @@ describe('starUp', () => {
     const up = starUp(settled, 'abai', later).state;
     expect(up.boarding[0].at).toBe(later);
     expect(settleBoarding(up, later).dogs.abai).toMatchObject({ level: 60, star: 2 });
+  });
+});
+
+describe('starUpAll（一鍵全部升星）', () => {
+  it('碎片夠的狗各自升到不能再升，剩下的碎片留著；其他狗不動', () => {
+    // 大耳 35 個：10 + 20 升到 3 星剩 5；黑旋 100 個：升到滿星剛好用完；長鬚 9 個：不夠
+    const s0 = { ...fresh(), shards: { daer: 35, heixuan: 100, changxu: 9 } };
+    expect(starReadyCount(s0)).toBe(2);
+    const r = starUpAll(s0, NOW);
+    expect(r.ups).toEqual([
+      { dogId: 'daer', from: 1, to: 3 },
+      { dogId: 'heixuan', from: 1, to: STAR_MAX },
+    ]);
+    expect(checkStarUp(r.state, 'daer')).toMatchObject({ star: 3, shards: 5, ok: false });
+    expect(checkStarUp(r.state, 'heixuan')).toMatchObject({ star: STAR_MAX, shards: 0 });
+    expect(checkStarUp(r.state, 'changxu')).toMatchObject({ star: 1, shards: 9 });
+    expect(starReadyCount(r.state)).toBe(0);
+  });
+
+  it('沒有狗可以升：狀態原封不動', () => {
+    const s0 = fresh();
+    const r = starUpAll(s0, NOW);
+    expect(r.state).toBe(s0);
+    expect(r.ups).toEqual([]);
+  });
+
+  it('沒擁有的狗就算有碎片也不會升', () => {
+    const s0 = { ...fresh(), shards: { xiongyue: 100 } };
+    expect(s0.owned).not.toContain('xiongyue');
+    expect(starUpAll(s0, NOW).ups).toEqual([]);
   });
 });
 

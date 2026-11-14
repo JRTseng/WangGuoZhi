@@ -8,7 +8,7 @@ import { formatAmount } from '../logic/format';
 import type { Rect } from '../logic/layout';
 import { MAX_LEVEL, STAR_MAX, dogStats } from '../logic/leveling';
 import { SKILL_LINE_MAX, setSkillLine, skillLineOf } from '../logic/skillShow';
-import { checkStarUp, starUp, type StarCheck } from '../logic/star';
+import { checkStarUp, starReadyCount, starUp, starUpAll, type StarCheck } from '../logic/star';
 import {
   TRAINING_SORT_LABEL,
   nextTrainingSort,
@@ -18,6 +18,8 @@ import {
 import {
   DRILL_LABELS,
   DRILL_MAX,
+  DRILL_HOLD_DELAY_MS,
+  DRILL_HOLD_REPEAT_MS,
   checkDrill,
   drill,
   type DrillCheck,
@@ -59,6 +61,7 @@ const LINE_BUTTON_COLOR = 0x3d5a94;
  * 訓練場（T005、T020、T021、T007）：看每隻狗的等級、經驗條、攻防與升級累積的成長，
  * 可以花糧草做攻擊或防禦特訓（每次永久 +1），也可以花碎片升星（提高攻防與等級上限）。
  * 右上角進「板凳寄宿」。每張卡片右邊的「改台詞」可以替狗狗填放大絕招時喊的台詞（T017）。
+ * 長按特訓按鈕會自動連續特訓，放開、練滿或糧草不夠就停。說明列右邊的「全部升星」一次把碎片夠的狗都升到不能再升。
  * 說明列右邊的「排序」按鈕可以換排序條件（稀有度、等級、戰力、可升星、定位），會記住上次選的。
  * 進場與換排序時才重排，特訓或升星後順序不變（免得按鈕跳走）；狗多了可以上下捲動。
  */
@@ -74,6 +77,15 @@ export class TrainingScene extends Phaser.Scene {
   private boardingLabel!: Phaser.GameObjects.Text;
   private seenDogs: GameState['dogs'] | null = null;
   private sortLabel!: Phaser.GameObjects.Text;
+  private starAllBg!: Phaser.GameObjects.Graphics;
+  private starAllLabel!: Phaser.GameObjects.Text;
+  /** 長按連續特訓：按住的是哪一顆、計時器、已經自動練了幾次 */
+  private hold: {
+    index: number;
+    stat: DrillStat;
+    timer: Phaser.Time.TimerEvent;
+    done: number;
+  } | null = null;
 
   constructor() {
     super('TrainingScene');
@@ -83,6 +95,7 @@ export class TrainingScene extends Phaser.Scene {
     resetDebug(this);
     this.scrollY = 0;
     this.dragFrom = null;
+    this.hold = null;
     const { w, h, landscape } = viewOf(this);
     this.landscape = landscape;
     const st = tick();
@@ -125,6 +138,22 @@ export class TrainingScene extends Phaser.Scene {
     makeTapArea(sc, l.sortChip.width, l.sortChip.height);
     sc.on('pointerup', () => this.cycleSort());
 
+    // 排序左邊：全部升星（碎片夠的狗一次升到不能再升）
+    const ac = this.add.container(l.starAllChip.x, l.starAllChip.y);
+    this.starAllBg = this.add.graphics();
+    this.starAllLabel = addText(
+      this,
+      l.starAllChip.width / 2,
+      l.starAllChip.height / 2,
+      '',
+      14,
+      '#ffffff',
+      true,
+    ).setOrigin(0.5);
+    ac.add([this.starAllBg, this.starAllLabel]);
+    makeTapArea(ac, l.starAllChip.width, l.starAllChip.height);
+    ac.on('pointerup', () => this.starAll());
+
     this.rows = this.add.container(0, 0);
     const mask = this.make.graphics();
     mask.fillStyle(0xffffff, 1);
@@ -136,13 +165,23 @@ export class TrainingScene extends Phaser.Scene {
     const inList = (p: Phaser.Input.Pointer) => p.y >= l.list.y && p.y <= l.list.y + l.list.height;
     this.input.on('pointerdown', (p: Phaser.Input.Pointer) => {
       this.dragFrom = inList(p) ? { x: p.x, y: p.y, scroll: this.scrollY } : null;
+      this.stopHold();
+      if (this.dragFrom) this.startHold(p.x, p.y + this.scrollY);
     });
     this.input.on('pointermove', (p: Phaser.Input.Pointer) => {
-      if (this.dragFrom && p.isDown) this.scrollTo(this.dragFrom.scroll - (p.y - this.dragFrom.y));
+      if (!this.dragFrom || !p.isDown) return;
+      const moved =
+        Math.abs(p.x - this.dragFrom.x) > TAP_SLOP || Math.abs(p.y - this.dragFrom.y) > TAP_SLOP;
+      // 還沒開始自動特訓就滑動：當成捲動。已經在連續特訓了就不捲，免得按鈕從手指下跑掉
+      if (this.hold && this.hold.done > 0) return;
+      if (moved) this.stopHold();
+      this.scrollTo(this.dragFrom.scroll - (p.y - this.dragFrom.y));
     });
     this.input.on('pointerup', (p: Phaser.Input.Pointer) => {
       const from = this.dragFrom;
       this.dragFrom = null;
+      // 長按已經自動練過了，放開時不再多算一次
+      if (this.stopHold() > 0) return;
       if (!from || !inList(p)) return;
       if (Math.abs(p.x - from.x) > TAP_SLOP || Math.abs(p.y - from.y) > TAP_SLOP) return;
       this.tapAt(p.x, p.y + this.scrollY);
@@ -164,6 +203,8 @@ export class TrainingScene extends Phaser.Scene {
 
     // 離開訓練場時把打字視窗收掉
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, closeTextPrompt);
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.stopHold());
+    this.input.on('gameout', () => this.stopHold());
 
     patchDebug({ backButton: back });
     this.publish();
@@ -207,8 +248,13 @@ export class TrainingScene extends Phaser.Scene {
     const busy = busyDogIds(st);
     this.seenDogs = st.dogs;
     this.boardingLabel.setText(`寄宿 ${st.boarding.length}/${boardingSlotCount(st)} ›`);
-    this.hint.setText(`糧草 ${formatAmount(st.resources.food)}・特訓永久 +1`);
+    this.hint.setText(`糧草 ${formatAmount(st.resources.food)}・特訓永久 +1（長按連續練）`);
     this.sortLabel.setText(`排序：${TRAINING_SORT_LABEL[st.settings.trainingSort]}`);
+    const ready = starReadyCount(st);
+    this.starAllLabel.setText(ready > 0 ? `全部升星 ${ready}` : '全部升星');
+    this.starAllBg.clear();
+    this.starAllBg.fillStyle(ready > 0 ? STAR_BUTTON_COLOR : COLORS.buttonDisabled, 1);
+    this.starAllBg.fillRoundedRect(0, 0, l.starAllChip.width, l.starAllChip.height, 14);
     this.rows.removeAll(true);
 
     this.ids.forEach((id, i) => {
@@ -369,13 +415,7 @@ export class TrainingScene extends Phaser.Scene {
       const buttons = trainingButtons(this.layout, i);
       for (const stat of STATS) {
         if (!hit(buttons[stat])) continue;
-        const r = drill(getState(), this.ids[i], stat);
-        if (!r.check.ok) return;
-        setState(r.state);
-        playSfx('equip');
-        this.renderRows();
-        this.floatText(buttons[stat], `${DRILL_LABELS[stat]} +1`);
-        this.publish();
+        this.drillOnce(i, stat);
         return;
       }
       if (hit(buttons.star)) {
@@ -389,6 +429,76 @@ export class TrainingScene extends Phaser.Scene {
         return;
       }
     }
+  }
+
+  /** 做一次特訓並播回饋；不能練（練滿、糧草不夠）回傳 false */
+  private drillOnce(i: number, stat: DrillStat): boolean {
+    const r = drill(getState(), this.ids[i], stat);
+    if (!r.check.ok) return false;
+    setState(r.state);
+    playSfx('equip');
+    this.renderRows();
+    this.floatText(trainingButtons(this.layout, i)[stat], `${DRILL_LABELS[stat]} +1`);
+    this.publish();
+    return true;
+  }
+
+  /** 手指按在特訓按鈕上：按住一下之後開始自動連續特訓（y 已加上捲動量） */
+  private startHold(x: number, y: number): void {
+    if (isTextPromptOpen()) return;
+    for (let i = 0; i < this.ids.length; i++) {
+      const buttons = trainingButtons(this.layout, i);
+      for (const stat of STATS) {
+        const b = buttons[stat];
+        const inside =
+          x >= b.x && x <= b.x + b.width && y >= b.y - TAP_PAD && y <= b.y + b.height + TAP_PAD;
+        if (!inside || !checkDrill(getState(), this.ids[i], stat).ok) continue;
+        const tickOnce = () => {
+          if (this.drillOnce(i, stat)) hold.done++;
+          else hold.timer.remove();
+        };
+        // 先等一下（分辨點一下和長按），之後固定間隔一直練
+        const hold = {
+          index: i,
+          stat,
+          done: 0,
+          timer: this.time.delayedCall(DRILL_HOLD_DELAY_MS, () => {
+            tickOnce();
+            if (this.hold !== hold) return;
+            hold.timer = this.time.addEvent({
+              delay: DRILL_HOLD_REPEAT_MS,
+              loop: true,
+              callback: tickOnce,
+            });
+          }),
+        };
+        this.hold = hold;
+        return;
+      }
+    }
+  }
+
+  /** 停止長按連續特訓；回傳這次長按自動練了幾次 */
+  private stopHold(): number {
+    const done = this.hold?.done ?? 0;
+    this.hold?.timer.remove();
+    this.hold = null;
+    return done;
+  }
+
+  /** 全部升星：碎片夠的狗一次全部升到不能再升 */
+  private starAll(): void {
+    if (isTextPromptOpen()) return;
+    const r = starUpAll(tick(), Date.now());
+    if (r.ups.length === 0) return;
+    setState(r.state);
+    playSfx('levelup');
+    this.renderRows();
+    r.ups.forEach((u) => {
+      const i = this.ids.indexOf(u.dogId);
+      if (i >= 0) this.floatText(trainingButtons(this.layout, i).star, `升星！★${u.to}`, '#b8860b');
+    });
+    this.publish();
   }
 
   /** 開打字視窗，替這隻狗填放大絕招時喊的台詞；清空或按「恢復預設」就用回預設台詞 */
@@ -456,6 +566,10 @@ export class TrainingScene extends Phaser.Scene {
         list: this.layout.list,
         sort: st.settings.trainingSort,
         sortChip: this.layout.sortChip,
+        starAll: (() => {
+          const ready = starReadyCount(st);
+          return { ...this.layout.starAllChip, ready, enabled: ready > 0 };
+        })(),
         scrollY: this.scrollY,
         scrollMax: this.layout.scrollMax,
         food: st.resources.food,

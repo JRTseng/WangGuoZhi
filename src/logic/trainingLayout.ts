@@ -10,6 +10,8 @@ export interface TrainingLayout {
   hint: { x: number; y: number };
   /** 右邊的「排序：稀有度」按鈕，點一下換下一種排序 */
   sortChip: Rect;
+  /** 排序按鈕左邊的「全部升星」按鈕：碎片夠的狗一次全部升到不能再升 */
+  starAllChip: Rect;
   /** 列表可見範圍 */
   list: Rect;
   columns: number;
@@ -53,6 +55,11 @@ export function trainingLayout(
     hint: { x: MARGIN + 2, y: top + HINT_HEIGHT / 2 },
     sortChip: {
       x: w - MARGIN - SORT_CHIP.width,
+      y: top + (HINT_HEIGHT - SORT_CHIP.height) / 2 + 1,
+      ...SORT_CHIP,
+    },
+    starAllChip: {
+      x: w - MARGIN - SORT_CHIP.width * 2 - 8,
       y: top + (HINT_HEIGHT - SORT_CHIP.height) / 2 + 1,
       ...SORT_CHIP,
     },
