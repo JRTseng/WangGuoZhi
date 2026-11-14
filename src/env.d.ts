@@ -62,17 +62,6 @@ interface WgzDebugState {
     ok: WgzRect;
     cancel: WgzRect;
   } | null;
-  /** 陣型面板（T023），沒開為 null */
-  formation?: {
-    /** 隊伍裡每隻狗站第幾排（0 前、1 中、2 後）與那一格的位置 */
-    dogs: ({ id: string; row: number; selected: boolean } & WgzRect)[];
-    /** 三排各自的點擊範圍，索引就是第幾排 */
-    rows: WgzRect[];
-    selected: string | null;
-    message: string;
-    reset: WgzRect;
-    close: WgzRect;
-  } | null;
   /** 結算面板顯示的獎勵與勝負，沒開為 null */
   result?: { food: number; bones: number; win: boolean; newDogId?: string } | null;
   /** 結算面板上每隻狗的經驗與升級（T005），沒開為 null */
@@ -253,10 +242,18 @@ interface WgzDebugState {
     statusChips: ({ key: string } & WgzRect)[];
     sortChip: WgzRect;
     autoButton: WgzRect;
-    formationButton: WgzRect;
     /** 隊伍每一隻站第幾排（0 前、1 中、2 後），和 slots 一一對應 */
     rows: number[];
+    /** 照隊伍順序的 5 個位置：有狗的是牠站的那一格，其餘是還空著的格子 */
     slots: ({ id: string | null } & WgzRect)[];
+    /** 陣型九宮格的九格（row 0 前、1 中、2 後；lane 0 上、1 中、2 下），空格 id 為 null */
+    board: ({ row: number; lane: number; id: string | null } & WgzRect)[];
+    /** 九宮格三排（直行）的範圍，索引就是第幾排 */
+    boardRows: WgzRect[];
+    /** 九宮格下面的提示訊息（例如隊伍滿了），沒有為空字串 */
+    notice: string;
+    /** 正拖在手上的狗，沒有為 null */
+    lifting: string | null;
     /** 卡片格可見範圍 */
     grid: WgzRect;
     /** 目前列出的狗（已篩選、排序），座標已扣掉捲動量 */

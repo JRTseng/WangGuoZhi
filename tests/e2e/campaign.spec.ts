@@ -68,13 +68,14 @@ test('出征地圖 → 選隊伍 → 開戰 → 戰鬥 → 劇情 → 下一關�
   expect((await wgz(page)).expeditionPanel!.teamCards.map((c) => c.id)).toEqual(['xiaosuan']);
   await page.screenshot({ path: 'artifacts/screenshots/portrait/team-pick-filter.png' });
   await tap(page, pk.roleChips[0]);
-  // 自動編隊選滿 5 隻；點隊伍格可以移出，滿了再點別隻沒反應
+  // 自動編隊選滿 5 隻；點九宮格上的狗可以移出，滿了再點別隻沒反應
   await tap(page, pk.autoButton);
   pk = (await wgz(page)).picker!;
   expect(pk.slots.map((s) => s.id)).toEqual(['changxu', 'daer', 'heixuan', 'xiaosuan', 'abai']);
   await page.screenshot({ path: 'artifacts/screenshots/portrait/team-pick-auto.png' });
+  // 隊伍格現在是九宮格上的格子：點一下移出一隻，重新讀位置再移出下一隻
   await tap(page, pk.slots[3]);
-  await tap(page, pk.slots[3]);
+  await tap(page, (await wgz(page)).picker!.slots[3]);
   e = (await wgz(page)).expeditionPanel!;
   expect(e.teamCards.filter((c) => c.selected).map((c) => c.id)).toEqual([
     'changxu',

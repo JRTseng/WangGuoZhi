@@ -171,6 +171,7 @@ export class BattleScene extends Phaser.Scene {
       landscape,
       this.sim.team.map((u) => u.row),
       this.sim.enemies.map((u) => u.row),
+      this.sim.team.map((u) => u.lane),
     );
     this.drawStage(w, h, landscape);
     this.drawUnits();

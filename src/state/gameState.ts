@@ -189,7 +189,10 @@ export interface GameState {
   gacha: GachaState;
   /** 玩家替狗狗填的大絕招台詞（T017），以狗狗 id 為鍵；沒填的用預設台詞 */
   skillLines: Record<string, string>;
-  /** 陣型（T023）：每隻狗想站哪一排（0 前、1 中、2 後），以狗狗 id 為鍵；沒記的照定位預設 */
+  /**
+   * 陣型（T023）：每隻狗想站哪裡，以狗狗 id 為鍵；沒記的照定位預設。
+   * 0～2 只記排（0 前、1 中、2 後）；3～11 是九宮格的格子（見 src/logic/formation.ts）
+   */
   formation: Record<string, number>;
   /** 已經開戰、還沒打完的一仗（T023）；沒有為 null */
   pending: PendingBattle | null;

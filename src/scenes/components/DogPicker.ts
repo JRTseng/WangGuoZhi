@@ -16,9 +16,16 @@ import {
   type SortKey,
   type StatusKey,
 } from '../../logic/dogFilter';
-import { ROW_NAMES } from '../../logic/battle';
-import { busyDogIds } from '../../logic/expedition';
-import { teamRows } from '../../logic/formation';
+import { ROW_NAMES, type RowIndex } from '../../logic/battle';
+import { TEAM_SIZE, busyDogIds } from '../../logic/expedition';
+import {
+  LANES,
+  ROWS,
+  battleRoleOf,
+  teamCells,
+  teamRows,
+  type LaneIndex,
+} from '../../logic/formation';
 import type { Rect } from '../../logic/layout';
 import { dogStats } from '../../logic/leveling';
 import {
@@ -53,8 +60,13 @@ export interface DogPickerOptions {
   onSlotTap: (dogId: string) => void;
   onCellTap: (dog: DogData) => void;
   onAuto: () => void;
-  /** 點「陣型」按鈕（T023） */
-  onFormation: () => void;
+  /**
+   * 把一隻狗拖到九宮格的某一格（2026-11-14）：隊伍裡的狗是換位置，卡片格的狗是上陣。
+   * 回傳提示文字表示沒成功（例如隊伍滿了），成功回 null。
+   */
+  onPlace: (dogId: string, row: RowIndex, lane: LaneIndex) => string | null;
+  /** 有彈出視窗開著：九宮格與拖曳先不反應 */
+  locked?: () => boolean;
   /** 每次重畫或捲動後呼叫，場景用來更新測試用的除錯資訊 */
   onUpdate?: () => void;
 }
@@ -68,14 +80,18 @@ export interface PickerCellInfo extends Rect {
   visible: boolean;
 }
 
-/** 前排、中排、後排小標的底色 */
-const ROW_BADGE = ['#b0413e', '#b5651d', '#3f7fa8'];
+/** 卡片格的狗按住這麼久（毫秒）沒滑動就拿起來，可以拖到九宮格 */
+const HOLD_MS = 260;
+/** 九宮格上的狗、或卡片格橫著滑超過這個距離就拿起來 */
+const LIFT_DISTANCE = 10;
 
 /** 捲動超過這個距離才算拖曳，不然當成點擊 */
 const DRAG_THRESHOLD = 8;
 
 /**
- * 選狗元件（T015）：5 個隊伍格 + 篩選列 + 可捲動的狗狗卡片格 + 一鍵自動編隊。
+ * 選狗元件（T015）：3×3 陣型九宮格 + 篩選列 + 可捲動的狗狗卡片格 + 一鍵自動編隊。
+ * 九宮格（2026-11-14 Jimmy）：從卡片格按住狗拖到格子上就上陣並站那一格（格子上有狗就換人），
+ * 九宮格上的狗可以拖到別格（有隊友就對調）、拖回卡片格或點一下就移出隊伍。
  * 組隊編排與出征選狗共用；篩選、排序、排版的規則都在 src/logic/。
  */
 export class DogPicker {
@@ -93,6 +109,17 @@ export class DogPicker {
   private baseCells: (Omit<PickerCellInfo, 'visible'> & { baseY: number })[] = [];
   private dragFrom: { y: number; scroll: number } | null = null;
   private dragged = false;
+  /** 這次按下去按到哪隻狗（九宮格上的或卡片格裡的），還沒拿起來 */
+  private press: { id: string; from: 'board' | 'roster'; x: number; y: number } | null = null;
+  private holdTimer: number | null = null;
+  /** 拿在手上拖著的狗 */
+  private lift: {
+    id: string;
+    from: 'board' | 'roster';
+    ghost: Phaser.GameObjects.Container;
+  } | null = null;
+  /** 九宮格下面那行提示暫時換成的訊息（例如隊伍滿了） */
+  private notice = '';
 
   /** 這次按下到放開之間有沒有拖曳捲動（有的話放開時不算點擊） */
   get wasDragged(): boolean {
@@ -110,15 +137,43 @@ export class DogPicker {
     input.on('pointerdown', (p: Phaser.Input.Pointer) => {
       this.dragged = false;
       this.dragFrom = this.inGrid(p) ? { y: p.y, scroll: this.scrollY } : null;
+      this.startPress(p);
     });
     input.on('pointermove', (p: Phaser.Input.Pointer) => {
-      if (!this.dragFrom || !p.isDown) return;
+      if (!p.isDown) return;
+      if (this.lift) {
+        this.lift.ghost.setPosition(p.x, p.y);
+        return;
+      }
+      if (this.press) {
+        const dx = p.x - this.press.x;
+        const dy = p.y - this.press.y;
+        const far = Math.hypot(dx, dy) >= LIFT_DISTANCE;
+        // 九宮格上的狗一滑就拿起來；卡片格要橫著滑（直著滑是捲動）
+        if (far && (this.press.from === 'board' || Math.abs(dx) > Math.abs(dy))) {
+          this.startLift(p);
+          return;
+        }
+        if (far) this.cancelPress();
+      }
+      if (!this.dragFrom) return;
       const dy = p.y - this.dragFrom.y;
       if (!this.dragged && Math.abs(dy) < DRAG_THRESHOLD) return;
       this.dragged = true;
       this.scrollTo(this.dragFrom.scroll - dy);
     });
-    input.on('pointerup', () => (this.dragFrom = null));
+    input.on('pointerup', (p: Phaser.Input.Pointer) => {
+      this.dragFrom = null;
+      if (this.lift) this.drop(p);
+      else if (this.press?.from === 'board' && !this.dragged && !this.o.locked?.()) {
+        // 點一下九宮格上的狗：移出隊伍
+        const id = this.press.id;
+        this.cancelPress();
+        if (this.boardCellAt(p)?.id === id) this.o.onSlotTap(id);
+        return;
+      }
+      this.cancelPress();
+    });
     input.on('wheel', (p: Phaser.Input.Pointer, _over: unknown, _dx: number, dy: number) => {
       if (this.inGrid(p)) this.scrollTo(this.scrollY + dy);
     });
@@ -168,9 +223,7 @@ export class DogPicker {
       ),
     );
     this.chip(l.autoButton, '⚡ 自動編隊', true, () => this.o.onAuto(), COLORS.harvest);
-    this.chip(l.formationButton, '陣型', true, () => this.o.onFormation(), 0x3f7fa8);
-    const rows = teamRows(st, selected);
-    l.slots.forEach((r, i) => this.drawSlot(r, selected[i] ?? null, landscape, rows[i]));
+    this.drawBoard(l, selected);
 
     // ---- 篩選、排序 ----
     const roles: (RoleKey | 'all')[] = ['all', ...ROLE_KEYS];
@@ -251,9 +304,12 @@ export class DogPicker {
       statusChips: l.statusChips.map((r, i) => ({ key: statuses[i], ...r })),
       sortChip: l.sortChip,
       autoButton: l.autoButton,
-      formationButton: l.formationButton,
-      slots: l.slots.map((r, i) => ({ id: this.o.selected()[i] ?? null, ...r })),
+      slots: this.slotRects(),
       rows: teamRows(getState(), this.o.selected()),
+      board: this.boardCells(),
+      boardRows: l.boardRows,
+      notice: this.notice,
+      lifting: this.lift?.id ?? null,
       grid: l.grid,
       cells: this.cells,
       scrollY: this.scrollY,
@@ -320,62 +376,193 @@ export class DogPicker {
     this.layer.add(c);
   }
 
-  private drawSlot(r: Rect, id: string | null, landscape: boolean, row?: number): void {
-    const c = this.scene.add.container(r.x, r.y);
+  /** 九宮格每一格現在站誰（空格 id 為 null） */
+  private boardCells(): ({ row: RowIndex; lane: LaneIndex; id: string | null } & Rect)[] {
+    const selected = this.o.selected();
+    const cells = teamCells(getState(), selected);
+    const out: ({ row: RowIndex; lane: LaneIndex; id: string | null } & Rect)[] = [];
+    for (const row of ROWS) {
+      for (const lane of LANES) {
+        const at = cells.findIndex((c) => c.row === row && c.lane === lane);
+        out.push({
+          row,
+          lane,
+          id: at >= 0 ? selected[at] : null,
+          ...this.layout.boardCells[row][lane],
+        });
+      }
+    }
+    return out;
+  }
+
+  /** 照隊伍順序列出 5 個位置：有狗的是牠站的那一格，其餘是還空著的格子（測試用） */
+  private slotRects(): ({ id: string | null } & Rect)[] {
+    const board = this.boardCells();
+    const free = board.filter((c) => !c.id);
+    return Array.from({ length: TEAM_SIZE }, (_, i) => {
+      const id = this.o.selected()[i] ?? null;
+      const c = id ? board.find((x) => x.id === id)! : free.shift()!;
+      return { id, x: c.x, y: c.y, width: c.width, height: c.height };
+    });
+  }
+
+  private boardCellAt(p: { x: number; y: number }) {
+    return this.boardCells().find(
+      (c) => p.x >= c.x && p.x <= c.x + c.width && p.y >= c.y && p.y <= c.y + c.height,
+    );
+  }
+
+  private drawBoard(l: PickerLayout, selected: readonly string[]): void {
     const g = this.scene.add.graphics();
-    g.fillStyle(id ? COLORS.cardSelected : 0xefe3cf, 1);
-    g.lineStyle(id ? 3 : 2, id ? COLORS.button : COLORS.cardBorder, 1);
-    g.fillRoundedRect(0, 0, r.width, r.height, 12);
-    g.strokeRoundedRect(0, 0, r.width, r.height, 12);
-    c.add(g);
-    const d = id ? findDog(id) : undefined;
-    if (d) {
-      const hg = this.scene.add.graphics();
-      if (landscape) {
-        const hr = Math.min(20, r.height / 2 - 6);
-        drawDogHead(hg, 14 + hr, r.height / 2 + 2, hr, d.color, d.accent);
-        c.add([
-          hg,
-          addText(this.scene, 26 + hr * 2, r.height / 2, d.name, 17, COLORS.ink, true).setOrigin(
-            0,
-            0.5,
-          ),
-          addText(
-            this.scene,
-            r.width - 12,
-            r.height / 2,
-            `戰力 ${dogStats(getState(), d).power}`,
-            14,
-            COLORS.inkSoft,
-          ).setOrigin(1, 0.5),
-        ]);
-      } else {
-        drawDogHead(hg, r.width / 2, 34, Math.min(22, r.width / 2 - 8), d.color, d.accent);
-        c.add([
-          hg,
-          addText(this.scene, r.width / 2, 72, d.name, 16, COLORS.ink, true).setOrigin(0.5),
-        ]);
-      }
-      // 站哪一排（T023）：左上角的小標
-      if (row !== undefined) {
-        c.add(
-          addText(this.scene, 4, 4, ROW_NAMES[row].slice(0, 1), 11, '#ffffff', true)
-            .setBackgroundColor(ROW_BADGE[row])
-            .setPadding(4, 1, 4, 1),
-        );
-      }
-      makeTapArea(c, r.width, r.height);
-      c.on('pointerup', () => {
-        if (!this.dragged) this.o.onSlotTap(d.id);
-      });
-    } else {
-      c.add(
-        addText(this.scene, r.width / 2, r.height / 2, '＋ 空位', 14, COLORS.inkSoft).setOrigin(
-          0.5,
-        ),
+    this.layer.add(g);
+    for (const row of ROWS) {
+      const r = l.boardRows[row];
+      g.fillStyle(0xefe3cf, 1);
+      g.lineStyle(2, COLORS.cardBorder, 1);
+      g.fillRoundedRect(r.x, r.y, r.width, r.height, 10);
+      g.strokeRoundedRect(r.x, r.y, r.width, r.height, 10);
+      this.layer.add(
+        addText(
+          this.scene,
+          l.boardLabels[row].x,
+          l.boardLabels[row].y,
+          ROW_NAMES[row],
+          12,
+          COLORS.inkSoft,
+          true,
+        ).setOrigin(0.5),
       );
     }
-    this.layer.add(c);
+    for (const c of this.boardCells()) {
+      const d = c.id ? findDog(c.id) : undefined;
+      const lifted = !!d && this.lift?.id === d.id;
+      g.fillStyle(d && !lifted ? COLORS.cardSelected : 0xf7efe0, 1);
+      g.lineStyle(
+        d && !lifted ? 3 : 2,
+        d && !lifted ? COLORS.button : COLORS.cardBorder,
+        d ? 1 : 0.6,
+      );
+      g.fillRoundedRect(c.x, c.y, c.width, c.height, 9);
+      g.strokeRoundedRect(c.x, c.y, c.width, c.height, 9);
+      if (!d || lifted) continue;
+      if (c.height >= 64) {
+        // 高的格子：頭在上、名字與定位在下
+        const hr = Math.min(22, (c.height - 48) / 2);
+        drawDogHead(g, c.x + c.width / 2, c.y + 7 + hr, hr, d.color, d.accent);
+        this.layer.add([
+          addText(
+            this.scene,
+            c.x + c.width / 2,
+            c.y + c.height - 26,
+            d.name,
+            14,
+            COLORS.ink,
+            true,
+          ).setOrigin(0.5),
+          addText(
+            this.scene,
+            c.x + c.width / 2,
+            c.y + c.height - 10,
+            battleRoleOf(d.role) ?? '',
+            11,
+            '#b5651d',
+          ).setOrigin(0.5),
+        ]);
+      } else {
+        // 矮的格子：頭在左、名字在右
+        const hr = Math.min(18, c.height / 2 - 6);
+        drawDogHead(g, c.x + 8 + hr, c.y + c.height / 2 + 2, hr, d.color, d.accent);
+        this.layer.add(
+          addText(
+            this.scene,
+            c.x + 14 + hr * 2,
+            c.y + c.height / 2,
+            d.name,
+            c.width >= 100 ? 15 : 12,
+            COLORS.ink,
+            true,
+          ).setOrigin(0, 0.5),
+        );
+      }
+    }
+    const empty = selected.length === 0;
+    this.layer.add(
+      addText(
+        this.scene,
+        l.boardHint.x,
+        l.boardHint.y,
+        this.notice || (empty ? '按住下面的狗狗，拖到格子上' : '按住拖曳換位置・點一下移出'),
+        12,
+        this.notice ? '#b0413e' : COLORS.inkSoft,
+        !!this.notice,
+      ).setOrigin(0.5),
+    );
+  }
+
+  // ---- 拖曳 ----
+
+  private startPress(p: Phaser.Input.Pointer): void {
+    this.cancelPress();
+    if (this.o.locked?.() || !this.layout) return;
+    const cell = this.boardCellAt(p);
+    if (cell?.id) {
+      this.press = { id: cell.id, from: 'board', x: p.x, y: p.y };
+      return;
+    }
+    if (!this.inGrid(p)) return;
+    const card = this.cells.find(
+      (c) => p.x >= c.x && p.x <= c.x + c.width && p.y >= c.y && p.y <= c.y + c.height,
+    );
+    // 沒擁有、寄宿中的不能拿
+    if (!card || !card.owned || card.busy) return;
+    this.press = { id: card.id, from: 'roster', x: p.x, y: p.y };
+    // 用真實時間算長按：Phaser 的計時器在畫面掉幀時會變慢，按起來忽長忽短
+    this.holdTimer = window.setTimeout(() => {
+      this.holdTimer = null;
+      if (!this.scene.sys.isActive()) return;
+      if (this.press && !this.dragged && !this.lift) this.startLift(this.scene.input.activePointer);
+    }, HOLD_MS);
+  }
+
+  private cancelPress(): void {
+    this.press = null;
+    if (this.holdTimer !== null) window.clearTimeout(this.holdTimer);
+    this.holdTimer = null;
+  }
+
+  private startLift(p: Phaser.Input.Pointer): void {
+    if (!this.press) return;
+    const { id, from } = this.press;
+    this.cancelPress();
+    const d = findDog(id);
+    if (!d) return;
+    this.dragged = true;
+    this.dragFrom = null;
+    this.notice = '';
+    const ghost = this.scene.add.container(p.x, p.y).setDepth(60);
+    const g = this.scene.add.graphics();
+    g.fillStyle(COLORS.card, 0.95);
+    g.lineStyle(3, COLORS.button, 1);
+    g.fillRoundedRect(-40, -40, 80, 80, 12);
+    g.strokeRoundedRect(-40, -40, 80, 80, 12);
+    drawDogHead(g, 0, -8, 22, d.color, d.accent);
+    ghost.add([g, addText(this.scene, 0, 26, d.name, 14, COLORS.ink, true).setOrigin(0.5)]);
+    this.lift = { id, from, ghost };
+    this.render();
+  }
+
+  private drop(p: Phaser.Input.Pointer): void {
+    const lift = this.lift!;
+    this.lift = null;
+    lift.ghost.destroy();
+    const cell = this.boardCellAt(p);
+    if (cell) {
+      this.notice = this.o.onPlace(lift.id, cell.row, cell.lane) ?? '';
+    } else if (lift.from === 'board' && this.inGrid(p)) {
+      // 從九宮格拖回卡片格：移出隊伍
+      this.o.onSlotTap(lift.id);
+    }
+    this.render();
   }
 
   private drawCell(

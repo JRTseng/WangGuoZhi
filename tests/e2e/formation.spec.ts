@@ -1,82 +1,131 @@
 import { expect, test, type Page } from '@playwright/test';
-import { openLobby, startBattle, tap, waitScene, wgz, type R } from './helpers';
+import { drag, openLobby, startBattle, tap, waitScene, wgz, type R } from './helpers';
 
 const battle = async (page: Page) => (await wgz(page)).battle!;
-const formation = async (page: Page) => (await wgz(page)).formation!;
-const rowsOf = async (page: Page) =>
-  Object.fromEntries((await formation(page)).dogs.map((d) => [d.id, d.row]));
+/** 陣型九宮格的某一格（row 0 前、1 中、2 後；lane 0 上、1 中、2 下） */
+const cellAt = async (page: Page, row: number, lane: number) =>
+  (await wgz(page)).picker!.board.find((c) => c.row === row && c.lane === lane)!;
+const boardIds = async (page: Page) =>
+  (await wgz(page)).picker!.board.filter((c) => c.id).map((c) => [c.id, c.row, c.lane]);
+const card = async (page: Page, id: string) =>
+  (await wgz(page)).picker!.cells.find((c) => c.id === id)!;
+const teamIds = async (page: Page) =>
+  (await wgz(page)).picker!.slots.map((s) => s.id).filter(Boolean);
+/** 卡片格直式會上下捲動，要長按才拿得起來 */
+const HOLD = 400;
 
-async function openFormation(page: Page) {
-  await tap(page, (await wgz(page)).picker!.formationButton);
-  await page.waitForFunction(() => !!window.__WGZ__?.formation);
-}
-
-test('組隊畫面排陣型：點狗再點一排就換位置，會存檔；自動編隊照定位排回去', async ({ page }) => {
+test('組隊畫面：3×3 九宮格，拖曳換位置、對調、從清單拖上去上陣，會存檔；自動編隊照定位排回去', async ({
+  page,
+}) => {
+  // 流程長（拖曳、重新整理），CI 上超過預設的 60 秒
+  test.setTimeout(180_000);
   await openLobby(page, '?fast=1');
   await tap(page, (await wgz(page)).lobby!.buttons.team);
   await waitScene(page, 'TeamScene');
   // 預設照定位：大耳（補給）中排，黑旋（突擊）、長鬚（守護）前排
-  expect((await wgz(page)).picker!.rows).toEqual([1, 0, 0]);
-  await openFormation(page);
-  expect(await rowsOf(page)).toEqual({ daer: 1, heixuan: 0, changxu: 0 });
-  let f = await formation(page);
-  // 三排由左到右是後排、中排、前排（前排在右邊，面對敵人）
-  expect(f.rows[0].x).toBeGreaterThan(f.rows[1].x);
-  expect(f.rows[1].x).toBeGreaterThan(f.rows[2].x);
+  let p = (await wgz(page)).picker!;
+  expect(p.rows).toEqual([1, 0, 0]);
+  // 九宮格：九格都畫出來（含空格），大小一樣，橫的直的都對齊；前排在右邊（面對敵人）
+  expect(p.board).toHaveLength(9);
+  for (const c of p.board) {
+    expect(c.width).toBe(p.board[0].width);
+    expect(c.height).toBe(p.board[0].height);
+    expect(c.x).toBe(p.board.find((o) => o.row === c.row && o.lane === 0)!.x);
+    expect(c.y).toBe(p.board.find((o) => o.row === 0 && o.lane === c.lane)!.y);
+    expect(c.x).toBeGreaterThanOrEqual(0);
+    expect(c.x + c.width).toBeLessThanOrEqual(390);
+  }
+  expect(p.boardRows[0].x).toBeGreaterThan(p.boardRows[1].x);
+  expect(p.boardRows[1].x).toBeGreaterThan(p.boardRows[2].x);
+  // 一排一隻站中間，兩隻站上下
+  expect(await boardIds(page)).toEqual([
+    ['heixuan', 0, 0],
+    ['changxu', 0, 2],
+    ['daer', 1, 1],
+  ]);
   await page.waitForTimeout(150);
   await page.screenshot({ path: 'artifacts/screenshots/portrait/formation.png' });
 
-  // 沒選狗就點一排：提示先選狗
-  await tap(page, f.rows[2], 0.5, 0.9);
-  expect((await formation(page)).message).toContain('先點一隻狗');
-
-  // 點長鬚 → 點後排：長鬚換到後排
-  await tap(
-    page,
-    f.dogs.find((d) => d.id === 'changxu')!,
+  // 按住長鬚拖到後排上面那一格：換過去
+  await drag(page, await cellAt(page, 0, 2), await cellAt(page, 2, 0));
+  await page.waitForFunction(
+    () => window.__WGZ__?.picker?.board.find((c) => c.id === 'changxu')?.row === 2,
   );
-  await page.waitForFunction(() => window.__WGZ__?.formation?.selected === 'changxu');
-  await page.screenshot({ path: 'artifacts/screenshots/portrait/formation-selected.png' });
-  await tap(page, f.rows[2], 0.5, 0.9);
-  await page.waitForFunction(() => window.__WGZ__?.formation?.selected === null);
-  expect(await rowsOf(page)).toEqual({ daer: 1, heixuan: 0, changxu: 2 });
+  expect((await cellAt(page, 2, 0)).id).toBe('changxu');
+  expect((await cellAt(page, 0, 2)).id).toBeNull();
+  expect((await wgz(page)).picker!.rows).toEqual([1, 0, 2]);
+  // 大耳拖到黑旋那一格：兩隻對調
+  await drag(page, await cellAt(page, 1, 1), await cellAt(page, 0, 0));
+  await page.waitForFunction(
+    () => window.__WGZ__?.picker?.board.find((c) => c.id === 'daer')?.row === 0,
+  );
+  expect((await cellAt(page, 0, 0)).id).toBe('daer');
+  expect((await cellAt(page, 1, 1)).id).toBe('heixuan');
+  expect((await wgz(page)).picker!.lifting).toBeNull();
   await page.waitForTimeout(150);
   await page.screenshot({ path: 'artifacts/screenshots/portrait/formation-moved.png' });
 
-  // 完成 → 隊伍格上的小標跟著變；重新整理後還在
-  await tap(page, (await formation(page)).close);
-  await page.waitForFunction(() => !window.__WGZ__?.formation);
-  expect((await wgz(page)).picker!.rows).toEqual([1, 0, 2]);
+  // 重新整理後站位還在（有存檔）
   await page.reload();
   await waitScene(page, 'LobbyScene');
   await tap(page, (await wgz(page)).lobby!.buttons.team);
   await waitScene(page, 'TeamScene');
-  expect((await wgz(page)).picker!.rows).toEqual([1, 0, 2]);
+  expect(await boardIds(page)).toEqual([
+    ['daer', 0, 0],
+    ['heixuan', 1, 1],
+    ['changxu', 2, 0],
+  ]);
 
-  // 陣型面板的「照定位重排」
-  await openFormation(page);
-  f = await formation(page);
-  await tap(page, f.reset);
+  // 從下面的清單長按小算，拖到後排下面那一格：上陣並站那一格
+  await drag(page, await card(page, 'xiaosuan'), await cellAt(page, 2, 2), HOLD);
   await page.waitForFunction(
-    () => window.__WGZ__?.formation?.dogs.find((d) => d.id === 'changxu')?.row === 0,
+    () => window.__WGZ__?.picker?.board.find((c) => c.id === 'xiaosuan')?.lane === 2,
   );
-  // 再排亂一次，用「自動編隊」也會排回去
-  f = await formation(page);
-  await tap(
-    page,
-    f.dogs.find((d) => d.id === 'heixuan')!,
-  );
-  await tap(page, f.rows[1], 0.5, 0.9);
-  await page.waitForFunction(
-    () => window.__WGZ__?.formation?.dogs.find((d) => d.id === 'heixuan')?.row === 1,
-  );
-  await tap(page, (await formation(page)).close);
-  await page.waitForFunction(() => !window.__WGZ__?.formation);
+  expect(await teamIds(page)).toEqual(['daer', 'heixuan', 'changxu', 'xiaosuan']);
+  expect((await card(page, 'xiaosuan')).selected).toBe(true);
+  // 阿白拖到大耳身上：換大耳下來
+  await drag(page, await card(page, 'abai'), await cellAt(page, 0, 0), HOLD);
+  await page.waitForFunction(() => window.__WGZ__?.picker?.board.some((c) => c.id === 'abai'));
+  expect(await teamIds(page)).toEqual(['abai', 'heixuan', 'changxu', 'xiaosuan']);
+  expect((await cellAt(page, 0, 0)).id).toBe('abai');
+  // 沒擁有的狗拿不起來
+  await drag(page, await card(page, 'tieya'), await cellAt(page, 1, 0), HOLD);
+  await page.waitForTimeout(150);
+  expect((await cellAt(page, 1, 0)).id).toBeNull();
+  // （沒拿起來的話直著滑就是捲動清單，捲回最上面）
+  const g = (await wgz(page)).picker!.grid;
+  await page.mouse.move(g.x + g.width / 2, g.y + g.height / 2);
+  await page.mouse.wheel(0, -2000);
+  await page.waitForFunction(() => window.__WGZ__?.picker?.scrollY === 0);
+  // 長按一下沒拖走：不算點擊，不會跳出資訊面板
+  const c0 = await card(page, 'daer');
+  await drag(page, c0, c0, HOLD);
+  await page.waitForTimeout(150);
+  expect((await wgz(page)).team!.panel).toBeNull();
+
+  // 點一下九宮格上的狗：移出隊伍；把狗從九宮格拖回清單也是移出
+  await tap(page, await cellAt(page, 2, 2));
+  await page.waitForFunction(() => !window.__WGZ__?.picker?.board.some((c) => c.id === 'xiaosuan'));
+  await drag(page, await cellAt(page, 0, 0), (await wgz(page)).picker!.grid);
+  await page.waitForFunction(() => !window.__WGZ__?.picker?.board.some((c) => c.id === 'abai'));
+  expect(await teamIds(page)).toEqual(['heixuan', 'changxu']);
+  // 拖到格子外又不是清單（例如標題列）：彈回去，不變
+  await drag(page, await cellAt(page, 1, 1), { x: 150, y: 10, width: 20, height: 20 });
+  await page.waitForTimeout(150);
+  expect((await cellAt(page, 1, 1)).id).toBe('heixuan');
+
+  // 「自動編隊」：五隻照定位排回去；滿了再拖到空格會提示，拖到隊友身上才能換
   await tap(page, (await wgz(page)).picker!.autoButton);
   await page.waitForFunction(() => window.__WGZ__?.picker?.slots.filter((s) => s.id).length === 5);
-  const p = (await wgz(page)).picker!;
+  p = (await wgz(page)).picker!;
   const rows = Object.fromEntries(p.slots.map((s, i) => [s.id, p.rows[i]]));
   expect(rows).toEqual({ daer: 1, heixuan: 0, changxu: 0, xiaosuan: 2, abai: 2 });
+  await drag(page, await cellAt(page, 2, 0), await cellAt(page, 2, 1));
+  await page.waitForFunction(
+    () => window.__WGZ__?.picker?.board.find((c) => c.row === 2 && c.lane === 1)?.id,
+  );
+  await page.waitForTimeout(150);
+  await page.screenshot({ path: 'artifacts/screenshots/portrait/formation-full.png' });
 });
 
 test('戰鬥照陣型站位；關掉自動放招後，點 EN 滿的狗才會放大絕招', async ({ page }) => {
@@ -160,7 +209,7 @@ test('開戰到一半關掉遊戲：下次開啟時用自動放招算完，體�
 test.describe('手機橫放', () => {
   test.use({ viewport: { width: 844, height: 390 } });
 
-  test('橫式：陣型面板在畫面內；出征選隊伍也能排陣型，勝率跟著變', async ({ page }) => {
+  test('橫式：左邊九宮格、右邊清單；出征選隊伍也能拖曳上陣與換位置', async ({ page }) => {
     await openLobby(page, '?fast=1&battle=slow&seed=7');
     await tap(page, (await wgz(page)).lobby!.buttons.expedition);
     await waitScene(page, 'CampaignScene');
@@ -173,21 +222,43 @@ test.describe('手機橫放', () => {
       if (card.selected !== ['xiaosuan', 'abai'].includes(card.id)) await tap(page, card);
     }
     const before = (await wgz(page)).expeditionPanel!.winChance!;
-    await openFormation(page);
-    const f = await formation(page);
-    for (const r of [...f.rows, ...f.dogs, f.reset, f.close]) {
+    expect(before).toBeGreaterThanOrEqual(0);
+    expect(before).toBeLessThanOrEqual(1);
+    let p = (await wgz(page)).picker!;
+    expect(p.board).toHaveLength(9);
+    for (const r of [...p.boardRows, ...p.board]) {
       expect(r.x).toBeGreaterThanOrEqual(0);
-      expect(r.y).toBeGreaterThanOrEqual(0);
+      expect(r.y).toBeGreaterThanOrEqual(56);
       expect(r.x + r.width).toBeLessThanOrEqual(844);
       expect(r.y + r.height).toBeLessThanOrEqual(390);
     }
-    expect(Object.values(await rowsOf(page))).toEqual([2, 2]);
+    // 九宮格在左邊、清單在右邊，不重疊；也不會蓋到開戰按鈕
+    const confirm = (await wgz(page)).expeditionPanel!.confirmButton!;
+    for (const r of p.boardRows) {
+      expect(r.x + r.width).toBeLessThanOrEqual(p.grid.x);
+      expect(r.y + r.height).toBeLessThanOrEqual(confirm.y);
+    }
+    expect(p.rows).toEqual([2, 2]);
     await page.waitForTimeout(150);
     await page.screenshot({ path: 'artifacts/screenshots/landscape/formation.png' });
-    await tap(page, f.close);
-    await page.waitForFunction(() => !window.__WGZ__?.formation);
-    expect(before).toBeGreaterThanOrEqual(0);
-    expect(before).toBeLessThanOrEqual(1);
+
+    // 橫式清單在右邊：把大耳往左拖到前排中間那一格就上陣（不用長按）
+    await drag(page, await card(page, 'daer'), await cellAt(page, 0, 1));
+    await page.waitForFunction(() => window.__WGZ__?.picker?.board.some((c) => c.id === 'daer'));
+    expect((await cellAt(page, 0, 1)).id).toBe('daer');
+    expect((await card(page, 'daer')).selected).toBe(true);
+    // 小算從後排拖到中排：勝率重新算過
+    const from = (await wgz(page)).picker!.board.find((c) => c.id === 'xiaosuan')!;
+    await drag(page, from, await cellAt(page, 1, 0));
+    await page.waitForFunction(
+      () => window.__WGZ__?.picker?.board.find((c) => c.id === 'xiaosuan')?.row === 1,
+    );
+    p = (await wgz(page)).picker!;
+    expect(p.slots.filter((s) => s.id)).toHaveLength(3);
+    const after = (await wgz(page)).expeditionPanel!.winChance!;
+    expect(after).toBeGreaterThanOrEqual(0);
+    expect(after).toBeLessThanOrEqual(1);
+    await page.screenshot({ path: 'artifacts/screenshots/landscape/formation-dragged.png' });
 
     // 五隻全上開戰：橫式三排各站一直行
     for (const card of (await wgz(page)).expeditionPanel!.teamCards) {

@@ -130,6 +130,8 @@ export interface BattleDog {
   role?: BattleRole;
   /** 站哪一排；沒填就照定位的預設 */
   row?: RowIndex;
+  /** 站那一排的上、中、下哪一格（0／1／2）；只影響畫面位置，不影響勝負 */
+  lane?: number;
   /** SSR：大絕招再強一級（守護嘲諷多一回合、謀略一次打兩排） */
   ssr?: boolean;
   /** 稀有度：決定出手一次集多少 EN；沒填的話 ssr 當 SSR，其餘用 EN_PER_ACT */
@@ -160,6 +162,8 @@ export interface BattleUnit {
   might: number;
   role: BattleRole;
   row: RowIndex;
+  /** 九宮格的上、中、下（我方才有；只影響畫面位置） */
+  lane?: number;
   /** 會不會集 EN、放大絕招 */
   canUlt: boolean;
   /** 出手一次集多少 EN */
@@ -381,6 +385,7 @@ export function createBattle(input: BattleInput): BattleState {
       might: 1,
       role,
       row: d.row ?? defaultRowOf(role),
+      ...(d.lane === 0 || d.lane === 1 || d.lane === 2 ? { lane: d.lane } : {}),
       canUlt: !!d.hasSkill,
       enPerAct: enPerActOf(d),
       ssr: !!d.ssr,
