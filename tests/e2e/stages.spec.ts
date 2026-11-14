@@ -27,7 +27,17 @@ async function openStage(page: Page, node: number, stageId: string) {
 test('T018 關卡敵人與上陣數量：十個章節，每關自己的敵人，上陣數量跟著敵人數', async ({ page }) => {
   await openLobby(page, '?fast=1&battle=slow&seed=3');
   // 全部關卡都打過（十章都開放），組隊編排帶滿五隻
-  await patchSave(page, { cleared: ALL_STAGES, team: STARTERS, formation: {} });
+  await patchSave(page, {
+    cleared: ALL_STAGES,
+    // 劇情也都看過，打完才不會跳去播劇情
+    seenStories: [
+      'prologue',
+      'ch1-first',
+      ...Array.from({ length: 10 }, (_, i) => `ch${i + 1}-boss`),
+    ],
+    team: STARTERS,
+    formation: {},
+  });
 
   await tap(page, (await wgz(page)).lobby!.buttons.expedition);
   await waitScene(page, 'CampaignScene');

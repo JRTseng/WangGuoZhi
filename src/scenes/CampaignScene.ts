@@ -235,7 +235,9 @@ export class CampaignScene extends Phaser.Scene {
     };
     const { layer, box } = openModal(
       this,
-      landscape ? { width: 560, height: 340 } : { width: 340, height: s.boss ? 500 : 410 },
+      landscape
+        ? { width: 560, height: s.boss ? 372 : 340 }
+        : { width: 340, height: s.boss ? 500 : 410 },
       close,
       s.boss ? 0xc0392b : COLORS.cardBorder,
     );
@@ -289,7 +291,7 @@ export class CampaignScene extends Phaser.Scene {
         true,
       ),
     );
-    y += landscape ? 40 : 58;
+    y += landscape ? 30 : 58;
     const st = tick();
     const now = Date.now();
     const o = timeOptions();

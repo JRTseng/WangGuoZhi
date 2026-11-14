@@ -136,9 +136,9 @@ test('戰鬥照陣型站位；關掉自動放招後，點 EN 滿的狗才會放�
   let b = await battle(page);
   // 大耳中排、小算後排；野犬兩隻前排、一隻中排。前排最靠近中線
   expect(b.team.map((u) => u.row)).toEqual([1, 2]);
-  expect(b.enemies.map((u) => u.row)).toEqual([0, 0, 1]);
+  expect(b.enemies.map((u) => u.row)).toEqual([0, 0, 0, 1, 1]);
   expect(b.team[0].x).toBeGreaterThan(b.team[1].x);
-  expect(b.enemies[2].x).toBeGreaterThan(b.enemies[0].x);
+  expect(b.enemies[3].x).toBeGreaterThan(b.enemies[0].x);
   expect(b.autoUlt).toBe(true);
 
   // 關掉自動放招，切到 ×2
