@@ -9,6 +9,7 @@ import {
   expeditionReward,
   idleDogIds,
   runExpedition,
+  stageTeamMax,
 } from './expedition';
 import { initialProgress } from './leveling';
 import { STAMINA_COST, STAMINA_MAX, runsLeft } from './stamina';
@@ -18,6 +19,8 @@ const T0 = 1_800_000_000_000; // 固定的「現在」
 const TZ = { tzOffsetMin: -480 }; // 台北時間
 const TEAM = ['daer', 'heixuan', 'changxu'];
 const ALL = ['daer', 'heixuan', 'changxu', 'xiaosuan', 'abai'];
+/** 第 1 章 Boss 關最多上 4 隻 */
+const BOSS_TEAM = ALL.slice(0, 4);
 
 const fresh = () => createInitialState(T0);
 
@@ -77,12 +80,22 @@ describe('runExpedition', () => {
     expect(b.state.stamina.value).toBe(STAMINA_MAX - STAMINA_COST * 2);
   });
 
-  it('隊伍可帶 1 到 5 隻，0 隻或超過 5 隻不行；不重複、要存在', () => {
+  it('隊伍可帶 1 隻到這一關的上陣上限（T018：第 1 關三隻敵人，最多 3 隻）；不重複、要存在', () => {
     const s = fresh();
     const tz = TZ;
-    for (let n = 1; n <= 5; n++) {
+    expect(stageTeamMax('luoyepo-1')).toBe(3);
+    for (let n = 1; n <= 3; n++) {
       expect(run(s, 'luoyepo-1', ALL.slice(0, n)).record.dogIds).toEqual(ALL.slice(0, n));
     }
+    expect(runExpedition(s, 'luoyepo-1', ALL.slice(0, 4), T0, tz)).toEqual({
+      ok: false,
+      error: 'wrong-team-size',
+    });
+    // Boss 關：頭目算兩隻，加兩隻小兵可以上 4 隻
+    expect(stageTeamMax('luoyepo-5')).toBe(4);
+    expect(stageTeamMax('zhulindu-5')).toBe(5);
+    expect(stageTeamMax('xuelingguan-3')).toBe(2);
+    expect(stageTeamMax('nope')).toBe(5);
     expect(runExpedition(s, 'luoyepo-1', [], T0, tz)).toEqual({
       ok: false,
       error: 'wrong-team-size',
@@ -189,7 +202,7 @@ describe('runExpedition', () => {
   });
 
   it('升級結果寫進狀態與紀錄：1 級的狗打贏第 1 關連升到 3 級，多的經驗保留', () => {
-    const { state, record } = run(fresh(), 'luoyepo-1', ALL, T0, 5);
+    const { state, record } = run(fresh(), 'luoyepo-1', ['daer', 'heixuan', 'abai'], T0, 5);
     const g = record.gains.find((x) => x.dogId === 'abai')!;
     expect(g).toMatchObject({ exp: 90, fromLevel: 1, toLevel: 3 });
     const p = state.dogs.abai;
@@ -236,7 +249,7 @@ describe('第 1 章通關送補血狗（T017）', () => {
   it('第一次打贏 Boss：補血狗加入，有養成進度，紀錄記下來', () => {
     const s = beforeBoss();
     expect(s.owned).not.toContain(GIFT);
-    const { state, record } = run(s, BOSS, ALL);
+    const { state, record } = run(s, BOSS, BOSS_TEAM);
     expect(record.win).toBe(true);
     expect(record.newDogId).toBe(GIFT);
     expect(state.owned).toEqual([...s.owned, GIFT]);
@@ -249,8 +262,8 @@ describe('第 1 章通關送補血狗（T017）', () => {
   });
 
   it('再打贏一次不會重複送', () => {
-    const first = run(beforeBoss(), BOSS, ALL).state;
-    const again = run(first, BOSS, ALL, T0 + 1);
+    const first = run(beforeBoss(), BOSS, BOSS_TEAM).state;
+    const again = run(first, BOSS, BOSS_TEAM, T0 + 1);
     expect(again.record.win).toBe(true);
     expect(again.record.newDogId).toBeUndefined();
     expect(again.state.owned.filter((id) => id === GIFT)).toHaveLength(1);
@@ -265,13 +278,13 @@ describe('第 1 章通關送補血狗（T017）', () => {
       dogs: { ...s0.dogs, [GIFT]: initialProgress(findDog(GIFT)!) },
       shards: { [GIFT]: 3 },
     };
-    const first = run(s, BOSS, ALL);
+    const first = run(s, BOSS, BOSS_TEAM);
     expect(first.record.win).toBe(true);
     expect(first.record.newDogId).toBeUndefined();
     expect(first.record.giftShards).toEqual({ dogId: GIFT, amount: GIFT_DUPLICATE_SHARDS });
     expect(first.state.owned.filter((id) => id === GIFT)).toHaveLength(1);
     expect(first.state.shards[GIFT]).toBe(3 + GIFT_DUPLICATE_SHARDS);
-    const again = run(first.state, BOSS, ALL, T0 + 1);
+    const again = run(first.state, BOSS, BOSS_TEAM, T0 + 1);
     expect(again.record.giftShards).toBeUndefined();
     expect(again.state.shards[GIFT]).toBe(3 + GIFT_DUPLICATE_SHARDS);
   });

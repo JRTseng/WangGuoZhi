@@ -18,6 +18,8 @@ import { STAMINA_COST } from './stamina';
 
 const NOW = 1_800_000_000_000;
 const TEAM = ['daer', 'heixuan', 'changxu'];
+/** 可以上 4 隻的關卡 */
+const STAGE4 = 'luoyepo-3';
 const fresh = (): GameState => createInitialState(NOW);
 
 describe('出征與陣型（T023）', () => {
@@ -42,15 +44,25 @@ describe('出征與陣型（T023）', () => {
     });
   });
 
-  it('Boss 關的敵人是一隻頭目，其他關是三隻野犬', () => {
+  it('每一關用自己的敵人陣容（T018）：第 1 關三隻小卒，Boss 關是頭目加兩隻小兵', () => {
     const team = battleTeamOf(fresh(), TEAM);
-    expect(battleInputOf({ stageId: 'luoyepo-1', team, seed: 1 })).toMatchObject({
-      boss: false,
-      recommendedPower: 150,
-    });
+    const first = battleInputOf({ stageId: 'luoyepo-1', team, seed: 1 });
+    expect(first.recommendedPower).toBe(150);
+    expect(first.enemies!.map((e) => `${e.name}:${e.role}:${e.row}`)).toEqual([
+      '坡匪小卒甲:野犬:0',
+      '坡匪小卒乙:野犬:0',
+      '坡匪小卒丙:野犬:1',
+    ]);
     const boss = battleInputOf({ stageId: 'luoyepo-5', team, seed: 1 });
-    expect(boss.boss).toBe(true);
-    expect(boss.enemyNames).toEqual(['雷吼']);
+    expect(boss.enemies!.map((e) => `${e.name}:${e.role}:${e.row}`)).toEqual([
+      '坡匪小卒甲:野犬:0',
+      '坡匪小卒乙:野犬:0',
+      '雷吼:頭目:1',
+    ]);
+    // 頭目佔大部分的戰力，而且只有牠會放大絕招
+    const sim = createBattle(boss);
+    expect(sim.enemies[2].maxHp).toBeGreaterThan(sim.enemies[0].maxHp * 3);
+    expect(sim.enemies.map((u) => u.canUlt)).toEqual([false, false, true]);
   });
 
   it('略過戰鬥（runExpedition）= 開戰後用自動放招打完，結果與紀錄一樣', () => {
@@ -114,13 +126,17 @@ describe('出征與陣型（T023）', () => {
     expect(stageWinChance(st, 'luoyepo-1', TEAM)).toBe(1);
     expect(stageWinChance(st, 'luoyepo-1', ['abai'])).toBeLessThan(0.05);
     expect(stageWinChance(st, 'luoyepo-1', [])).toBe(0);
-    const good = stageWinChance(st, 'luoyepo-5', all);
+    // 超過這一關的上陣上限（第 1 關 3 隻、第 1 章 Boss 關 4 隻）也是 0
+    expect(stageWinChance(st, 'luoyepo-1', all.slice(0, 4))).toBe(0);
+    expect(stageWinChance(st, 'luoyepo-5', all)).toBe(0);
+    const four = ['heixuan', 'changxu', 'xiaosuan', 'abai'];
+    const good = stageWinChance(st, STAGE4, four);
     let bad = st;
-    bad = setDogRow(bad, all, 'heixuan', 2);
-    bad = setDogRow(bad, all, 'changxu', 1);
-    bad = setDogRow(bad, all, 'xiaosuan', 0);
-    bad = setDogRow(bad, all, 'abai', 0);
-    expect(stageWinChance(bad, 'luoyepo-5', all)).toBeLessThan(good - 0.15);
+    bad = setDogRow(bad, four, 'heixuan', 2);
+    bad = setDogRow(bad, four, 'changxu', 1);
+    bad = setDogRow(bad, four, 'xiaosuan', 0);
+    bad = setDogRow(bad, four, 'abai', 0);
+    expect(stageWinChance(bad, STAGE4, four)).toBeLessThan(good - 0.15);
   });
 
   it('一鍵自動編隊會把站位照定位排好', () => {

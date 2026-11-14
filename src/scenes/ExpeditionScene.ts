@@ -5,11 +5,11 @@ import { findStage, type StageData } from '../data/regions';
 import { battleSeedFromSearch } from '../logic/battle';
 import {
   TEAM_MIN,
-  TEAM_SIZE,
   beginExpedition,
   busyDogIds,
   resultNotes,
   runExpedition,
+  stageTeamMax,
   stageWinChance,
 } from '../logic/expedition';
 import { freezeCells, resetFormation } from '../logic/formation';
@@ -26,7 +26,7 @@ import {
   runsTotal,
   type RunBlock,
 } from '../logic/stamina';
-import { dogContext, placeDog, teamPower } from '../logic/team';
+import { dogContext, dogPower, placeDog, teamPower } from '../logic/team';
 import { presetSizes, switchTeam } from '../logic/teams';
 import { getState, setState, tick, timeOptions } from '../state/store';
 import { Button } from './components/Button';
@@ -49,7 +49,7 @@ interface ExpeditionData {
 
 /**
  * 出征選隊伍：從地圖點關卡進來。
- * 預設帶入「組隊編排」的隊伍，可再點卡片調整，選 1 到 5 隻，按「開戰」直接進戰鬥（T019：不用等）。
+ * 預設帶入「組隊編排」的隊伍，可再點卡片調整，選 1 隻到這一關的上陣上限（T018），按「開戰」直接進戰鬥（T019：不用等）。
  * 開戰要花體力與今日次數；不夠時按鈕變灰並顯示還要等多久，旁邊可以用骨頭幣補。
  * T015 改版：上方 5 個隊伍格、篩選與排序、可捲動的卡片格、一鍵自動編隊。
  * 只列出擁有的狗；出發按鈕在下方，單手拇指按得到。
@@ -58,6 +58,8 @@ export class ExpeditionScene extends Phaser.Scene {
   private stage: StageData | null = null;
   private chapter = 0;
   private selected: string[] = [];
+  /** 這一關最多能上陣幾隻（T018：跟著敵人數量） */
+  private max = 5;
   private layer!: Phaser.GameObjects.Container;
   private picker!: DogPicker;
   private back!: Rect;
@@ -85,7 +87,9 @@ export class ExpeditionScene extends Phaser.Scene {
     this.chapter = data?.chapter ?? 0;
     const st = tick();
     const busy = busyDogIds(st);
-    this.selected = st.team.filter((id) => st.owned.includes(id) && !busy.has(id));
+    this.max = stageTeamMax(this.stage?.id ?? '');
+    // 組隊編排的隊伍超過這一關的上限時，留戰力最高的幾隻
+    this.selected = this.fit(st.team.filter((id) => st.owned.includes(id) && !busy.has(id)));
     this.shop = null;
     this.result = null;
     this.chanceKey = '';
@@ -101,22 +105,15 @@ export class ExpeditionScene extends Phaser.Scene {
     const stage = this.stage;
     const { w, h, landscape } = viewOf(this);
     this.add.rectangle(0, 0, w, h, COLORS.background).setOrigin(0, 0);
-    const brief = `體力 ${STAMINA_COST}・建議戰力 ${stage.recommendedPower}`;
+    const brief = `體力 ${STAMINA_COST}・建議戰力 ${stage.recommendedPower}・可上陣 ${this.max} 隻`;
+    // 橫式標題列右邊還要放體力與次數，只留關卡名與上陣數（建議戰力在左欄）
+    const short = `${stage.name}・可上陣 ${this.max} 隻`;
     // 橫式高度不夠，關卡資訊併進標題列
-    this.back = drawHeader(
-      this,
-      landscape ? `出征・${stage.name}・${brief}` : `出征・${stage.name}`,
-      () => this.scene.start('CampaignScene', { chapter: this.chapter }),
+    this.back = drawHeader(this, landscape ? short : `出征・${stage.name}`, () =>
+      this.scene.start('CampaignScene', { chapter: this.chapter }),
     );
     if (!landscape) {
-      this.text(
-        w / 2,
-        BAR_HEIGHT + 22,
-        `${brief}・選 ${TEAM_MIN}～${TEAM_SIZE} 隻`,
-        17,
-        COLORS.ink,
-        true,
-      ).setOrigin(0.5);
+      this.text(w / 2, BAR_HEIGHT + 22, brief, 17, COLORS.ink, true).setOrigin(0.5);
     }
     this.confirmRect = landscape
       ? { x: 16, y: h - 66, width: SIDE_WIDTH, height: 54 }
@@ -138,7 +135,7 @@ export class ExpeditionScene extends Phaser.Scene {
       slotsBottom: landscape ? this.confirmRect.y - 48 : undefined,
       dogs: () => DOGS.filter((d) => getState().owned.includes(d.id)),
       selected: () => this.selected,
-      title: () => `${landscape ? '隊伍' : '出征隊伍'} ${this.selected.length}/${TEAM_SIZE}`,
+      title: () => `${landscape ? '隊伍' : '出征隊伍'} ${this.selected.length}/${this.max}`,
       teams: {
         index: () => getState().teamIndex,
         // 目前這組顯示畫面上正在選的隻數
@@ -150,7 +147,7 @@ export class ExpeditionScene extends Phaser.Scene {
           // 換一組：帶入那一組存好的成員與站位
           const st = switchTeam(getState(), i);
           setState(st);
-          this.selected = [...st.team];
+          this.selected = this.fit(st.team);
           this.render();
         },
       },
@@ -158,7 +155,7 @@ export class ExpeditionScene extends Phaser.Scene {
       onCellTap: (dog) => this.toggleDog(dog.id),
       onAuto: () => {
         const st = getState();
-        const team = autoTeam(DOGS, dogContext(st));
+        const team = autoTeam(DOGS, dogContext(st), this.max);
         if (team.length > 0) {
           this.selected = team;
           // 站位也照定位重新排好
@@ -167,7 +164,7 @@ export class ExpeditionScene extends Phaser.Scene {
         this.render();
       },
       onPlace: (id, row, lane) => {
-        const r = placeDog(getState(), this.selected, id, row, lane);
+        const r = placeDog(getState(), this.selected, id, row, lane, this.max);
         if (!r.error) {
           this.selected = r.team;
           setState(r.state);
@@ -180,6 +177,16 @@ export class ExpeditionScene extends Phaser.Scene {
     });
     this.render();
     this.time.addEvent({ delay: REFRESH_MS, loop: true, callback: () => this.refresh() });
+  }
+
+  /** 超過這一關上陣上限的隊伍：留戰力最高的幾隻，順序不變 */
+  private fit(team: readonly string[]): string[] {
+    if (team.length <= this.max) return [...team];
+    const st = getState();
+    const keep = new Set(
+      [...team].sort((a, b) => dogPower(st, b) - dogPower(st, a)).slice(0, this.max),
+    );
+    return team.filter((id) => keep.has(id));
   }
 
   /** 現在能不能開戰（體力、今日次數） */
@@ -207,12 +214,12 @@ export class ExpeditionScene extends Phaser.Scene {
     this.statusText.setText(
       `體力 ${st.stamina.value}/${STAMINA_MAX}・今日剩 ${runsLeft(st, id, now, o)}/${runsTotal(st, id, now, o)} 次`,
     );
-    const ready = this.selected.length >= TEAM_MIN && this.selected.length <= TEAM_SIZE;
+    const ready = this.selected.length >= TEAM_MIN && this.selected.length <= this.max;
     if (!b.ok) {
       const wait = formatCountdown(b.waitMs);
       this.confirmLabel = b.reason === 'no-runs' ? `次數用完 ${wait}` : `體力不足 ${wait}`;
     } else {
-      this.confirmLabel = ready ? '開戰！' : `開戰（已選 ${this.selected.length}/${TEAM_SIZE}）`;
+      this.confirmLabel = ready ? '開戰！' : `開戰（已選 ${this.selected.length}/${this.max}）`;
     }
     this.confirmReady = b.ok && ready;
     this.confirmButton?.setText(this.confirmLabel).setEnabled(this.confirmReady);
@@ -329,12 +336,12 @@ export class ExpeditionScene extends Phaser.Scene {
 
   private toggleDog(id: string): void {
     if (busyDogIds(getState()).has(id)) return; // 寄宿中的不能選
-    const full = !this.selected.includes(id) && this.selected.length >= TEAM_SIZE;
+    const full = !this.selected.includes(id) && this.selected.length >= this.max;
     // 其他隊友留在原本的格子上（九宮格）
     if (!full) setState(freezeCells(getState(), this.selected));
     if (this.selected.includes(id)) {
       this.selected = this.selected.filter((x) => x !== id);
-    } else if (this.selected.length < TEAM_SIZE) {
+    } else if (this.selected.length < this.max) {
       this.selected = [...this.selected, id];
     } else {
       return; // 已滿，先取消一隻才能換

@@ -277,7 +277,7 @@ interface WgzDebugState {
     chapter: number;
     chapters: ({ id: string; unlocked: boolean } & WgzRect)[];
     nodes: ({ id: string; state: 'locked' | 'open' | 'cleared'; boss: boolean } & WgzRect)[];
-    stagePanel: { stageId: string; go: WgzRect } | null;
+    stagePanel: { stageId: string; go: WgzRect; teamMax: number; enemies: number } | null;
   };
 
   /** 出征選隊伍（ExpeditionScene） */

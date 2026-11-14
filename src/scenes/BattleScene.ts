@@ -1,7 +1,12 @@
 import Phaser from 'phaser';
 import { COLORS } from '../config';
 import { findDog } from '../data/dogs';
-import { BOSS_SKILLS, BOSS_SKILL_FALLBACK, DEFAULT_SKILL_LINES } from '../data/skillLines';
+import {
+  BOSS_SKILLS,
+  BOSS_SKILL_FALLBACK,
+  ELITE_SKILL,
+  DEFAULT_SKILL_LINES,
+} from '../data/skillLines';
 import { REGIONS, findRegionOfStage, findStage, type StageData } from '../data/regions';
 import {
   EN_MAX,
@@ -173,6 +178,7 @@ export class BattleScene extends Phaser.Scene {
       this.sim.team.map((u) => u.row),
       this.sim.enemies.map((u) => u.row),
       this.sim.team.map((u) => u.lane),
+      this.sim.enemies.map((u) => !!u.look?.big),
     );
     this.drawStage(w, h, landscape);
     this.drawUnits();
@@ -209,16 +215,12 @@ export class BattleScene extends Phaser.Scene {
           line: skillLineOf(lines, DEFAULT_SKILL_LINES, d.id),
         };
       }),
-      enemy: this.sim.enemies.map((u) =>
-        bossSkill && u.canUlt
-          ? {
-              name: u.name,
-              skill: bossSkill.name,
-              kind: ultKindOfRole(u.role),
-              line: bossSkill.line,
-            }
-          : null,
-      ),
+      enemy: this.sim.enemies.map((u) => {
+        if (!u.canUlt) return null;
+        // 頭目用自己的招式；精銳小兵用共用的
+        const skill = u.role === '頭目' ? (bossSkill ?? BOSS_SKILL_FALLBACK) : ELITE_SKILL;
+        return { name: u.name, skill: skill.name, kind: ultKindOfRole(u.role), line: skill.line };
+      }),
     };
   }
 
@@ -266,7 +268,6 @@ export class BattleScene extends Phaser.Scene {
   }
 
   private drawUnits(): void {
-    const boss = this.stage!.boss;
     this.sim.team.forEach((u, i) => {
       const d = findDog(u.id);
       const unit = this.makeUnit('team', i, u.heal ? `✚ ${u.name}` : u.name, this.layout.team[i], {
@@ -285,8 +286,8 @@ export class BattleScene extends Phaser.Scene {
     this.sim.enemies.forEach((u, i) => {
       this.units.enemy.push(
         this.makeUnit('enemy', i, u.name, this.layout.enemies[i], {
-          color: boss?.color ?? MOB_LOOK.color,
-          accent: boss?.accent ?? MOB_LOOK.accent,
+          color: u.look?.color ?? MOB_LOOK.color,
+          accent: u.look?.accent ?? MOB_LOOK.accent,
           fierce: true,
         }),
       );

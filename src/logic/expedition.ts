@@ -103,22 +103,21 @@ export function battleTeamOf(
   }));
 }
 
-/** 關卡的敵人名字：Boss 關只有 Boss 一隻，其餘是三隻野犬（暫定，T018 會換成每關自己的敵人） */
-export function enemyNamesOf(stageId: string): string[] {
-  const boss = findStage(stageId)?.boss;
-  return boss ? [boss.name] : ['野犬甲', '野犬乙', '野犬丙'];
+/** 這一關最多能上陣幾隻（T018）：跟著敵人數量；找不到關卡就用隊伍上限 */
+export function stageTeamMax(stageId: string): number {
+  return Math.min(TEAM_SIZE, findStage(stageId)?.teamMax ?? TEAM_SIZE);
 }
 
 type BattleSource = Pick<ExpeditionRecord, 'stageId' | 'team' | 'seed'>;
 
-/** 這一仗的開場資料：關卡的敵人（野犬站前排、Boss 站中排）加上隊伍與種子 */
+/** 這一仗的開場資料：關卡自己的敵人陣容，加上隊伍與種子 */
 export function battleInputOf(exp: BattleSource): BattleInput {
   const stage = findStage(exp.stageId);
   return {
     team: exp.team,
     recommendedPower: stage?.recommendedPower ?? 0,
-    enemyNames: enemyNamesOf(exp.stageId),
-    boss: !!stage?.boss,
+    enemies: stage?.enemies ?? [],
+    scale: stage?.scale ?? 1,
     seed: exp.seed,
   };
 }
@@ -139,13 +138,8 @@ export function stageWinChance(
   stageId: string,
   dogIds: readonly string[],
 ): number {
-  if (dogIds.length < TEAM_MIN || dogIds.length > TEAM_SIZE) return 0;
-  const { team, recommendedPower, enemyNames, boss } = battleInputOf({
-    stageId,
-    team: battleTeamOf(state, dogIds),
-    seed: 0,
-  });
-  return winChance({ team, recommendedPower, enemyNames, boss });
+  if (dogIds.length < TEAM_MIN || dogIds.length > stageTeamMax(stageId)) return 0;
+  return winChance(battleInputOf({ stageId, team: battleTeamOf(state, dogIds), seed: 0 }));
 }
 
 /** 這次出征的獎勵：勝利全額，敗北只拿一部分 */
@@ -204,7 +198,7 @@ function runError(
 ): RunError | null {
   if (!findStage(stageId)) return 'stage-not-found';
   if (!isStageUnlocked(state, stageId)) return 'stage-locked';
-  if (dogIds.length < TEAM_MIN || dogIds.length > TEAM_SIZE) return 'wrong-team-size';
+  if (dogIds.length < TEAM_MIN || dogIds.length > stageTeamMax(stageId)) return 'wrong-team-size';
   if (new Set(dogIds).size !== dogIds.length) return 'duplicate-dog';
   if (!dogIds.every((id) => DOGS.some((d) => d.id === id))) return 'dog-not-found';
   if (!dogIds.every((id) => state.owned.includes(id))) return 'dog-not-owned';
@@ -303,7 +297,7 @@ function settleBattle(
 
 /**
  * 出征（T019）：沒有等待時間，按下去就用自動放招打完（略過戰鬥畫面、自動出征用這個）。
- * 檢查：關卡存在且已解鎖、1 到 5 隻、不重複、狗存在且擁有、沒在寄宿、今天還有次數、體力夠。
+ * 檢查：關卡存在且已解鎖、1 隻到這一關的上陣上限、不重複、狗存在且擁有、沒在寄宿、今天還有次數、體力夠。
  * seed 為這一仗的亂數種子；沒給就由時間與出征編號算出。
  */
 export function runExpedition(
