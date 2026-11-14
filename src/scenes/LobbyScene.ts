@@ -8,6 +8,8 @@ import { STORIES } from '../data/stories';
 import { clearAutoSummary, setAuto } from '../logic/auto';
 import { formatAmount, formatCountdown } from '../logic/format';
 import type { Rect } from '../logic/layout';
+import { gearOf } from '../logic/equipment';
+import { findGear } from '../data/equipment';
 import { dogStats } from '../logic/leveling';
 import { lobbyLayout, tappableRects, type LobbyLayout } from '../logic/lobbyLayout';
 import {
@@ -133,7 +135,11 @@ export class LobbyScene extends Phaser.Scene {
     const d = findDog(getState().lobbyDogId) ?? DOGS[0];
     const level = dogStats(getState(), d).level;
     const { x, y, scale } = this.layout.dog;
-    this.dog = new DogSprite(this, x, y, { color: d.color, accent: d.accent });
+    this.dog = new DogSprite(this, x, y, {
+      color: d.color,
+      accent: d.accent,
+      gear: gearOf(getState(), d.id),
+    });
     this.dog.setScale(scale);
     this.dog.onActionChange = (a) =>
       patchDebug({ lobby: { ...window.__WGZ__!.lobby!, dogAction: a } });
@@ -263,15 +269,7 @@ export class LobbyScene extends Phaser.Scene {
       () => this.showToast(`任務${COMING_SOON}（T011）`),
       compact ? undefined : COMING_SOON,
     );
-    new MenuItem(
-      this,
-      M.bag,
-      '倉庫',
-      'bag',
-      compact,
-      () => this.showToast(`倉庫${COMING_SOON}`),
-      compact ? undefined : COMING_SOON,
-    );
+    new MenuItem(this, M.bag, '倉庫', 'bag', compact, () => this.scene.start('GearScene'));
     new MenuItem(this, M.background, '背景', 'background', compact, () => this.switchBackground());
   }
 
@@ -474,6 +472,7 @@ export class LobbyScene extends Phaser.Scene {
     if (this.busyWithPanel || !sum) return;
     const stages = Object.entries(sum.stages);
     const dogs = Object.entries(sum.dogs);
+    const drops = Object.entries(sum.gear ?? {});
     const close = () => {
       this.summary?.destroy();
       this.summary = null;
@@ -483,7 +482,7 @@ export class LobbyScene extends Phaser.Scene {
     };
     const { layer, box } = openModal(
       this,
-      { width: 340, height: 190 + (stages.length + dogs.length) * 24 },
+      { width: 340, height: 190 + (stages.length + dogs.length + drops.length) * 24 },
       close,
       COLORS.harvest,
     );
@@ -504,6 +503,9 @@ export class LobbyScene extends Phaser.Scene {
       COLORS.ink,
       true,
     );
+    for (const [id, n] of drops) {
+      line(`撿到裝備「${findGear(id)?.name ?? id}」× ${n}`, 15, '#b5651d', true);
+    }
     for (const [id, d] of dogs) {
       line(
         `${findDog(id)?.name ?? id} 經驗 +${d.exp}${d.levels > 0 ? `・升 ${d.levels} 級！` : ''}`,

@@ -114,6 +114,7 @@ export class TeamScene extends Phaser.Scene {
           setState(setLobbyDog(getState(), d.id));
           show();
         },
+        onGear: () => this.scene.start('GearScene', { dogId: d.id, back: 'TeamScene' }),
         onClose: () => this.closePanel(),
       });
       this.picker.render();

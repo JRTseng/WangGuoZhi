@@ -1,4 +1,5 @@
 import { DOGS, STARTER_DOG_IDS } from '../data/dogs';
+import type { GearSlot } from '../data/equipment';
 import type { ThemeId } from '../data/regions';
 import { INITIAL_RESOURCES, type Resources } from '../data/resources';
 import type { BattleDog } from '../logic/battle';
@@ -57,6 +58,8 @@ export interface ExpeditionRecord {
   auto?: boolean;
   /** 這一仗第一次通關送的狗狗 id（T017） */
   newDogId?: string;
+  /** 這一仗掉的裝備 id（T014）；沒掉就沒有這個欄位 */
+  dropGearId?: string;
   /** 第一次通關要送的狗已經先抽到了，改送的碎片 */
   giftShards?: { dogId: string; amount: number };
 }
@@ -105,6 +108,8 @@ export interface AutoSummary {
   stages: Record<string, number>;
   /** 每隻狗累積拿到的經驗與升了幾級 */
   dogs: Record<string, { exp: number; levels: number }>;
+  /** 掉了哪些裝備、各幾件（T014）；沒掉過就沒有這個欄位 */
+  gear?: Record<string, number>;
 }
 
 /** 自動出征（T019） */
@@ -206,6 +211,10 @@ export interface GameState {
   formation: Record<string, number>;
   /** 已經開戰、還沒打完的一仗（T023）；沒有為 null */
   pending: PendingBattle | null;
+  /** 裝備（T014）：每種裝備擁有幾件，以裝備 id 為鍵 */
+  gear: Record<string, number>;
+  /** 每隻狗每個部位穿哪一件裝備，以狗狗 id 為鍵（規則見 src/logic/equipment.ts） */
+  equipped: Record<string, Partial<Record<GearSlot, string>>>;
 }
 
 /** 體力上限；新遊戲從滿體力開始 */
@@ -248,5 +257,7 @@ export function createInitialState(now: number = Date.now()): GameState {
     skillLines: {},
     formation: {},
     pending: null,
+    gear: {},
+    equipped: {},
   };
 }

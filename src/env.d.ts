@@ -64,6 +64,8 @@ interface WgzDebugState {
   } | null;
   /** 結算面板顯示的獎勵與勝負，沒開為 null */
   result?: { food: number; bones: number; win: boolean; newDogId?: string } | null;
+  /** 這一仗掉的裝備 id（T014）；結算面板沒開或沒掉為 null */
+  drop?: string | null;
   /** 結算面板上每隻狗的經驗與升級（T005），沒開為 null */
   growth?:
     | {
@@ -110,6 +112,44 @@ interface WgzDebugState {
       levelCap: number;
       /** 招式台詞那一條（T017）：點了可以改；line 是目前會喊的台詞，custom 代表是玩家自己填的 */
       skillLine: { skill: string; line: string; custom: boolean } & WgzRect;
+    } & WgzRect)[];
+  };
+  /** 倉庫（GearScene，T014） */
+  gear?: {
+    /** 現在在看哪隻狗 */
+    dogId: string;
+    tab: string;
+    /** 狗狗下面那行提示（剛穿了什麼） */
+    note: string;
+    /** 總共擁有幾件裝備 */
+    total: number;
+    stats: {
+      attack: number;
+      defense: number;
+      power: number;
+      gearAttack: number;
+      gearDefense: number;
+    };
+    prev: WgzRect;
+    next: WgzRect;
+    autoButton: WgzRect;
+    tabs: ({ key: string; active: boolean } & WgzRect)[];
+    /** 五個裝備格：穿著的裝備 id，沒穿為 null */
+    slots: ({ slot: string; gearId: string | null } & WgzRect)[];
+    list: WgzRect;
+    scrollY: number;
+    scrollMax: number;
+    /** 目前列出的裝備（已篩選），座標已扣掉捲動量 */
+    items: ({
+      id: string;
+      slot: string;
+      rarity: 'N' | 'R' | 'SR' | 'SSR';
+      /** 擁有幾件、還沒被穿走的幾件 */
+      count: number;
+      spare: number;
+      /** 現在這隻狗是不是穿著這一件 */
+      wearing: boolean;
+      visible: boolean;
     } & WgzRect)[];
   };
   /** 召募畫面（T007） */
@@ -230,7 +270,7 @@ interface WgzDebugState {
       power: number;
       star: number;
     } | null;
-    panelButtons: { team?: WgzRect; lobby?: WgzRect } | null;
+    panelButtons: { team?: WgzRect; lobby?: WgzRect; gear?: WgzRect } | null;
     lobbyDogId: string;
   };
 

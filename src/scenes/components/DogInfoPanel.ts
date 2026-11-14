@@ -20,6 +20,8 @@ export interface DogInfoOptions {
   isLobby: boolean;
   onToggleTeam: () => void;
   onSetLobby: () => void;
+  /** 去倉庫幫這隻狗換裝備（T014）；沒給就不顯示按鈕 */
+  onGear?: () => void;
   onClose: () => void;
 }
 
@@ -30,7 +32,7 @@ export interface DogInfoOptions {
  */
 export class DogInfoPanel {
   readonly layer: Phaser.GameObjects.Container;
-  readonly buttons: { team?: Rect; lobby?: Rect } = {};
+  readonly buttons: { team?: Rect; lobby?: Rect; gear?: Rect } = {};
   readonly stats: { level: number; exp: number; expNeed: number; power: number; star: number };
 
   constructor(scene: Phaser.Scene, dog: DogData, o: DogInfoOptions) {
@@ -112,12 +114,17 @@ export class DogInfoPanel {
       y += gap;
     };
     line(`性格：${dog.personality}`, 16);
-    line(`攻擊 ${s.attack}\u3000防禦 ${s.defense}\u3000戰力 ${s.power}`, 16);
+    line(
+      `攻擊 ${s.attack}\u3000防禦 ${s.defense}\u3000戰力 ${s.power}` +
+        (s.gearAttack + s.gearDefense > 0 ? `（裝備 +${s.gearAttack + s.gearDefense}）` : ''),
+      16,
+    );
     line(`技能「${dog.skill.name}」：${dog.skill.description}`, 16, '#b5651d', true, 40);
 
     const by = box.y + box.height - 64;
     if (o.owned) {
-      const bw = (box.width - 48 - 12) / 2;
+      const n = o.onGear ? 3 : 2;
+      const bw = (box.width - 48 - 12 * (n - 1)) / n;
       const blocked = o.boarding ? '寄宿中' : o.teamFull ? '隊伍已滿' : null;
       const teamLabel = o.inTeam ? '移出隊伍' : (blocked ?? '加入隊伍');
       const teamColor = o.inTeam ? 0x8a6f55 : blocked ? COLORS.buttonDisabled : COLORS.button;
@@ -135,6 +142,15 @@ export class DogInfoPanel {
         o.isLobby ? COLORS.buttonDisabled : COLORS.harvest,
         o.onSetLobby,
       );
+      if (o.onGear) {
+        this.buttons.gear = this.button(
+          scene,
+          { x: left + (bw + 12) * 2, y: by, width: bw, height: 48 },
+          '裝備',
+          0x3d5a94,
+          o.onGear,
+        );
+      }
     } else {
       layer.add(
         addText(

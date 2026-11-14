@@ -1,6 +1,6 @@
 import { DOGS, findDog } from '../data/dogs';
 import { BACKGROUNDS } from '../data/backgrounds';
-import { findStage } from '../data/regions';
+import { findRegionOfStage, findStage } from '../data/regions';
 import type { Resources } from '../data/resources';
 import type { ExpeditionRecord, GameState, PendingBattle } from '../state/gameState';
 import {
@@ -16,6 +16,8 @@ import {
   type BattleInput,
   type BattleResult,
 } from './battle';
+import { addGear, dropNote, rollDrop } from './equipment';
+import { findGear } from '../data/equipment';
 import { battleRoleOf, teamCells } from './formation';
 import {
   addExp,
@@ -67,8 +69,11 @@ export function idleDogIds(state: GameState): string[] {
   return DOGS.map((d) => d.id).filter((id) => state.owned.includes(id) && !busy.has(id));
 }
 
-/** 把狗狗轉成戰鬥用的攻防、定位：攻防 = 基礎值 + 升級成長值。站位另外由 battleTeamOf 填 */
-export function battleDogOf(state: Pick<GameState, 'dogs'>, dogId: string): BattleDog | undefined {
+/** 把狗狗轉成戰鬥用的攻防、定位：攻防 = 基礎值 + 升級成長值 + 裝備加成。站位另外由 battleTeamOf 填 */
+export function battleDogOf(
+  state: Pick<GameState, 'dogs'> & { equipped?: GameState['equipped'] },
+  dogId: string,
+): BattleDog | undefined {
   const d = findDog(dogId);
   if (!d) return undefined;
   const s = dogStats(state, d);
@@ -91,7 +96,7 @@ export function battleDogOf(state: Pick<GameState, 'dogs'>, dogId: string): Batt
 
 /** 一支隊伍的戰鬥資料：攻防、定位，加上目前陣型的站位（T023） */
 export function battleTeamOf(
-  state: Pick<GameState, 'dogs' | 'formation'>,
+  state: Pick<GameState, 'dogs' | 'formation'> & { equipped?: GameState['equipped'] },
   dogIds: readonly string[],
 ): BattleDog[] {
   const known = dogIds.filter((id) => !!findDog(id));
@@ -134,7 +139,7 @@ export function expeditionBattle(
 
 /** 選隊伍畫面的「勝率約 N%」：用目前的攻防與陣型、自動放招模擬很多場 */
 export function stageWinChance(
-  state: Pick<GameState, 'dogs' | 'formation'>,
+  state: Pick<GameState, 'dogs' | 'formation'> & { equipped?: GameState['equipped'] },
   stageId: string,
   dogIds: readonly string[],
 ): number {
@@ -228,6 +233,21 @@ function openBattle(
   };
 }
 
+/** 掉落亂數的種子：和升級一樣由這一仗的種子算出，同一仗怎麼算都掉一樣的東西 */
+const DROP_SEED_SALT = 0xd409;
+
+/** 這一仗掉的裝備（T014）：打贏才會掉，機率與比重見 src/logic/equipment.ts；沒掉回傳 null */
+export function expeditionDrop(
+  exp: Pick<ExpeditionRecord, 'stageId' | 'seed'>,
+  win: boolean,
+): string | null {
+  const stage = findStage(exp.stageId);
+  if (!win || !stage) return null;
+  const chapter = findRegionOfStage(exp.stageId)?.chapter ?? 1;
+  const rng = createRng(mixSeed(exp.seed, DROP_SEED_SALT));
+  return rollDrop(chapter, !!stage.boss, rng)?.id ?? null;
+}
+
 /**
  * 結算一仗：算勝負、加資源與經驗（經驗滿了自動升級）、寫一筆紀錄。
  * 打贏才記為通過該關（解鎖下一關）；打輸只拿部分獎勵與一半經驗。
@@ -250,6 +270,7 @@ function settleBattle(
   const { win } = expeditionBattle(exp);
   const reward = expeditionReward(exp, win);
   const growth = expeditionGrowth(state, exp, win);
+  const dropGearId = expeditionDrop(exp, win);
   // 第一次打贏有送狗的關卡：狗狗加入（已經擁有就不再送）
   const firstClear = win && !state.cleared.includes(exp.stageId);
   const gift = firstClear ? findDog(stage?.firstClearDog ?? '') : undefined;
@@ -265,6 +286,7 @@ function settleBattle(
     win,
     gains: growth.gains,
     ...(opts.auto ? { auto: true } : {}),
+    ...(dropGearId ? { dropGearId } : {}),
     ...(newDog ? { newDogId: newDog.id } : {}),
     ...(giftShards ? { giftShards } : {}),
   };
@@ -273,6 +295,7 @@ function settleBattle(
     state: {
       ...state,
       pending: null,
+      gear: dropGearId ? addGear(state, dropGearId).gear : state.gear,
       resources: {
         food: state.resources.food + reward.food,
         bones: state.resources.bones + reward.bones,
@@ -361,6 +384,8 @@ export function resultNotes(
   const notes: string[] = [];
   if (!record.win) notes.push('只帶回三成物資，關卡還沒通過');
   else if (!before.cleared.includes(record.stageId)) notes.push('通過關卡！下一關已開放');
+  const drop = findGear(record.dropGearId ?? '');
+  if (drop) notes.push(dropNote(drop));
   const gift = record.newDogId ? findDog(record.newDogId) : undefined;
   if (gift) {
     notes.push(`新夥伴「${gift.name}」加入！（${gift.breed}・${battleRoleOf(gift.role) ?? ''}）`);

@@ -91,6 +91,13 @@ function addToSummary(prev: AutoSummary | null, r: ExpeditionRecord): AutoSummar
     reward: { food: s.reward.food + r.reward.food, bones: s.reward.bones + r.reward.bones },
     stages: { ...s.stages, [r.stageId]: (s.stages[r.stageId] ?? 0) + 1 },
     dogs,
+    ...(r.dropGearId || s.gear
+      ? {
+          gear: r.dropGearId
+            ? { ...s.gear, [r.dropGearId]: (s.gear?.[r.dropGearId] ?? 0) + 1 }
+            : s.gear,
+        }
+      : {}),
   };
 }
 

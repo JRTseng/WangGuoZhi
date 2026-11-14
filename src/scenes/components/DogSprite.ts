@@ -1,6 +1,8 @@
 import Phaser from 'phaser';
 import { COLORS, FONT_FAMILY } from '../../config';
+import type { GearData } from '../../data/equipment';
 import { drawDogHead, drawEyes } from './dogArt';
+import { drawBodyGear, drawHeadGear } from './gearArt';
 
 /** 主頁狗狗會輪流做的動作 */
 export const DOG_ACTIONS = ['idle', 'wag', 'hop', 'look', 'sit', 'sleep'] as const;
@@ -10,6 +12,8 @@ export interface DogLook {
   color: number;
   accent: number;
   fierce?: boolean;
+  /** 身上穿的裝備（T014），會畫在身體與頭上 */
+  gear?: readonly GearData[];
 }
 
 /**
@@ -61,7 +65,15 @@ export class DogSprite extends Phaser.GameObjects.Container {
     body.fillStyle(accent, 1);
     body.fillEllipse(18, -44, 56, 26);
 
+    // 裝備（T014）：衣服、褲子、鞋子、手套畫在身體上
+    const bodyGear = scene.add.graphics();
+    const gear = look.gear ?? [];
+    drawBodyGear(bodyGear, gear);
+
     this.head = scene.add.container(46, -96);
+    const headBack = scene.add.graphics();
+    const headFront = scene.add.graphics();
+    drawHeadGear(headBack, headFront, gear, 36);
     const hg = scene.add.graphics();
     drawDogHead(hg, 0, 0, 36, color, accent, { fierce: look.fierce });
     this.lids = scene.add.graphics();
@@ -70,7 +82,7 @@ export class DogSprite extends Phaser.GameObjects.Container {
     this.lids.fillCircle(12.6, -5.4, 6);
     drawEyes(this.lids, 0, 0, 36, true);
     this.lids.setVisible(false);
-    this.head.add([hg, this.lids]);
+    this.head.add([headBack, hg, this.lids, headFront]);
 
     this.zzz = scene.add
       .text(70, -150, 'Z z z', {
@@ -84,7 +96,7 @@ export class DogSprite extends Phaser.GameObjects.Container {
       .setOrigin(0.5)
       .setVisible(false);
 
-    this.rig.add([this.tail, body, this.head, this.zzz]);
+    this.rig.add([this.tail, body, bodyGear, this.head, this.zzz]);
     this.add([this.shadow, this.rig]);
     scene.add.existing(this);
   }
