@@ -105,8 +105,10 @@ function addToSummary(prev: AutoSummary | null, r: ExpeditionRecord): AutoSummar
  * 把自動出征補算到 now。沒開就原樣回傳。
  * 從上次處理的時間開始：體力夠且有關卡可打就打一場；否則跳到「體力回到 20」或「每日重置」的時刻再看。
  */
-export function advanceAuto(state: GameState, now: number, o?: TimeOptions): GameState {
+export function advanceAuto(state: GameState, now: number, opts?: TimeOptions): GameState {
   if (!state.auto.enabled) return state;
+  // 自動出征一律照體力與每日次數的規則跑，就算手動出征先放開了限制（見 stamina.ts 的 limits）
+  const o: TimeOptions = { ...opts, enforce: true };
   const team = autoTeamOf(state);
   let s = state;
   // 體力已經結算到比較後面的時間（例如中間手動打過一場）就從那裡開始，避免重複恢復

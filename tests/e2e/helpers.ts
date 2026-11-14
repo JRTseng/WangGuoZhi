@@ -39,8 +39,13 @@ export async function waitScene(page: Page, scene: string) {
   await page.waitForFunction((s) => window.__WGZ__?.scene === s, scene);
 }
 
-/** 開遊戲並等到主頁 */
+/**
+ * 開遊戲並等到主頁。
+ * 體力與每日次數目前預設先放開（src/logic/stamina.ts 的 LIMITS_DEFAULT）；T019 的規則都還在，
+ * 所以畫面測試預設加 limits=1 把限制打開照舊驗證。要測「不限體力」的畫面就自己在網址寫 limits=0。
+ */
 export async function openLobby(page: Page, query = '') {
+  if (!query.includes('limits=')) query += `${query ? '&' : '?'}limits=1`;
   await page.goto(`/${query}`);
   await waitScene(page, 'LobbyScene');
 }

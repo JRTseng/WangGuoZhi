@@ -23,6 +23,23 @@ export const STAMINA_PACK = { amount: 60, price: 30, dailyLimit: 3 } as const;
 /** 骨頭幣加購某一關的出征次數：每天所有關卡合計有上限（數字暫定） */
 export const RUN_PACK = { amount: 1, price: 15, dailyLimit: 5 } as const;
 
+/**
+ * 體力與每日次數要不要算（Jimmy 2026-11-14：「體力可以先設定成無限的，之後再調整」）。
+ * 現在兩個都關著：自己按開戰不扣體力、不算次數，可以一直打。
+ * 要調回來：把下面兩個改成 true 就好，其他程式都不用動。
+ * - 自動出征不受這個影響，照原本的體力與次數節奏跑（不然會一口氣刷到停不下來）。
+ * - 網址加 ?limits=1 可以暫時打開限制（測試與之後調整數值時用）。
+ */
+export const LIMITS_DEFAULT = { stamina: false, dailyRuns: false } as const;
+/** 現在實際生效的開關（開遊戲時依網址參數設定一次；測試會直接改它） */
+export const limits: { stamina: boolean; dailyRuns: boolean } = { ...LIMITS_DEFAULT };
+
+/** 依網址參數決定要不要打開體力與次數限制：?limits=1 打開，沒給用預設 */
+export function limitsFromSearch(search: string): { stamina: boolean; dailyRuns: boolean } {
+  const v = new URLSearchParams(search).get('limits');
+  return v === '1' || v === 'true' ? { stamina: true, dailyRuns: true } : { ...LIMITS_DEFAULT };
+}
+
 const HOUR_MS = 3_600_000;
 const DAY_MS = 24 * HOUR_MS;
 
@@ -31,6 +48,27 @@ export interface TimeOptions {
   regenMs?: number;
   /** 當地時間與 UTC 的差（分鐘，和 Date#getTimezoneOffset 同方向）；沒給用裝置的時區 */
   tzOffsetMin?: number;
+  /** 不管 limits 開關，一律照體力與每日次數的規則算（自動出征用） */
+  enforce?: boolean;
+}
+
+const staminaOn = (o?: TimeOptions): boolean => !!o?.enforce || limits.stamina;
+const runsOn = (o?: TimeOptions): boolean => !!o?.enforce || limits.dailyRuns;
+
+/** 畫面上的體力文字：不限體力時顯示「體力 無限」 */
+export function staminaText(value: number): string {
+  return limits.stamina ? `體力 ${value}/${STAMINA_MAX}` : '體力 無限';
+}
+
+/** 畫面上「出征一次要多少體力」的文字 */
+export function costText(): string {
+  return limits.stamina ? `體力 ${STAMINA_COST}` : '不耗體力';
+}
+
+/** 畫面上這一關今天剩幾次的文字：不限次數時顯示「不限次數」 */
+export function runsText(state: GameState, stageId: string, now: number, o?: TimeOptions): string {
+  if (!limits.dailyRuns) return '不限次數';
+  return `今日剩 ${runsLeft(state, stageId, now, o)}/${runsTotal(state, stageId, now, o)} 次`;
 }
 
 /** 依網址參數決定體力恢復速度 */
@@ -115,8 +153,9 @@ export function msUntilNextPoint(state: GameState, now: number, o?: TimeOptions)
   return s.value >= STAMINA_MAX ? 0 : msUntilStamina(state, s.value + 1, now, o);
 }
 
-/** 這一關今天還能出征幾次（含加購的） */
+/** 這一關今天還能出征幾次（含加購的）；不限次數時回傳 Infinity */
 export function runsLeft(state: GameState, stageId: string, now: number, o?: TimeOptions): number {
+  if (!runsOn(o)) return Infinity;
   const d = settle(state, now, o).daily;
   return Math.max(0, DAILY_STAGE_RUNS + (d.extraRuns[stageId] ?? 0) - (d.runs[stageId] ?? 0));
 }
@@ -140,7 +179,7 @@ export function runBlock(
   if (runsLeft(state, stageId, now, o) <= 0) {
     return { ok: false, reason: 'no-runs', waitMs: nextResetAt(now, o) - now };
   }
-  if (staminaAt(state, now, o) < STAMINA_COST) {
+  if (staminaOn(o) && staminaAt(state, now, o) < STAMINA_COST) {
     return {
       ok: false,
       reason: 'no-stamina',
@@ -150,7 +189,7 @@ export function runBlock(
   return { ok: true };
 }
 
-/** 扣一次出征的體力與次數；呼叫前要先用 runBlock 確認可以出征 */
+/** 扣一次出征的體力與次數（關掉的那一項不扣）；呼叫前要先用 runBlock 確認可以出征 */
 export function spendRun(
   state: GameState,
   stageId: string,
@@ -158,11 +197,16 @@ export function spendRun(
   o?: TimeOptions,
 ): GameState {
   const s = settle(state, now, o);
+  if (!staminaOn(o) && !runsOn(o)) return s;
   return {
     ...s,
     // 從滿體力往下扣的那一刻開始計時恢復
-    stamina: { value: s.stamina.value - STAMINA_COST, updatedAt: s.stamina.updatedAt },
-    daily: { ...s.daily, runs: { ...s.daily.runs, [stageId]: (s.daily.runs[stageId] ?? 0) + 1 } },
+    stamina: staminaOn(o)
+      ? { value: s.stamina.value - STAMINA_COST, updatedAt: s.stamina.updatedAt }
+      : s.stamina,
+    daily: runsOn(o)
+      ? { ...s.daily, runs: { ...s.daily.runs, [stageId]: (s.daily.runs[stageId] ?? 0) + 1 } }
+      : s.daily,
   };
 }
 

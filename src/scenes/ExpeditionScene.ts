@@ -19,11 +19,12 @@ import type { Rect } from '../logic/layout';
 import { SIDE_WIDTH } from '../logic/pickerLayout';
 import { newStoriesAfter } from '../logic/progress';
 import {
-  STAMINA_COST,
   STAMINA_MAX,
+  costText,
   runBlock,
   runsLeft,
-  runsTotal,
+  runsText,
+  staminaText,
   type RunBlock,
 } from '../logic/stamina';
 import { dogContext, dogPower, placeDog, teamPower } from '../logic/team';
@@ -31,6 +32,7 @@ import { presetSizes, switchTeam } from '../logic/teams';
 import { getState, setState, tick, timeOptions } from '../state/store';
 import { Button } from './components/Button';
 import { DogPicker } from './components/DogPicker';
+import { nextLabel, planNext, startNext } from './components/nextStage';
 import { ResultPanel } from './components/ResultPanel';
 import { StaminaShop, type ShopKind } from './components/StaminaShop';
 import { drawHeader, patchDebug, resetDebug, viewOf } from './ui';
@@ -105,7 +107,7 @@ export class ExpeditionScene extends Phaser.Scene {
     const stage = this.stage;
     const { w, h, landscape } = viewOf(this);
     this.add.rectangle(0, 0, w, h, COLORS.background).setOrigin(0, 0);
-    const brief = `體力 ${STAMINA_COST}・建議戰力 ${stage.recommendedPower}・可上陣 ${this.max} 隻`;
+    const brief = `${costText()}・建議戰力 ${stage.recommendedPower}・可上陣 ${this.max} 隻`;
     // 橫式標題列右邊還要放體力與次數，只留關卡名與上陣數（建議戰力在左欄）
     const short = `${stage.name}・可上陣 ${this.max} 隻`;
     // 橫式高度不夠，關卡資訊併進標題列
@@ -211,9 +213,7 @@ export class ExpeditionScene extends Phaser.Scene {
     const now = Date.now();
     const o = timeOptions();
     const id = this.stage!.id;
-    this.statusText.setText(
-      `體力 ${st.stamina.value}/${STAMINA_MAX}・今日剩 ${runsLeft(st, id, now, o)}/${runsTotal(st, id, now, o)} 次`,
-    );
+    this.statusText.setText(`${staminaText(st.stamina.value)}・${runsText(st, id, now, o)}`);
     const ready = this.selected.length >= TEAM_MIN && this.selected.length <= this.max;
     if (!b.ok) {
       const wait = formatCountdown(b.waitMs);
@@ -380,6 +380,8 @@ export class ExpeditionScene extends Phaser.Scene {
     setState(r.state);
     const record = r.record;
     const storyId = newStoriesAfter(r.state, stage.id)[0]?.id;
+    const from = { stageId: stage.id, team: [...this.selected] };
+    const plan = record.win ? planNext(from) : null;
     // 設定開了「略過戰鬥畫面」：直接看結算，關掉後回地圖
     this.result = new ResultPanel(
       this,
@@ -387,14 +389,28 @@ export class ExpeditionScene extends Phaser.Scene {
       record.reward,
       record.win,
       () => {
-        patchDebug({ result: null, growth: null, drop: null });
+        patchDebug({ result: null, growth: null, drop: null, nextButton: null });
         if (storyId) this.scene.start('StoryScene', { mode: 'play', storyId });
         else this.scene.start('CampaignScene', { chapter: this.chapter });
       },
       resultNotes(before, r.state, record),
       record.gains,
+      plan
+        ? {
+            label: nextLabel(plan),
+            onTap: () => {
+              patchDebug({ result: null, growth: null, drop: null, nextButton: null });
+              if (storyId) this.scene.start('StoryScene', { mode: 'play', storyId, next: from });
+              else if (!startNext(this, from)) {
+                this.scene.start('CampaignScene', { chapter: plan.chapter });
+              }
+            },
+          }
+        : undefined,
     );
     patchDebug({
+      nextButton:
+        this.result.nextRect && plan ? { stageId: plan.stage.id, ...this.result.nextRect } : null,
       result: { ...record.reward, win: record.win, newDogId: record.newDogId },
       drop: record.dropGearId ?? null,
       growth: record.gains,

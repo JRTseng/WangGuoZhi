@@ -11,7 +11,7 @@ import {
   stageNodeState,
   type NodeState,
 } from '../logic/progress';
-import { STAMINA_COST, STAMINA_MAX, runsLeft, runsTotal } from '../logic/stamina';
+import { STAMINA_COST, costText, limits, runsLeft, runsText, staminaText } from '../logic/stamina';
 import { tick, timeOptions } from '../state/store';
 import { drawDogHead } from './components/dogArt';
 import { makeTapArea } from './components/hitArea';
@@ -262,14 +262,7 @@ export class CampaignScene extends Phaser.Scene {
       y += 28;
     }
     layer.add(
-      addText(
-        this,
-        left,
-        y,
-        `體力 ${STAMINA_COST}・建議戰力 ${s.recommendedPower}`,
-        16,
-        COLORS.inkSoft,
-      ),
+      addText(this, left, y, `${costText()}・建議戰力 ${s.recommendedPower}`, 16, COLORS.inkSoft),
     );
     y += 28;
     // 這一關的敵人與上陣數量（T018）
@@ -301,9 +294,11 @@ export class CampaignScene extends Phaser.Scene {
         this,
         left,
         y,
-        `目前體力 ${st.stamina.value}/${STAMINA_MAX}・今日剩 ${runs}/${runsTotal(st, s.id, now, o)} 次`,
+        `目前${staminaText(st.stamina.value)}・${runsText(st, s.id, now, o)}`,
         16,
-        runs > 0 && st.stamina.value >= STAMINA_COST ? COLORS.inkSoft : '#b0413e',
+        runs > 0 && (!limits.stamina || st.stamina.value >= STAMINA_COST)
+          ? COLORS.inkSoft
+          : '#b0413e',
       ),
     );
     y += 28;

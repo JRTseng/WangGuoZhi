@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { COLORS } from './config';
 import { musicForScene } from './logic/music';
 import { gameSizeFor } from './logic/orientation';
+import { limits, limitsFromSearch } from './logic/stamina';
 import { BattleScene } from './scenes/BattleScene';
 import { BoardingScene } from './scenes/BoardingScene';
 import { BootScene } from './scenes/BootScene';
@@ -18,6 +19,9 @@ import { initAudio, setMusic } from './scenes/components/audio';
 // 整個遊戲固定橫向（Jimmy 2026-11-14）：不管手機怎麼拿，遊戲尺寸都是橫式 844 x 390。
 // 直拿的時候由 index.html 的 #rotate 蓋一層「請把手機橫放」。
 const size = gameSizeFor('landscape');
+
+// 體力與每日次數目前先放開（見 src/logic/stamina.ts 的 LIMITS_DEFAULT）；網址加 ?limits=1 可以打開
+Object.assign(limits, limitsFromSearch(window.location.search));
 
 const game = new Phaser.Game({
   type: Phaser.AUTO,

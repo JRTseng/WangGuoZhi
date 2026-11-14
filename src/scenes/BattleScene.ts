@@ -45,6 +45,7 @@ import { makeTapArea } from './components/hitArea';
 import { ResultPanel } from './components/ResultPanel';
 import { Scenery } from './components/Scenery';
 import { playSfx } from './components/audio';
+import { nextLabel, planNext, startNext } from './components/nextStage';
 import { playUltimate } from './components/UltimateShow';
 import { playVoiceCue } from './components/voice';
 import { addText, patchDebug, resetDebug, viewOf } from './ui';
@@ -52,6 +53,8 @@ import { addText, patchDebug, resetDebug, viewOf } from './ui';
 export interface BattleSceneData {
   /** 打完回地圖時停在哪一章 */
   chapter?: number;
+  /** 進來就直接算完看結算（開了「略過戰鬥畫面」又按「下一關」時用） */
+  instant?: boolean;
 }
 
 /** 野犬（非 Boss 敵人）的佔位配色 */
@@ -97,6 +100,7 @@ interface UnitView {
  */
 export class BattleScene extends Phaser.Scene {
   private chapter: number | undefined;
+  private instant = false;
   private ticket: PendingBattle | null = null;
   /** 開戰前的狀態（比對結算後多了什麼用） */
   private before!: GameState;
@@ -139,6 +143,7 @@ export class BattleScene extends Phaser.Scene {
 
   init(data: BattleSceneData): void {
     this.chapter = data?.chapter;
+    this.instant = !!data?.instant;
     this.before = getState();
     this.ticket = this.before.pending;
     this.stage = this.ticket ? (findStage(this.ticket.stageId) ?? null) : null;
@@ -186,6 +191,10 @@ export class BattleScene extends Phaser.Scene {
     this.drawControls();
     this.sync();
 
+    if (this.instant) {
+      this.skip();
+      return;
+    }
     // 開場停一下再開打
     this.timer = this.time.delayedCall(this.pace === 'fast' ? 0 : 500 / this.speed, () =>
       this.step(),
@@ -736,13 +745,16 @@ export class BattleScene extends Phaser.Scene {
     const rec = (this.record = done.record);
     this.sync();
     const storyId = newStoriesAfter(done.state, rec.stageId)[0]?.id;
-    new ResultPanel(
+    // 打贏而且下一關可以打：多一顆「下一關」，用同一隊直接挑戰
+    const from = { stageId: rec.stageId, team: [...this.ticket!.dogIds] };
+    const plan = rec.win ? planNext(from) : null;
+    const panel = new ResultPanel(
       this,
       this.stage!.name,
       rec.reward,
       rec.win,
       () => {
-        patchDebug({ result: null, growth: null, drop: null });
+        patchDebug({ result: null, growth: null, drop: null, nextButton: null });
         if (storyId) {
           this.scene.start('StoryScene', { mode: 'play', storyId });
         } else {
@@ -754,8 +766,22 @@ export class BattleScene extends Phaser.Scene {
       },
       resultNotes(this.before, done.state, rec),
       rec.gains,
+      plan
+        ? {
+            label: nextLabel(plan),
+            onTap: () => {
+              patchDebug({ result: null, growth: null, drop: null, nextButton: null });
+              // 有新劇情先看劇情，看完接著打下一關
+              if (storyId) this.scene.start('StoryScene', { mode: 'play', storyId, next: from });
+              else if (!startNext(this, from)) {
+                this.scene.start('CampaignScene', { chapter: plan.chapter });
+              }
+            },
+          }
+        : undefined,
     );
     patchDebug({
+      nextButton: panel.nextRect && plan ? { stageId: plan.stage.id, ...panel.nextRect } : null,
       result: { ...rec.reward, win: rec.win, newDogId: rec.newDogId },
       drop: rec.dropGearId ?? null,
       growth: rec.gains,
