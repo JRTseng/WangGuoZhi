@@ -83,6 +83,7 @@ export function battleDogOf(state: Pick<GameState, 'dogs'>, dogId: string): Batt
     ...(role ? { role } : {}),
     ...(role === '補血' ? { heal: true } : {}),
     ...(d.rarity === 'SSR' ? { ssr: true } : {}),
+    ...(d.rarity ? { rarity: d.rarity } : {}),
     ...(d.afterHeal ? { afterHeal: true } : {}),
   };
 }
