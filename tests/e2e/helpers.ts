@@ -18,6 +18,23 @@ export async function tap(page: Page, r: R, fx = 0.5, fy = 0.5) {
   await page.mouse.click(box.x + (r.x + r.width * fx) * s, box.y + (r.y + r.height * fy) * s);
 }
 
+/** 從一個矩形的中心按住（hold 毫秒，長按用），拖到另一個矩形的中心放開 */
+export async function drag(page: Page, from: R, to: R, hold = 0) {
+  const box = await page.locator('canvas').boundingBox();
+  if (!box) throw new Error('找不到 canvas');
+  const gw = await page.evaluate(() => window.__WGZ__?.size?.width ?? 390);
+  const s = box.width / gw;
+  const at = (r: R) => [box.x + (r.x + r.width / 2) * s, box.y + (r.y + r.height / 2) * s] as const;
+  const [x1, y1] = at(from);
+  const [x2, y2] = at(to);
+  await page.mouse.move(x1, y1);
+  await page.mouse.down();
+  if (hold > 0) await page.waitForTimeout(hold);
+  await page.mouse.move((x1 + x2) / 2, (y1 + y2) / 2, { steps: 6 });
+  await page.mouse.move(x2, y2, { steps: 6 });
+  await page.mouse.up();
+}
+
 export async function waitScene(page: Page, scene: string) {
   await page.waitForFunction((s) => window.__WGZ__?.scene === s, scene);
 }

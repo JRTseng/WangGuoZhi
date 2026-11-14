@@ -312,7 +312,8 @@ describe('陣型與開戰中的仗（T023）', () => {
     st = { ...st, settings: { ...st.settings, autoUlt: false } };
     const out = deserialize(serialize(st, NOW), NOW);
     expect(out.status).toBe('ok');
-    expect(out.state.formation).toEqual({ daer: 1, heixuan: 0, changxu: 2 });
+    // 記的是九宮格的格子（排 × 3 + 格 + 3）：大耳中排中、黑旋前排上、長鬚後排中
+    expect(out.state.formation).toEqual({ daer: 7, heixuan: 3, changxu: 10 });
     expect(out.state.settings.autoUlt).toBe(false);
     expect(teamRows(out.state, TEAM)).toEqual([1, 0, 2]);
     expect(out.state).toEqual(st);
@@ -334,13 +335,16 @@ describe('陣型與開戰中的仗（T023）', () => {
     expect(out.history).toHaveLength(st.history.length);
   });
 
-  it('怪怪的陣型會被修正：只留認得的狗與 0、1、2', () => {
+  it('怪怪的陣型會被修正：只留認得的狗與 0～11', () => {
     const st = createInitialState(NOW);
     const out = sanitizeState(
-      { ...st, formation: { daer: 2, heixuan: 3, changxu: '0', abai: -1, nobody: 1 } },
+      {
+        ...st,
+        formation: { daer: 2, heixuan: 12, changxu: '0', abai: -1, nobody: 1, xiaosuan: 11 },
+      },
       NOW,
     );
-    expect(out.formation).toEqual({ daer: 2 });
+    expect(out.formation).toEqual({ daer: 2, xiaosuan: 11 });
     expect(sanitizeState({ ...st, formation: [1, 2] }, NOW).formation).toEqual({});
   });
 

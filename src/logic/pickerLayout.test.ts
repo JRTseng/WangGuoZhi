@@ -14,8 +14,29 @@ describe('選狗畫面排版', () => {
     it(`${c.name}：全部在畫面內、互不重疊`, () => {
       const l = layoutPicker({ ...c, roleCount: 6, statusCount: 3 });
       const screen: Rect = { x: 0, y: 0, width: c.w, height: c.h };
-      const all = [l.autoButton, ...l.slots, ...l.roleChips, ...l.statusChips, l.sortChip, l.grid];
-      expect(l.slots).toHaveLength(5);
+      const cells = l.boardCells.flat();
+      const all = [l.autoButton, ...cells, ...l.roleChips, ...l.statusChips, l.sortChip, l.grid];
+      // 陣型九宮格：三排各三格，九格一樣大、橫的直的都對齊，都在各自那一排裡
+      expect(l.boardCells).toHaveLength(3);
+      expect(cells).toHaveLength(9);
+      l.boardCells.forEach((list, row) => {
+        expect(list).toHaveLength(3);
+        list.forEach((r, lane) => {
+          expect(rectInside(r, l.boardRows[row])).toBe(true);
+          expect(rectInside(r, l.board)).toBe(true);
+          expect(r.width).toBe(cells[0].width);
+          expect(r.height).toBe(cells[0].height);
+          expect(r.x).toBe(list[0].x);
+          expect(r.y).toBe(l.boardCells[0][lane].y);
+          // 手指拖得準：格子至少 44 高
+          expect(r.height).toBeGreaterThanOrEqual(44);
+        });
+      });
+      // 前排在最右邊（面對敵人），後排在最左邊
+      expect(l.boardRows[0].x).toBeGreaterThan(l.boardRows[1].x);
+      expect(l.boardRows[1].x).toBeGreaterThan(l.boardRows[2].x);
+      expect(l.boardHint.y).toBeGreaterThan(cells[8].y + cells[8].height);
+      expect(l.boardHint.y).toBeLessThan(l.board.y + l.board.height);
       for (const r of all) {
         expect(rectInside(r, screen)).toBe(true);
         expect(r.width).toBeGreaterThan(0);

@@ -16,7 +16,7 @@ import {
   type BattleInput,
   type BattleResult,
 } from './battle';
-import { battleRoleOf, teamRows } from './formation';
+import { battleRoleOf, teamCells } from './formation';
 import {
   addExp,
   dogStats,
@@ -94,8 +94,12 @@ export function battleTeamOf(
   dogIds: readonly string[],
 ): BattleDog[] {
   const known = dogIds.filter((id) => !!findDog(id));
-  const rows = teamRows(state, known);
-  return known.map((id, i) => ({ ...battleDogOf(state, id)!, row: rows[i] }));
+  const cells = teamCells(state, known);
+  return known.map((id, i) => ({
+    ...battleDogOf(state, id)!,
+    row: cells[i].row,
+    lane: cells[i].lane,
+  }));
 }
 
 /** 關卡的敵人名字：Boss 關只有 Boss 一隻，其餘是三隻野犬（暫定，T018 會換成每關自己的敵人） */

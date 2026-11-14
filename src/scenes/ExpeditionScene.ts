@@ -12,7 +12,7 @@ import {
   runExpedition,
   stageWinChance,
 } from '../logic/expedition';
-import { resetFormation } from '../logic/formation';
+import { freezeCells, resetFormation } from '../logic/formation';
 import { formatCountdown } from '../logic/format';
 import { autoTeam } from '../logic/dogFilter';
 import type { Rect } from '../logic/layout';
@@ -26,11 +26,10 @@ import {
   runsTotal,
   type RunBlock,
 } from '../logic/stamina';
-import { dogContext, teamPower } from '../logic/team';
+import { dogContext, placeDog, teamPower } from '../logic/team';
 import { getState, setState, tick, timeOptions } from '../state/store';
 import { Button } from './components/Button';
 import { DogPicker } from './components/DogPicker';
-import { FormationPanel } from './components/FormationPanel';
 import { ResultPanel } from './components/ResultPanel';
 import { StaminaShop, type ShopKind } from './components/StaminaShop';
 import { drawHeader, patchDebug, resetDebug, viewOf } from './ui';
@@ -72,7 +71,6 @@ export class ExpeditionScene extends Phaser.Scene {
   private blockKey = '';
   private shop: StaminaShop | null = null;
   private result: ResultPanel | null = null;
-  private formation: FormationPanel | null = null;
   /** 勝率是模擬出來的，隊伍與陣型沒變就不重算 */
   private chanceKey = '';
   private chance = 0;
@@ -89,7 +87,6 @@ export class ExpeditionScene extends Phaser.Scene {
     this.selected = st.team.filter((id) => st.owned.includes(id) && !busy.has(id));
     this.shop = null;
     this.result = null;
-    this.formation = null;
     this.chanceKey = '';
     this.confirmButton = null;
   }
@@ -153,7 +150,16 @@ export class ExpeditionScene extends Phaser.Scene {
         }
         this.render();
       },
-      onFormation: () => this.openFormation(),
+      onPlace: (id, row, lane) => {
+        const r = placeDog(getState(), this.selected, id, row, lane);
+        if (!r.error) {
+          this.selected = r.team;
+          setState(r.state);
+          this.render();
+        }
+        return r.error;
+      },
+      locked: () => !!(this.shop || this.result),
       onUpdate: () => this.publish(),
     });
     this.render();
@@ -265,15 +271,6 @@ export class ExpeditionScene extends Phaser.Scene {
     return this.chance;
   }
 
-  private openFormation(): void {
-    if (this.shop || this.result || this.formation || this.picker.wasDragged) return;
-    if (this.selected.length === 0) return;
-    this.formation = new FormationPanel(this, this.selected, () => {
-      this.formation = null;
-      this.render();
-    });
-  }
-
   private publish(): void {
     const p = this.picker.debug();
     patchDebug({
@@ -307,7 +304,7 @@ export class ExpeditionScene extends Phaser.Scene {
   }
 
   private openShop(kind: ShopKind): void {
-    if (this.shop || this.result || this.formation || this.picker.wasDragged) return;
+    if (this.shop || this.result || this.picker.wasDragged) return;
     this.shop = new StaminaShop(this, kind, this.stage!.id, () => {
       this.shop = null;
       this.render();
@@ -316,6 +313,9 @@ export class ExpeditionScene extends Phaser.Scene {
 
   private toggleDog(id: string): void {
     if (busyDogIds(getState()).has(id)) return; // 寄宿中的不能選
+    const full = !this.selected.includes(id) && this.selected.length >= TEAM_SIZE;
+    // 其他隊友留在原本的格子上（九宮格）
+    if (!full) setState(freezeCells(getState(), this.selected));
     if (this.selected.includes(id)) {
       this.selected = this.selected.filter((x) => x !== id);
     } else if (this.selected.length < TEAM_SIZE) {
@@ -331,7 +331,7 @@ export class ExpeditionScene extends Phaser.Scene {
    * 設定開了「略過戰鬥畫面」就用自動放招當下算完，直接看結算。
    */
   private confirm(): void {
-    if (!this.stage || this.shop || this.result || this.formation || this.picker.wasDragged) return;
+    if (!this.stage || this.shop || this.result || this.picker.wasDragged) return;
     const stage = this.stage;
     const before = tick();
     const opts = {

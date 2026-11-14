@@ -16,6 +16,7 @@ import {
 } from '../state/gameState';
 import { boardingSlotCount } from './boarding';
 import { HISTORY_MAX, TEAM_SIZE, battleTeamOf } from './expedition';
+import { isFormationValue } from './formation';
 import { PITY_SSR } from './gacha';
 import { MAX_LEVEL, STAR_MAX, expNeeded, initialProgress, levelCapForStar } from './leveling';
 import { cleanSkillLine } from './skillShow';
@@ -313,11 +314,11 @@ export function sanitizeState(raw: unknown, now: number): GameState {
     }
   }
 
-  // 陣型（T023）：只留認得的狗，排只能是 0、1、2；沒記的上場時照定位排
+  // 陣型（T023）：只留認得的狗；0～2 是只記排，3～11 是九宮格的格子；沒記的上場時照定位排
   const formation: Record<string, number> = {};
   if (isObj(raw.formation)) {
     for (const [id, v] of Object.entries(raw.formation)) {
-      if (isDog(id) && (v === 0 || v === 1 || v === 2)) formation[id] = v;
+      if (isDog(id) && isFormationValue(v)) formation[id] = v;
     }
   }
 

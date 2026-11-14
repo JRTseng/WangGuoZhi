@@ -47,12 +47,15 @@ function rowOffsets(field: Rect, landscape: boolean): number[] {
  * - 直式寬度不夠三排並肩，所以每隻各佔一條橫的「跑道」（由上而下照隊伍順序），
  *   站哪一排決定牠在跑道上靠中線多近。
  * - 橫式每一排是一直行，同一排的由上而下排開。
+ * - 有給 cellLanes（九宮格的上、中、下，我方才有）時：橫式照格子站，上中下各一條固定的橫線，
+ *   看起來就是 3×3；直式的跑道改成先照上中下、再照前中後排，由上而下的順序和陣型面板一樣。
  */
 function sideSlots(
   rows: readonly number[],
   field: Rect,
   landscape: boolean,
   facing: 1 | -1,
+  cellLanes?: readonly (number | undefined)[],
 ): BattleSlot[] {
   const count = rows.length;
   if (count <= 0) return [];
@@ -60,7 +63,19 @@ function sideSlots(
   const offsets = rowOffsets(field, landscape);
   const solo = count === 1;
   const inRow = [0, 1, 2].map((r) => rows.filter((x) => x === r).length);
-  const lanes = landscape ? Math.max(...inRow) : count;
+  const grid =
+    !!cellLanes &&
+    cellLanes.length === count &&
+    cellLanes.every((l) => l === 0 || l === 1 || l === 2) &&
+    new Set(rows.map((row, i) => row * 3 + cellLanes[i]!)).size === count;
+  // 直式跑道的順序：照格子的話先上中下、再前中後
+  const runway = rows.map((_, i) => i);
+  if (grid) {
+    const key = (i: number) => cellLanes![i]! * 3 + rows[i];
+    const order = [...runway].sort((a, b) => key(a) - key(b));
+    order.forEach((i, n) => (runway[i] = n));
+  }
+  const lanes = landscape ? (grid && !solo ? 3 : Math.max(...inRow)) : count;
   const spacing = field.height / lanes;
   const r = Math.round(
     Math.max(
@@ -76,8 +91,8 @@ function sideSlots(
   );
   const seen = [0, 0, 0];
   return rows.map((row, i) => {
-    const lane = landscape ? seen[row]++ : i;
-    const laneCount = landscape ? inRow[row] : count;
+    const lane = landscape ? (grid && !solo ? cellLanes![i]! : seen[row]++) : runway[i];
+    const laneCount = landscape ? (grid && !solo ? 3 : inRow[row]) : count;
     const laneSpacing = field.height / laneCount;
     return {
       // 單獨一隻畫得比較大，站前排時往外挪一點才不會壓到中線
@@ -92,6 +107,7 @@ function sideSlots(
 /**
  * 戰鬥畫面版面（直式 390 x 844、橫式 844 x 390 都適用）。
  * teamRows／enemyRows：雙方每一隻站第幾排（0 前、1 中、2 後）。
+ * teamLanes：我方每一隻在九宮格的上、中、下（0／1／2）；沒給就照隊伍順序排。
  */
 export function battleLayout(
   w: number,
@@ -99,6 +115,7 @@ export function battleLayout(
   landscape: boolean,
   teamRows: readonly number[],
   enemyRows: readonly number[],
+  teamLanes?: readonly (number | undefined)[],
 ): BattleLayout {
   const bar = BATTLE_BAR_HEIGHT;
   const speed: Rect = { x: w - 84, y: 8, width: 76, height: bar - 16 };
@@ -120,7 +137,7 @@ export function battleLayout(
     skip,
     auto,
     field,
-    team: sideSlots(teamRows, field, landscape, 1),
+    team: sideSlots(teamRows, field, landscape, 1, teamLanes),
     enemies: sideSlots(enemyRows, field, landscape, -1),
     rowX: {
       team: offsets.map((o) => Math.round(mid - o)),
