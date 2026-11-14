@@ -25,6 +25,7 @@ import { gearCard, gearLayout, gearScrollMax, type GearLayout } from '../logic/g
 import type { Rect } from '../logic/layout';
 import { dogStats } from '../logic/leveling';
 import { getState, setState } from '../state/store';
+import { playSfx } from './components/audio';
 import { DogSprite } from './components/DogSprite';
 import { drawGearIcon } from './components/gearArt';
 import { makeTapArea } from './components/hitArea';
@@ -152,6 +153,7 @@ export class GearScene extends Phaser.Scene {
     const st = getState();
     const next = equipBest(st, this.dogId);
     this.note = next === st ? '已經穿著手邊最好的了' : `${this.dog.name}換上手邊最好的裝備`;
+    if (next !== st) playSfx('equip');
     setState(next);
     this.render();
   }
@@ -177,6 +179,7 @@ export class GearScene extends Phaser.Scene {
         return;
       }
       setState(r.state);
+      playSfx('equip');
       const from = r.from ? findDog(r.from)?.name : undefined;
       this.note = from ? `從${from}身上換來「${g.name}」` : `「${g.name}」（${g.pun}）：${g.note}`;
     }

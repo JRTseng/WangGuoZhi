@@ -74,11 +74,21 @@ export interface StageData {
   firstClearDog?: string;
 }
 
-/** 主頁背景（存檔裡記的是這個） */
-export type ThemeId = 'slope' | 'bamboo' | 'snow' | 'lantern';
-/** 章節的場景：前三章和主頁背景共用，第四章起是只有地圖與戰鬥會用到的場景（T018） */
+/** 章節的場景：十章各一張，畫法在 src/scenes/components/sceneryArt.ts（T016） */
 export type RegionScene =
-  ThemeId | 'peach' | 'desert' | 'marsh' | 'volcano' | 'coast' | 'cloud' | 'palace';
+  | 'slope'
+  | 'bamboo'
+  | 'snow'
+  | 'peach'
+  | 'desert'
+  | 'marsh'
+  | 'volcano'
+  | 'coast'
+  | 'cloud'
+  | 'palace'
+  | 'lantern';
+/** 主頁背景（存檔裡記的是這個）：T016 起每一章的場景都能當主頁背景，再加上活動的燈會與全破送的主城 */
+export type ThemeId = RegionScene | 'city';
 
 export interface RegionData {
   id: string;

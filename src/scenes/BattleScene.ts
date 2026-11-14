@@ -44,6 +44,7 @@ import { drawDogHead } from './components/dogArt';
 import { makeTapArea } from './components/hitArea';
 import { ResultPanel } from './components/ResultPanel';
 import { Scenery } from './components/Scenery';
+import { playSfx } from './components/audio';
 import { playUltimate } from './components/UltimateShow';
 import { playVoiceCue } from './components/voice';
 import { addText, patchDebug, resetDebug, viewOf } from './ui';
@@ -487,6 +488,7 @@ export class BattleScene extends Phaser.Scene {
     this.lastVoiceCue = voiceCueId(actor.id, 'ultimate');
     playVoiceCue(this.lastVoiceCue);
     if (this.pace !== 'fast') this.showUltimate(e, ult, total, cutIn);
+    playSfx('ultimate');
     this.sync();
     this.timer = this.time.delayedCall(cutIn, () => this.hit(e, total - cutIn, true));
   }
@@ -496,6 +498,7 @@ export class BattleScene extends Phaser.Scene {
     if (this.phase !== 'playing') return;
     this.queued = null;
     this.animate(e, d, big);
+    this.playHitSound(e);
     this.apply(e);
     this.sync();
     // 最後一下之後多停一下，看清楚誰倒了
@@ -503,6 +506,14 @@ export class BattleScene extends Phaser.Scene {
       this.sim.over ? d + (this.pace === 'fast' ? 0 : 400 / this.speed) : d,
       () => this.step(),
     );
+  }
+
+  /** 這一下的音效：倒下、爆擊、打中、補血各一種，一次只播最重要的那個 */
+  private playHitSound(e: BattleAction): void {
+    if (e.hits.some((h) => h.defeated)) playSfx('ko');
+    if (e.hits.some((h) => h.crit)) playSfx('crit');
+    else if (e.hits.some((h) => h.heal === undefined && !h.dodged)) playSfx('hit');
+    else if (e.hits.some((h) => h.heal !== undefined)) playSfx('heal');
   }
 
   /** 開始播大絕招演出：施放者拉到遮罩上面，其餘交給 UltimateShow */

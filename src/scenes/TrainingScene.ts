@@ -32,6 +32,7 @@ import {
 } from '../logic/trainingLayout';
 import type { GameState } from '../state/gameState';
 import { getState, setState, tick } from '../state/store';
+import { playSfx } from './components/audio';
 import { makeTapArea } from './components/hitArea';
 import { drawDogHead } from './components/dogArt';
 import { headLook } from './components/headLook';
@@ -371,6 +372,7 @@ export class TrainingScene extends Phaser.Scene {
         const r = drill(getState(), this.ids[i], stat);
         if (!r.check.ok) return;
         setState(r.state);
+        playSfx('equip');
         this.renderRows();
         this.floatText(buttons[stat], `${DRILL_LABELS[stat]} +1`);
         this.publish();
@@ -380,6 +382,7 @@ export class TrainingScene extends Phaser.Scene {
         const r = starUp(tick(), this.ids[i], Date.now());
         if (!r.check.ok) return;
         setState(r.state);
+        playSfx('levelup');
         this.renderRows();
         this.floatText(buttons.star, `升星！★${r.check.star + 1}`, '#b8860b');
         this.publish();

@@ -13,12 +13,12 @@ export const FORUM_URL = 'https://github.com/JRTseng/WangGuoZhi/issues';
 
 const QUALITY_LABEL: Record<Quality, string> = { low: '低', medium: '中', high: '高' };
 
-type ToggleKey = 'voice' | 'music' | 'push' | 'skipBattle';
+type ToggleKey = 'voice' | 'music' | 'sfx' | 'push' | 'skipBattle';
 type Key = ToggleKey | Quality | 'site' | 'forum' | 'redeem' | 'reset' | 'close';
 
 /**
- * 左上角「帳號與設定」面板：語音、音樂、推播、略過戰鬥畫面開關，畫質，官方連結、討論區、優惠碼。
- * 語音／音樂／推播目前只記住開關，還沒有實際功能。畫質會影響主頁的飄落特效。
+ * 左上角「帳號與設定」面板：語音、音樂、音效、推播、略過戰鬥畫面開關，畫質，官方連結、討論區、優惠碼。
+ * 音樂與音效的開關一切就生效（T016）；語音／推播目前只記住開關，還沒有實際功能。畫質會影響場景裡會動的東西。
  * 直式單欄、橫式左右兩欄。
  */
 export class SettingsPanel {
@@ -77,11 +77,12 @@ export class SettingsPanel {
     const leftX = box.x + pad;
     const rightX = landscape ? leftX + colW + pad : leftX;
     let y = box.y + 72;
-    const rowH = landscape ? 42 : 50;
+    const rowH = landscape ? 34 : 46;
 
     const toggles: [ToggleKey, string][] = [
       ['voice', '語音'],
       ['music', '音樂'],
+      ['sfx', '音效'],
       ['push', '推播通知'],
       ['skipBattle', '略過戰鬥畫面'],
     ];
