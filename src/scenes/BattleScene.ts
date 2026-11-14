@@ -731,7 +731,7 @@ export class BattleScene extends Phaser.Scene {
       rec.reward,
       rec.win,
       () => {
-        patchDebug({ result: null, growth: null });
+        patchDebug({ result: null, growth: null, drop: null });
         if (storyId) {
           this.scene.start('StoryScene', { mode: 'play', storyId });
         } else {
@@ -746,6 +746,7 @@ export class BattleScene extends Phaser.Scene {
     );
     patchDebug({
       result: { ...rec.reward, win: rec.win, newDogId: rec.newDogId },
+      drop: rec.dropGearId ?? null,
       growth: rec.gains,
       resources: { ...done.state.resources },
     });

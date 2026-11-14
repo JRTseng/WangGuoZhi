@@ -6,6 +6,7 @@ import { BoardingScene } from './scenes/BoardingScene';
 import { BootScene } from './scenes/BootScene';
 import { CampaignScene } from './scenes/CampaignScene';
 import { ExpeditionScene } from './scenes/ExpeditionScene';
+import { GearScene } from './scenes/GearScene';
 import { LobbyScene } from './scenes/LobbyScene';
 import { RecruitScene } from './scenes/RecruitScene';
 import { StoryScene } from './scenes/StoryScene';
@@ -34,6 +35,7 @@ const game = new Phaser.Game({
     TeamScene,
     TrainingScene,
     BoardingScene,
+    GearScene,
     RecruitScene,
     CampaignScene,
     ExpeditionScene,

@@ -387,7 +387,7 @@ export class ExpeditionScene extends Phaser.Scene {
       record.reward,
       record.win,
       () => {
-        patchDebug({ result: null, growth: null });
+        patchDebug({ result: null, growth: null, drop: null });
         if (storyId) this.scene.start('StoryScene', { mode: 'play', storyId });
         else this.scene.start('CampaignScene', { chapter: this.chapter });
       },
@@ -396,6 +396,7 @@ export class ExpeditionScene extends Phaser.Scene {
     );
     patchDebug({
       result: { ...record.reward, win: record.win, newDogId: record.newDogId },
+      drop: record.dropGearId ?? null,
       growth: record.gains,
       resources: { ...r.state.resources },
       stamina: { value: r.state.stamina.value, max: STAMINA_MAX },

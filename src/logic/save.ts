@@ -15,7 +15,9 @@ import {
   type Settings,
   type TeamPreset,
 } from '../state/gameState';
+import { findGear } from '../data/equipment';
 import { boardingSlotCount } from './boarding';
+import { sanitizeGear } from './equipment';
 import { HISTORY_MAX, TEAM_SIZE, battleTeamOf } from './expedition';
 import { isFormationValue } from './formation';
 import { TEAM_PRESETS } from './teams';
@@ -168,6 +170,9 @@ function historyRecord(v: unknown): ExpeditionRecord | null {
       return null;
     }
   }
+  if (v.dropGearId !== undefined && (typeof v.dropGearId !== 'string' || !findGear(v.dropGearId))) {
+    return null;
+  }
   // 放招時機（T023）：手動放招的紀錄才有，要是一串不是負數的整數
   if (v.ultTurns !== undefined) {
     if (!Array.isArray(v.ultTurns) || !v.ultTurns.every((n) => isNum(n) && n >= 0)) return null;
@@ -190,6 +195,7 @@ function autoSummary(v: unknown): AutoSummary | null {
     reward: resources(v.reward, { food: 0, bones: 0 }),
     stages: countMap(v.stages, isStage),
     dogs,
+    ...(isObj(v.gear) ? { gear: countMap(v.gear, (id) => !!findGear(id)) } : {}),
   };
 }
 
@@ -344,6 +350,9 @@ export function sanitizeState(raw: unknown, now: number): GameState {
     return { team: ids, formation: cells };
   });
 
+  // 裝備（T014）：只留認得的裝備與擁有的狗，穿著的不能比擁有的多
+  const { gear, equipped } = sanitizeGear(raw.gear, raw.equipped, isOwned);
+
   // 開戰到一半的仗（T023）：關卡與隊伍要認得，隊伍的攻防與站位用現在的資料重新排
   let pending: PendingBattle | null = null;
   if (isObj(raw.pending) && typeof raw.pending.stageId === 'string') {
@@ -358,7 +367,7 @@ export function sanitizeState(raw: unknown, now: number): GameState {
       pending = {
         stageId: p.stageId as string,
         dogIds: ids,
-        team: battleTeamOf({ dogs, formation }, ids),
+        team: battleTeamOf({ dogs, formation, equipped }, ids),
         seed: Math.floor(p.seed) >>> 0,
         at: Math.min(now, int(p.at, now)),
       };
@@ -390,6 +399,8 @@ export function sanitizeState(raw: unknown, now: number): GameState {
     skillLines,
     formation,
     pending,
+    gear,
+    equipped,
   };
 }
 
