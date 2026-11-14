@@ -2,7 +2,7 @@ import Phaser from 'phaser';
 import type { Rect } from '../../logic/layout';
 import type { Quality } from '../../state/gameState';
 import { paintScenery, type SceneryTheme } from './sceneryArt';
-import type { Paint } from './sceneryKit';
+import { bakeLayers, type Paint } from './sceneryKit';
 
 export type { SceneryTheme };
 
@@ -35,8 +35,10 @@ export class Scenery extends Phaser.GameObjects.Container {
       live: quality !== 'low',
       count: PARTICLES_BY_QUALITY[quality],
       tweens: [],
+      still: new Set(),
     };
     paintScenery(paint, theme);
+    bakeLayers(paint);
     this.moving = paint.tweens.length;
     // 場景收掉（例如主頁換背景）時把它開的動畫一起停掉
     this.once(Phaser.GameObjects.Events.DESTROY, () => {

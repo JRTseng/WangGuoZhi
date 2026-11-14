@@ -32,6 +32,8 @@ export interface Paint {
   count: number;
   /** 這張場景開的所有動畫，場景收掉時一起停 */
   tweens: Phaser.Tweens.Tween[];
+  /** 不會動的畫布：畫完以後會烤成一張圖，之後每一格就不用重算（見 bakeLayers） */
+  still: Set<G>;
 }
 
 export const P = (x: number, y: number): Pt => ({ x, y });
@@ -40,6 +42,7 @@ export const P = (x: number, y: number): Pt => ({ x, y });
 export function layer(p: Paint): G {
   const g = p.scene.add.graphics();
   p.box.add(g);
+  p.still.add(g);
   return g;
 }
 
@@ -49,6 +52,8 @@ export function tween(
   config: Phaser.Types.Tweens.TweenBuilderConfig,
   seekMs = 0,
 ): Phaser.Tweens.Tween {
+  // 會動的畫布不能烤成圖
+  for (const target of [config.targets].flat()) p.still.delete(target as G);
   const t = p.scene.tweens.add(config);
   if (seekMs > 0) t.seek(seekMs);
   p.tweens.push(t);
@@ -803,6 +808,34 @@ export function drifting(p: Paint, kind: Drift, colors: readonly number[]): void
     }
     tween(p, config, Phaser.Math.Between(0, duration - 1));
   }
+}
+
+/**
+ * 把不會動的畫布烤成圖：相鄰的幾張合成一張，疊放的順序不變。
+ * 山稜線這種幾百個點的多邊形，留著畫布的話每一格都要重新切三角形，手機和測試機都吃不消；
+ * 烤成圖以後每一格只是貼一張圖。
+ */
+export function bakeLayers(p: Paint): void {
+  const out: Phaser.GameObjects.GameObject[] = [];
+  let sheet: Phaser.GameObjects.RenderTexture | null = null;
+  for (const child of [...p.box.list]) {
+    if (!p.still.has(child as G)) {
+      sheet = null;
+      out.push(child);
+      continue;
+    }
+    const g = child as G;
+    if (!sheet) {
+      sheet = p.scene.make.renderTexture({ x: 0, y: 0, width: p.w, height: p.h }, false);
+      sheet.setOrigin(0, 0);
+      out.push(sheet);
+    }
+    sheet.draw(g, g.x, g.y);
+    g.destroy();
+  }
+  p.box.removeAll();
+  p.box.add(out);
+  p.still.clear();
 }
 
 export { mixColor, scatter, seeded };
