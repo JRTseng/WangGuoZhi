@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { drag, openLobby, startBattle, tap, waitScene, wgz, type R } from './helpers';
+import { drag, holdUntil, openLobby, startBattle, tap, waitScene, wgz, type R } from './helpers';
 
 const battle = async (page: Page) => (await wgz(page)).battle!;
 /** 陣型九宮格的某一格（row 0 前、1 中、2 後；lane 0 上、1 中、2 下） */
@@ -97,11 +97,13 @@ test('組隊畫面：3×3 九宮格，拖曳換位置、對調、從清單拖上
   await page.mouse.move(g.x + g.width / 2, g.y + g.height / 2);
   await page.mouse.wheel(0, -2000);
   await page.waitForFunction(() => window.__WGZ__?.picker?.scrollY === 0);
-  // 長按一下沒拖走：不算點擊，不會跳出資訊面板
+  // 按住不動、沒拖走：打開素質與技能頁面（2026-11-15），隊伍不變；點旁邊關掉
   const c0 = await card(page, 'daer');
-  await drag(page, c0, c0, HOLD);
-  await page.waitForTimeout(150);
-  expect((await wgz(page)).team!.panel).toBeNull();
+  const teamBefore = (await wgz(page)).picker!.slots.map((x) => x.id);
+  await holdUntil(page, c0, () => window.__WGZ__?.team?.panel === 'daer');
+  expect((await wgz(page)).picker!.slots.map((x) => x.id)).toEqual(teamBefore);
+  await page.mouse.click(8, 8);
+  await page.waitForFunction(() => window.__WGZ__?.team?.panel === null);
 
   // 點一下九宮格上的狗：移出隊伍；把狗從九宮格拖回清單也是移出
   await tap(page, await cellAt(page, 2, 2));
