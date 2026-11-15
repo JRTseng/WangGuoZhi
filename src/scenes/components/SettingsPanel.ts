@@ -7,6 +7,8 @@ import { getState, resetSave, setState } from '../../state/store';
 import { addText, openModal, patchDebug, viewOf } from '../ui';
 import { fullscreenAvailable, isFullscreen, toggleFullscreen } from './fullscreen';
 import { makeTapArea } from './hitArea';
+import { installMode, promptInstall } from './install';
+import { INSTALL_CANCEL_TEXT, INSTALL_DONE_TEXT, IOS_INSTALL_HINT } from '../../logic/pwa';
 import { lordExpNeeded, lordTitle } from '../../logic/lord';
 
 /** 官方連結（目前先指向 GitHub 專案頁與 Issues） */
@@ -16,7 +18,8 @@ export const FORUM_URL = 'https://github.com/JRTseng/WangGuoZhi/issues';
 const QUALITY_LABEL: Record<Quality, string> = { low: '低', medium: '中', high: '高' };
 
 type ToggleKey = 'voice' | 'music' | 'sfx' | 'push' | 'effects' | 'skipBattle';
-type Key = ToggleKey | Quality | 'site' | 'forum' | 'redeem' | 'fullscreen' | 'reset' | 'close';
+type Key =
+  ToggleKey | Quality | 'site' | 'forum' | 'redeem' | 'fullscreen' | 'install' | 'reset' | 'close';
 
 /**
  * 左上角「帳號與設定」面板：語音、音樂、音效、推播、略過戰鬥畫面開關，畫質，官方連結、討論區、優惠碼。
@@ -199,21 +202,42 @@ export class SettingsPanel {
 
     const closeY = landscape ? box.y + box.height - 58 : box.y + box.height - 62;
     // 全螢幕（T008）：瀏覽器支援才出現（Android 可以，iPhone 的 Safari 不行）；順便把畫面鎖成橫向
-    if (fullscreenAvailable()) {
-      const on = isFullscreen();
+    // 加到主畫面（T012）：還沒從主畫面開、瀏覽器又能安裝時才出現；兩顆都有就一人一半
+    delete this.rects.fullscreen;
+    delete this.rects.install;
+    const mode = installMode();
+    const showInstall = mode === 'prompt' || mode === 'ios';
+    // 從主畫面開的本來就是全螢幕，不用再放全螢幕按鈕
+    const showFull = fullscreenAvailable() && mode !== 'installed';
+    if (showFull || showInstall) {
       const fy = landscape ? closeY - 54 : ry;
-      this.pill(
-        { x: rightX, y: fy, width: colW, height: 44 },
-        on ? '離開全螢幕' : '全螢幕（藏起網址列）',
-        on ? 0xe9dcc8 : 0x4f6d8a,
-        !on,
-        'fullscreen',
-        () => {
-          void toggleFullscreen().then(() =>
-            this.scene.time.delayedCall(300, () => this.rerender()),
-          );
-        },
-      );
+      const both = showFull && showInstall;
+      const w = both ? half : colW;
+      if (showFull) {
+        const on = isFullscreen();
+        this.pill(
+          { x: rightX, y: fy, width: w, height: 44 },
+          on ? '離開全螢幕' : both ? '全螢幕' : '全螢幕（藏起網址列）',
+          on ? 0xe9dcc8 : 0x4f6d8a,
+          !on,
+          'fullscreen',
+          () => {
+            void toggleFullscreen().then(() =>
+              this.scene.time.delayedCall(300, () => this.rerender()),
+            );
+          },
+        );
+      }
+      if (showInstall) {
+        this.pill(
+          { x: both ? rightX + half + 10 : rightX, y: fy, width: w, height: 44 },
+          '加到主畫面',
+          COLORS.harvest,
+          true,
+          'install',
+          () => this.install(mode),
+        );
+      }
       if (!landscape) ry += 54;
     }
     // 最下面一列：左邊「重新開始」（要按兩次才會清除存檔），右邊「關閉」
@@ -326,6 +350,22 @@ export class SettingsPanel {
     if (!this.resetArmed) return;
     this.resetArmed = false;
     this.message = '';
+  }
+
+  /** 加到主畫面：Android 跳安裝視窗，iPhone 只能用文字教 */
+  private install(mode: 'prompt' | 'ios'): void {
+    this.disarmReset();
+    if (mode === 'ios') {
+      this.say(IOS_INSTALL_HINT, true);
+      return;
+    }
+    void promptInstall().then((ok) => this.say(ok ? INSTALL_DONE_TEXT : INSTALL_CANCEL_TEXT, ok));
+  }
+
+  private say(message: string, ok: boolean): void {
+    this.message = message;
+    this.messageOk = ok;
+    this.rerender();
   }
 
   /** 第一次按只是提醒，第二次才真的清除存檔並重開遊戲 */
