@@ -79,19 +79,19 @@ export class BoardingScene extends Phaser.Scene {
 
     // 上下拖曳或滾輪捲動名單；沒有拖動就當成點按鈕
     this.input.on('pointerdown', (p: Phaser.Input.Pointer) => {
-      this.dragFrom = { x: p.x, y: p.y, scroll: this.scrollY };
+      this.dragFrom = { x: p.worldX, y: p.worldY, scroll: this.scrollY };
     });
     this.input.on('pointermove', (p: Phaser.Input.Pointer) => {
       if (this.dragFrom && p.isDown && this.inList(this.dragFrom.y)) {
-        this.scrollTo(this.dragFrom.scroll - (p.y - this.dragFrom.y));
+        this.scrollTo(this.dragFrom.scroll - (p.worldY - this.dragFrom.y));
       }
     });
     this.input.on('pointerup', (p: Phaser.Input.Pointer) => {
       const from = this.dragFrom;
       this.dragFrom = null;
       if (!from) return;
-      if (Math.abs(p.x - from.x) > TAP_SLOP || Math.abs(p.y - from.y) > TAP_SLOP) return;
-      this.tapAt(p.x, p.y);
+      if (Math.abs(p.worldX - from.x) > TAP_SLOP || Math.abs(p.worldY - from.y) > TAP_SLOP) return;
+      this.tapAt(p.worldX, p.worldY);
     });
     this.input.on('wheel', (_p: unknown, _o: unknown, _dx: number, dy: number) =>
       this.scrollTo(this.scrollY + dy),

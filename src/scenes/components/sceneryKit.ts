@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { bakeScaleFor, renderScale } from '../../logic/resolution';
 import {
   mixColor,
   ridge,
@@ -817,6 +818,7 @@ export function drifting(p: Paint, kind: Drift, colors: readonly number[]): void
  */
 export function bakeLayers(p: Paint): void {
   const out: Phaser.GameObjects.GameObject[] = [];
+  const k = bakeScaleFor(renderScale.value);
   let sheet: Phaser.GameObjects.RenderTexture | null = null;
   for (const child of [...p.box.list]) {
     if (!p.still.has(child as G)) {
@@ -826,11 +828,16 @@ export function bakeLayers(p: Paint): void {
     }
     const g = child as G;
     if (!sheet) {
-      sheet = p.scene.make.renderTexture({ x: 0, y: 0, width: p.w, height: p.h }, false);
-      sheet.setOrigin(0, 0);
+      // 照解析度倍數烤（T008），不然高解析度下背景會比前面的東西糊
+      sheet = p.scene.make.renderTexture(
+        { x: 0, y: 0, width: Math.ceil(p.w * k), height: Math.ceil(p.h * k) },
+        false,
+      );
+      sheet.setOrigin(0, 0).setScale(1 / k);
       out.push(sheet);
     }
-    sheet.draw(g, g.x, g.y);
+    g.setScale(g.scaleX * k, g.scaleY * k);
+    sheet.draw(g, g.x * k, g.y * k);
     g.destroy();
   }
   p.box.removeAll();

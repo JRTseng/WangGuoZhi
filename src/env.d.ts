@@ -11,6 +11,8 @@ interface WgzDebugState {
   orientation?: 'portrait' | 'landscape';
   /** 目前遊戲尺寸，測試用來把遊戲座標換成頁面座標 */
   size?: { width: number; height: number };
+  /** 畫布用幾倍解析度畫（T008） */
+  renderScale?: number;
   resources?: { food: number; bones: number };
   backButton?: WgzRect;
   /** 音樂與音效（T016）：想播哪首、實際在播哪首、有沒有操作過、播過幾個音效 */
@@ -462,6 +464,8 @@ interface WgzRect {
 
 interface Window {
   __WGZ__?: WgzDebugState;
+  /** 畫面測試用：Phaser 遊戲本體（T008 檢查按鈕大小與字體） */
+  __WGZ_GAME__?: import('phaser').Game;
 }
 
 interface WgzBattleUnit {

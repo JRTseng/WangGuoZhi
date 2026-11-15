@@ -195,20 +195,23 @@ export class TrainingScene extends Phaser.Scene {
     this.renderRows();
 
     // 上下拖曳或滾輪捲動；沒有拖動就當成點按鈕
-    const inList = (p: Phaser.Input.Pointer) => p.y >= l.list.y && p.y <= l.list.y + l.list.height;
+    const inList = (p: Phaser.Input.Pointer) =>
+      p.worldY >= l.list.y && p.worldY <= l.list.y + l.list.height;
     this.input.on('pointerdown', (p: Phaser.Input.Pointer) => {
-      this.dragFrom = !this.feed && inList(p) ? { x: p.x, y: p.y, scroll: this.scrollY } : null;
+      this.dragFrom =
+        !this.feed && inList(p) ? { x: p.worldX, y: p.worldY, scroll: this.scrollY } : null;
       this.stopHold();
-      if (this.dragFrom) this.startHold(p.x, p.y + this.scrollY);
+      if (this.dragFrom) this.startHold(p.worldX, p.worldY + this.scrollY);
     });
     this.input.on('pointermove', (p: Phaser.Input.Pointer) => {
       if (!this.dragFrom || !p.isDown) return;
       const moved =
-        Math.abs(p.x - this.dragFrom.x) > TAP_SLOP || Math.abs(p.y - this.dragFrom.y) > TAP_SLOP;
+        Math.abs(p.worldX - this.dragFrom.x) > TAP_SLOP ||
+        Math.abs(p.worldY - this.dragFrom.y) > TAP_SLOP;
       // 還沒開始自動特訓就滑動：當成捲動。已經在連續特訓了就不捲，免得按鈕從手指下跑掉
       if (this.hold && this.hold.done > 0) return;
       if (moved) this.stopHold();
-      this.scrollTo(this.dragFrom.scroll - (p.y - this.dragFrom.y));
+      this.scrollTo(this.dragFrom.scroll - (p.worldY - this.dragFrom.y));
     });
     this.input.on('pointerup', (p: Phaser.Input.Pointer) => {
       const from = this.dragFrom;
@@ -216,8 +219,8 @@ export class TrainingScene extends Phaser.Scene {
       // 長按已經自動練過了，放開時不再多算一次
       if (this.stopHold() > 0) return;
       if (!from || !inList(p)) return;
-      if (Math.abs(p.x - from.x) > TAP_SLOP || Math.abs(p.y - from.y) > TAP_SLOP) return;
-      this.tapAt(p.x, p.y + this.scrollY);
+      if (Math.abs(p.worldX - from.x) > TAP_SLOP || Math.abs(p.worldY - from.y) > TAP_SLOP) return;
+      this.tapAt(p.worldX, p.worldY + this.scrollY);
     });
     this.input.on('wheel', (_p: unknown, _o: unknown, _dx: number, dy: number) => {
       if (!this.feed) this.scrollTo(this.scrollY + dy);

@@ -35,7 +35,7 @@ import { LOBBY, LobbyCard, MenuItem, RoundShortcut } from './components/LobbyWid
 import { Scenery } from './components/Scenery';
 import { SettingsPanel } from './components/SettingsPanel';
 import { StaminaShop } from './components/StaminaShop';
-import { addText, openModal, patchDebug, resetDebug, viewOf } from './ui';
+import { addText, applyRenderScale, openModal, patchDebug, resetDebug, viewOf } from './ui';
 
 /** 主頁狗狗換動作的間隔 */
 const ACTION_MS = 3000;
@@ -122,6 +122,13 @@ export class LobbyScene extends Phaser.Scene {
     if (save.load === 'reset') {
       this.showToast('存檔讀不出來，已重新開始', 4000);
       acknowledgeLoad();
+    }
+
+    // 剛換過解析度重開的：把設定面板開回來
+    const data = this.scene.settings.data as { openSettings?: boolean } | undefined;
+    if (data?.openSettings) {
+      data.openSettings = false;
+      this.openSettings();
     }
   }
 
@@ -444,7 +451,14 @@ export class LobbyScene extends Phaser.Scene {
     this.settings = new SettingsPanel(
       this,
       (qualityChanged) => {
-        if (qualityChanged) this.drawBackground();
+        if (qualityChanged) {
+          // 畫質也決定解析度（T008）：倍數有變就整個主頁重畫，設定面板接著開著
+          if (applyRenderScale(this, getState().settings.quality)) {
+            this.scene.restart({ openSettings: true });
+            return;
+          }
+          this.drawBackground();
+        }
         this.refresh();
       },
       () => {

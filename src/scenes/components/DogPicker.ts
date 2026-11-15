@@ -154,7 +154,7 @@ export class DogPicker {
     const input = scene.input;
     input.on('pointerdown', (p: Phaser.Input.Pointer) => {
       this.dragged = false;
-      this.dragFrom = this.inGrid(p) ? { y: p.y, scroll: this.scrollY } : null;
+      this.dragFrom = this.inGrid(p) ? { y: p.worldY, scroll: this.scrollY } : null;
       this.startPress(p);
     });
     input.on('pointermove', (p: Phaser.Input.Pointer) => {
@@ -162,17 +162,17 @@ export class DogPicker {
       // 手指動了就不算長按看資料
       if (
         this.infoHold &&
-        Math.hypot(p.x - this.infoHold.x, p.y - this.infoHold.y) >= INFO_MOVE_CANCEL
+        Math.hypot(p.worldX - this.infoHold.x, p.worldY - this.infoHold.y) >= INFO_MOVE_CANCEL
       ) {
         this.cancelInfoHold();
       }
       if (this.lift) {
-        this.lift.ghost.setPosition(p.x, p.y);
+        this.lift.ghost.setPosition(p.worldX, p.worldY);
         return;
       }
       if (this.press) {
-        const dx = p.x - this.press.x;
-        const dy = p.y - this.press.y;
+        const dx = p.worldX - this.press.x;
+        const dy = p.worldY - this.press.y;
         const far = Math.hypot(dx, dy) >= LIFT_DISTANCE;
         // 九宮格上的狗一滑就拿起來；卡片格要橫著滑（直著滑是捲動）
         if (far && (this.press.from === 'board' || Math.abs(dx) > Math.abs(dy))) {
@@ -182,7 +182,7 @@ export class DogPicker {
         if (far) this.cancelPress();
       }
       if (!this.dragFrom) return;
-      const dy = p.y - this.dragFrom.y;
+      const dy = p.worldY - this.dragFrom.y;
       if (!this.dragged && Math.abs(dy) < DRAG_THRESHOLD) return;
       this.dragged = true;
       this.scrollTo(this.dragFrom.scroll - dy);
@@ -357,7 +357,13 @@ export class DogPicker {
 
   private inGrid(p: Phaser.Input.Pointer): boolean {
     const g = this.layout?.grid;
-    return !!g && p.x >= g.x && p.x <= g.x + g.width && p.y >= g.y && p.y <= g.y + g.height;
+    return (
+      !!g &&
+      p.worldX >= g.x &&
+      p.worldX <= g.x + g.width &&
+      p.worldY >= g.y &&
+      p.worldY <= g.y + g.height
+    );
   }
 
   private applyScroll(): void {
@@ -436,9 +442,13 @@ export class DogPicker {
     });
   }
 
-  private boardCellAt(p: { x: number; y: number }) {
+  private boardCellAt(p: { worldX: number; worldY: number }) {
     return this.boardCells().find(
-      (c) => p.x >= c.x && p.x <= c.x + c.width && p.y >= c.y && p.y <= c.y + c.height,
+      (c) =>
+        p.worldX >= c.x &&
+        p.worldX <= c.x + c.width &&
+        p.worldY >= c.y &&
+        p.worldY <= c.y + c.height,
     );
   }
 
@@ -553,19 +563,23 @@ export class DogPicker {
     if (this.o.locked?.() || !this.layout) return;
     const cell = this.boardCellAt(p);
     if (cell?.id) {
-      this.press = { id: cell.id, from: 'board', x: p.x, y: p.y };
+      this.press = { id: cell.id, from: 'board', x: p.worldX, y: p.worldY };
       this.startInfoHold(cell.id, p);
       return;
     }
     if (!this.inGrid(p)) return;
     const card = this.cells.find(
-      (c) => p.x >= c.x && p.x <= c.x + c.width && p.y >= c.y && p.y <= c.y + c.height,
+      (c) =>
+        p.worldX >= c.x &&
+        p.worldX <= c.x + c.width &&
+        p.worldY >= c.y &&
+        p.worldY <= c.y + c.height,
     );
     // 沒擁有、寄宿中的不能拿，但一樣可以長按看資料
     if (card) this.startInfoHold(card.id, p);
     // 沒擁有、寄宿中的不能拿
     if (!card || !card.owned || card.busy) return;
-    this.press = { id: card.id, from: 'roster', x: p.x, y: p.y };
+    this.press = { id: card.id, from: 'roster', x: p.worldX, y: p.worldY };
     // 用真實時間算長按：Phaser 的計時器在畫面掉幀時會變慢，按起來忽長忽短
     this.holdTimer = window.setTimeout(() => {
       this.holdTimer = null;
@@ -602,7 +616,7 @@ export class DogPicker {
       this.o.onCellHold?.(d);
     };
     const timer = window.setTimeout(fire, INFO_HOLD_MS);
-    this.infoHold = { id, x: p.x, y: p.y, timer };
+    this.infoHold = { id, x: p.worldX, y: p.worldY, timer };
   }
 
   private cancelInfoHold(): void {
@@ -625,7 +639,7 @@ export class DogPicker {
     this.dragged = true;
     this.dragFrom = null;
     this.notice = '';
-    const ghost = this.scene.add.container(p.x, p.y).setDepth(60);
+    const ghost = this.scene.add.container(p.worldX, p.worldY).setDepth(60);
     const g = this.scene.add.graphics();
     g.fillStyle(COLORS.card, 0.95);
     g.lineStyle(3, COLORS.button, 1);

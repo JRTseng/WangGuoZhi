@@ -126,7 +126,7 @@ export class FrisbeeScene extends Phaser.Scene {
 
     // 按著左右滑或移動滑鼠，狗狗就往那邊跑；不用一直點
     const follow = (p: Phaser.Input.Pointer): void => {
-      if (this.phase === 'play') this.targetX = fieldFrac(this.layout, p.x);
+      if (this.phase === 'play') this.targetX = fieldFrac(this.layout, p.worldX);
     };
     this.input.on('pointerdown', follow);
     this.input.on('pointermove', follow);
