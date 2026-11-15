@@ -17,6 +17,7 @@ import { StoryScene } from './scenes/StoryScene';
 import { TeamScene } from './scenes/TeamScene';
 import { TrainingScene } from './scenes/TrainingScene';
 import { initAudio, setMusic } from './scenes/components/audio';
+import { initPwa } from './scenes/components/install';
 import { canvasSizeFor, fitCamera, pickRenderScale } from './scenes/ui';
 import { getState } from './state/store';
 
@@ -45,6 +46,9 @@ function addCrispText(
 }
 (Phaser.GameObjects.GameObjectFactory.prototype as unknown as { text: unknown }).text =
   addCrispText;
+
+// 手機 App 化（T012）：離線快取與「加到主畫面」
+initPwa();
 
 // 體力與每日次數目前先放開（見 src/logic/stamina.ts 的 LIMITS_DEFAULT）；網址加 ?limits=1 可以打開
 Object.assign(limits, limitsFromSearch(window.location.search));

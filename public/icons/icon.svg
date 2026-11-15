@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#f7cf7a" />
+      <stop offset="1" stop-color="#e8943a" />
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" fill="url(#bg)" />
+  <g id="dog">
+    <!-- 耳朵 -->
+    <path d="M150 232 L138 122 Q136 104 154 112 L236 160 Z" fill="#c9792e" stroke="#3b2a1a" stroke-width="10" stroke-linejoin="round" />
+    <path d="M362 232 L374 122 Q376 104 358 112 L276 160 Z" fill="#c9792e" stroke="#3b2a1a" stroke-width="10" stroke-linejoin="round" />
+    <path d="M166 206 L158 142 L210 172 Z" fill="#f6b7a0" />
+    <path d="M346 206 L354 142 L302 172 Z" fill="#f6b7a0" />
+    <!-- 臉 -->
+    <ellipse cx="256" cy="282" rx="134" ry="118" fill="#e39a45" stroke="#3b2a1a" stroke-width="10" />
+    <path d="M256 236 Q196 236 172 300 Q176 384 256 392 Q336 384 340 300 Q316 236 256 236 Z" fill="#fff6e6" />
+    <!-- 頭帶與紅纓 -->
+    <path d="M130 232 Q256 150 382 232 L376 262 Q256 186 136 262 Z" fill="#c0392b" stroke="#3b2a1a" stroke-width="10" stroke-linejoin="round" />
+    <circle cx="256" cy="204" r="24" fill="#f5c542" stroke="#3b2a1a" stroke-width="10" />
+    <!-- 眼睛、腮紅 -->
+    <ellipse cx="206" cy="290" rx="15" ry="19" fill="#3b2a1a" />
+    <ellipse cx="306" cy="290" rx="15" ry="19" fill="#3b2a1a" />
+    <circle cx="211" cy="283" r="5" fill="#ffffff" />
+    <circle cx="311" cy="283" r="5" fill="#ffffff" />
+    <ellipse cx="176" cy="326" rx="18" ry="11" fill="#f39c8f" opacity="0.8" />
+    <ellipse cx="336" cy="326" rx="18" ry="11" fill="#f39c8f" opacity="0.8" />
+    <!-- 鼻子與嘴 -->
+    <path d="M236 318 Q256 306 276 318 Q270 338 256 340 Q242 338 236 318 Z" fill="#3b2a1a" />
+    <path d="M256 340 L256 354 M256 354 Q240 370 224 358 M256 354 Q272 370 288 358" fill="none" stroke="#3b2a1a" stroke-width="8" stroke-linecap="round" />
+  </g>
+</svg>
