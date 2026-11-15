@@ -493,9 +493,11 @@ export class BattleScene extends Phaser.Scene {
       this.hit(e, this.stepMs);
       return;
     }
+    // 設定關掉「戰鬥特效」：不播喊招字卡與招式特效，只比一般出手多停一下
+    const effects = getState().settings.effects;
     // 大絕招：先播喊招字卡，字卡滑走後才真的打下去
-    const total = ultDelayMs(this.speed, this.pace);
-    const cutIn = Math.round(total * ULT_CUTIN_RATIO);
+    const total = effects ? ultDelayMs(this.speed, this.pace) : Math.round(this.stepMs * 1.6);
+    const cutIn = effects ? Math.round(total * ULT_CUTIN_RATIO) : Math.round(total * 0.3);
     const ult: ShowUlt = {
       ...caster,
       kind: e.kind === 'attack' ? caster.kind : e.kind,
@@ -507,7 +509,7 @@ export class BattleScene extends Phaser.Scene {
     this.queued = e;
     this.lastVoiceCue = voiceCueId(actor.id, 'ultimate');
     playVoiceCue(this.lastVoiceCue);
-    if (this.pace !== 'fast') this.showUltimate(e, ult, total, cutIn);
+    if (this.pace !== 'fast' && effects) this.showUltimate(e, ult, total, cutIn);
     playSfx('ultimate');
     this.sync();
     this.timer = this.time.delayedCall(cutIn, () => this.hit(e, total - cutIn, true));
@@ -571,6 +573,7 @@ export class BattleScene extends Phaser.Scene {
       total,
       cutIn,
       depth: ULT_DEPTH,
+      rich: getState().settings.quality !== 'low',
     });
   }
 

@@ -25,6 +25,7 @@ import { PITY_SSR } from './gacha';
 import { MAX_LEVEL, STAR_MAX, expNeeded, initialProgress, levelCapForStar } from './leveling';
 import { cleanSkillLine } from './skillShow';
 import { DRILL_MAX } from './training';
+import { sanitizeLord } from './lord';
 import { sanitizeQuests } from './quests';
 import { findSnack } from './snacks';
 import { isTrainingSort } from './trainingSort';
@@ -180,6 +181,15 @@ function historyRecord(v: unknown): ExpeditionRecord | null {
     const d = v.dropSnack;
     if (!isObj(d) || typeof d.id !== 'string' || !findSnack(d.id) || !isNum(d.amount)) return null;
   }
+  if (v.lord !== undefined) {
+    const l = v.lord;
+    if (
+      !isObj(l) ||
+      ![l.exp, l.fromLevel, l.toLevel, l.food, l.bones].every((n) => isNum(n) && n >= 0)
+    ) {
+      return null;
+    }
+  }
   // 放招時機（T023）：手動放招的紀錄才有，要是一串不是負數的整數
   if (v.ultTurns !== undefined) {
     if (!Array.isArray(v.ultTurns) || !v.ultTurns.every((n) => isNum(n) && n >= 0)) return null;
@@ -219,6 +229,7 @@ function settings(v: unknown, fallback: Settings): Settings {
     sfx: bool(v.sfx, fallback.sfx),
     push: bool(v.push, fallback.push),
     quality,
+    effects: bool(v.effects, fallback.effects),
     skipBattle: bool(v.skipBattle, fallback.skipBattle),
     battleSpeed:
       speed === 1 || speed === 2 || speed === 3 || speed === 4 ? speed : fallback.battleSpeed,
@@ -387,6 +398,7 @@ export function sanitizeState(raw: unknown, now: number): GameState {
     }
   }
 
+  const quests = sanitizeQuests(raw.quests, cleared.length);
   return {
     resources: resources(raw.resources, base.resources),
     history,
@@ -417,7 +429,9 @@ export function sanitizeState(raw: unknown, now: number): GameState {
     wounds: sanitizeWounds(raw.wounds, isOwned, now),
     // 經驗零食：只留認得的種類、正整數
     snacks: countMap(raw.snacks, (id) => !!findSnack(id)),
-    quests: sanitizeQuests(raw.quests, cleared.length),
+    quests,
+    // 城主等級：舊存檔照累計勝場補算
+    lord: sanitizeLord(raw.lord, quests.wins),
   };
 }
 

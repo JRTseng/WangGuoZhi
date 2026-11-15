@@ -6,6 +6,7 @@ import type { Quality, Settings } from '../../state/gameState';
 import { getState, resetSave, setState } from '../../state/store';
 import { addText, openModal, patchDebug, viewOf } from '../ui';
 import { makeTapArea } from './hitArea';
+import { lordExpNeeded, lordTitle } from '../../logic/lord';
 
 /** 官方連結（目前先指向 GitHub 專案頁與 Issues） */
 export const OFFICIAL_URL = 'https://github.com/JRTseng/WangGuoZhi';
@@ -13,7 +14,7 @@ export const FORUM_URL = 'https://github.com/JRTseng/WangGuoZhi/issues';
 
 const QUALITY_LABEL: Record<Quality, string> = { low: '低', medium: '中', high: '高' };
 
-type ToggleKey = 'voice' | 'music' | 'sfx' | 'push' | 'skipBattle';
+type ToggleKey = 'voice' | 'music' | 'sfx' | 'push' | 'effects' | 'skipBattle';
 type Key = ToggleKey | Quality | 'site' | 'forum' | 'redeem' | 'reset' | 'close';
 
 /**
@@ -58,6 +59,8 @@ export class SettingsPanel {
     );
     this.layer = layer;
     const s = getState().settings;
+    const lord = getState().lord;
+    const lordNeed = lordExpNeeded(lord.level);
     const pad = 18;
 
     layer.add(addText(this.scene, box.x + pad, box.y + 14, '帳號與設定', 22, COLORS.ink, true));
@@ -66,7 +69,7 @@ export class SettingsPanel {
         this.scene,
         box.x + pad,
         box.y + 44,
-        '城主 ID：WGZ-000001（尚未綁定帳號）',
+        `城主 Lv.${lord.level}「${lordTitle(lord.level)}」${lordNeed ? `・經驗 ${lord.exp}/${lordNeed}` : '・已滿級'}\u3000ID：WGZ-000001（尚未綁定帳號）`,
         13,
         COLORS.inkSoft,
       ),
@@ -77,13 +80,15 @@ export class SettingsPanel {
     const leftX = box.x + pad;
     const rightX = landscape ? leftX + colW + pad : leftX;
     let y = box.y + 72;
-    const rowH = landscape ? 34 : 46;
+    // 橫式放六個開關：一列矮一點才放得下
+    const rowH = landscape ? 29 : 46;
 
     const toggles: [ToggleKey, string][] = [
       ['voice', '語音'],
       ['music', '音樂'],
       ['sfx', '音效'],
       ['push', '推播通知'],
+      ['effects', '戰鬥特效（大絕招演出）'],
       ['skipBattle', '略過戰鬥畫面'],
     ];
     for (const [key, label] of toggles) {
@@ -219,14 +224,17 @@ export class SettingsPanel {
     s: Settings,
   ): void {
     const on = s[key];
-    this.layer.add(addText(this.scene, x, y + h / 2, label, 18, COLORS.ink).setOrigin(0, 0.5));
-    const sw = { x: x + w - 64, y: y + h / 2 - 16, width: 64, height: 32 };
+    const sh = Math.min(32, h - 4);
+    this.layer.add(
+      addText(this.scene, x, y + h / 2, label, sh < 32 ? 16 : 18, COLORS.ink).setOrigin(0, 0.5),
+    );
+    const sw = { x: x + w - 64, y: y + h / 2 - sh / 2, width: 64, height: sh };
     const c = this.scene.add.container(sw.x, sw.y);
     const g = this.scene.add.graphics();
     g.fillStyle(on ? COLORS.harvest : 0xc9b79c, 1);
-    g.fillRoundedRect(0, 0, sw.width, sw.height, 16);
+    g.fillRoundedRect(0, 0, sw.width, sw.height, sh / 2);
     g.fillStyle(0xffffff, 1);
-    g.fillCircle(on ? sw.width - 16 : 16, 16, 12);
+    g.fillCircle(on ? sw.width - sh / 2 : sh / 2, sh / 2, sh / 2 - 4);
     c.add(g);
     // 點整列都可以切換
     const row = { x, y, width: w, height: h };

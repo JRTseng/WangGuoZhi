@@ -36,6 +36,8 @@ interface WgzDebugState {
     backgroundMoving?: number;
     /** 任務有幾個獎勵可以領（T011）；大於 0 時「任務」亮紅點 */
     questReady?: number;
+    /** 城主等級、經驗與稱號 */
+    lord?: { level: number; exp: number; title: string };
     buttons: Record<
       | 'account'
       | 'mail'
@@ -300,6 +302,7 @@ interface WgzDebugState {
       sfx: boolean;
       push: boolean;
       quality: string;
+      effects: boolean;
       skipBattle: boolean;
       battleSpeed: number;
       autoUlt: boolean;

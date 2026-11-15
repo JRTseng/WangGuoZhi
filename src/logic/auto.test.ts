@@ -82,7 +82,9 @@ describe('advanceAuto', () => {
       stages: { 'luoyepo-2': 3, 'luoyepo-1': 2 },
       reward: { food: 260 * 3 + 120 * 2, bones: 12 * 3 + 5 * 2 },
     });
-    expect(s.resources.food).toBe(1200 + 260 * 3 + 120 * 2);
+    // 打贏 5 場剛好讓城主升到 Lv.2，另外送糧草 400
+    expect(s.lord).toEqual({ level: 2, exp: 0 });
+    expect(s.resources.food).toBe(1200 + 260 * 3 + 120 * 2 + 400);
     expect(s.history).toHaveLength(5);
     expect(s.history.every((r) => r.auto)).toBe(true);
     // 每隻狗的經驗：第 2 關 120 × 3 + 第 1 關 90 × 2

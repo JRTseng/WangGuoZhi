@@ -62,6 +62,7 @@ test('帳號與設定：開關、畫質、優惠碼', async ({ page }) => {
     sfx: true,
     push: false,
     quality: 'high',
+    effects: true,
     skipBattle: false,
     battleSpeed: 1,
     autoUlt: true,
@@ -72,6 +73,7 @@ test('帳號與設定：開關、畫質、優惠碼', async ({ page }) => {
     'voice',
     'music',
     'push',
+    'effects',
     'low',
     'medium',
     'high',
@@ -86,6 +88,11 @@ test('帳號與設定：開關、畫質、優惠碼', async ({ page }) => {
   await page.waitForFunction(() => window.__WGZ__?.settings?.values.music === false);
   await tap(page, st.rects.low);
   await page.waitForFunction(() => window.__WGZ__?.settings?.values.quality === 'low');
+  // 戰鬥特效的開關：關掉再打開
+  await tap(page, (await wgz(page)).settings!.rects.effects);
+  await page.waitForFunction(() => window.__WGZ__?.settings?.values.effects === false);
+  await tap(page, (await wgz(page)).settings!.rects.effects);
+  await page.waitForFunction(() => window.__WGZ__?.settings?.values.effects === true);
 
   // 錯誤的碼
   const input = page.locator('input[aria-label="優惠碼"]');

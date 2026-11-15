@@ -60,6 +60,8 @@ export interface ExpeditionRecord {
   newDogId?: string;
   /** 這一仗掉的裝備 id（T014）；沒掉就沒有這個欄位 */
   dropGearId?: string;
+  /** 這一仗拿到的城主經驗與升級結果 */
+  lord?: { exp: number; fromLevel: number; toLevel: number; food: number; bones: number };
   /** 這一仗掉的經驗零食；打輸沒有 */
   dropSnack?: { id: string; amount: number };
   /** 第一次通關要送的狗已經先抽到了，改送的碎片 */
@@ -160,6 +162,12 @@ export interface QuestState {
   daily: { counts: Partial<Record<DailyCounter, number>>; claimed: string[] };
 }
 
+/** 城主等級與經驗（規則見 src/logic/lord.ts） */
+export interface LordState {
+  level: number;
+  exp: number;
+}
+
 export type Quality = 'low' | 'medium' | 'high';
 
 /** 帳號設定（語音／推播目前只記住開關，還沒有實際功能；音樂與音效見 T016） */
@@ -171,6 +179,8 @@ export interface Settings {
   sfx: boolean;
   push: boolean;
   quality: Quality;
+  /** 戰鬥特效：關掉後大絕招不播喊招字卡與招式特效，打起來比較快也比較省電 */
+  effects: boolean;
   /** 略過戰鬥畫面：開啟後開戰直接看結算 */
   skipBattle: boolean;
   /** 戰鬥播放倍速，下次戰鬥沿用 */
@@ -242,6 +252,8 @@ export interface GameState {
   wounds: Record<string, { until: number; level: 1 | 2 }>;
   /** 經驗零食：每種有幾個，以零食 id 為鍵（見 src/logic/snacks.ts） */
   snacks: Record<string, number>;
+  /** 城主等級與經驗 */
+  lord: LordState;
   /** 任務（T011）：領過的獎勵、累計勝場與今天的每日任務（規則見 src/logic/quests.ts） */
   quests: QuestState;
 }
@@ -272,6 +284,7 @@ export function createInitialState(now: number = Date.now()): GameState {
       sfx: true,
       push: false,
       quality: 'high',
+      effects: true,
       skipBattle: false,
       battleSpeed: 1,
       autoUlt: true,
@@ -293,5 +306,6 @@ export function createInitialState(now: number = Date.now()): GameState {
     wounds: {},
     snacks: {},
     quests: { claimed: [], wins: 0, daily: { counts: {}, claimed: [] } },
+    lord: { level: 1, exp: 0 },
   };
 }

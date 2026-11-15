@@ -46,6 +46,8 @@ export interface UltimateShowOptions {
   cutIn: number;
   /** 壓暗遮罩的深度；字卡與特效畫在它上面 */
   depth: number;
+  /** 華麗版：多一些光芒、火花、碎片（低畫質時關掉，只留主要的特效） */
+  rich?: boolean;
 }
 
 /** 字卡配色：我方深藍配金邊，敵方深紅配橘邊 */
@@ -77,6 +79,7 @@ export function playUltimate(
   const fx = Math.max(1, o.total - c);
   const look = BAND[o.side];
   const tw = scene.tweens;
+  const rich = o.rich !== false;
 
   // ---- 壓暗，施放者後面一圈光 ----
   const shade = keep(
@@ -156,6 +159,35 @@ export function playUltimate(
   glow.fillStyle(0xffffff, 0.16);
   glow.fillCircle(headX, -dir * tilt * 0.6 - bandH * 0.1, headR * 1.7);
   band.add(glow);
+  // 狗狗背後轉動的放射光芒
+  const rays = scene.add.graphics();
+  rays.setPosition(headX, -dir * tilt * 0.6 - bandH * 0.08);
+  const rayN = rich ? 12 : 8;
+  for (let i = 0; i < rayN; i++) {
+    const a0 = (i / rayN) * Math.PI * 2;
+    const a1 = a0 + (Math.PI * 2) / rayN / 2.4;
+    const len = bandH * (i % 2 === 0 ? 1.25 : 0.95);
+    rays.fillStyle(i % 2 === 0 ? look.edge : 0xffffff, i % 2 === 0 ? 0.3 : 0.16);
+    rays.fillTriangle(
+      0,
+      0,
+      Math.cos(a0) * len,
+      Math.sin(a0) * len,
+      Math.cos(a1) * len,
+      Math.sin(a1) * len,
+    );
+  }
+  rays.setScale(0.2).setAlpha(0);
+  band.add(rays);
+  tw.add({
+    targets: rays,
+    scale: 1,
+    alpha: 1,
+    delay: c * 0.08,
+    duration: c * 0.16,
+    ease: 'Back.easeOut',
+  });
+  tw.add({ targets: rays, angle: dir * 120, duration: c, ease: 'Linear' });
   const size0 = (bandH / 104) * 0.92;
   const dog = new DogSprite(scene, headX, bandH * 0.46 - dir * tilt * 0.6, {
     color: o.caster.color,
@@ -221,6 +253,43 @@ export function playUltimate(
       .setAlpha(0);
     band.add(caption);
     tw.add({ targets: caption, alpha: 1, delay: c * 0.32, duration: c * 0.12 });
+  }
+
+  // 招式名落下後：字微微脈動，字卡上飄著亮點
+  tw.add({
+    targets: title,
+    scale: 1.06,
+    delay: c * 0.36,
+    duration: c * 0.12,
+    yoyo: true,
+    repeat: 1,
+    ease: 'Sine.easeInOut',
+  });
+  if (rich) {
+    for (let i = 0; i < 10; i++) {
+      const sx = ((i * 97) % 100) / 100;
+      const sy = ((i * 53) % 100) / 100;
+      const star = addText(
+        scene,
+        w * (0.3 + sx * 0.65),
+        -bandH * 0.42 + sy * bandH * 0.84,
+        '✦',
+        10 + (i % 3) * 5,
+        i % 2 ? '#ffffff' : look.text,
+      )
+        .setOrigin(0.5)
+        .setAlpha(0);
+      band.add(star);
+      tw.add({
+        targets: star,
+        alpha: { from: 0, to: 0.9 },
+        scale: { from: 0.4, to: 1.2 },
+        angle: 90,
+        delay: c * (0.2 + (i % 5) * 0.09),
+        duration: c * 0.18,
+        yoyo: true,
+      });
+    }
   }
 
   tw.add({ targets: band, x: 0, duration: c * 0.16, ease: 'Cubic.easeOut' });
@@ -343,54 +412,320 @@ export function playUltimate(
     tw.add({ targets: s, scaleY: 0.05, alpha: 0, delay: delay + fx * 0.22, duration: fx * 0.4 });
   };
 
+  /** 往四面八方噴出去的火花 */
+  const sparks = (
+    p: { x: number; y: number },
+    n: number,
+    reach: number,
+    color: number,
+    delay: number,
+  ): void => {
+    const count = rich ? n : Math.ceil(n / 2);
+    for (let i = 0; i < count; i++) {
+      const a = (i / count) * Math.PI * 2 + (i % 2) * 0.35;
+      const far = reach * (0.55 + ((i * 37) % 50) / 100);
+      const s = keep(
+        scene.add
+          .rectangle(p.x, p.y, 10 + (i % 3) * 4, 3, i % 3 === 0 ? 0xffffff : color, 1)
+          .setRotation(a)
+          .setDepth(fxDepth)
+          .setAlpha(0),
+      );
+      tw.add({
+        targets: s,
+        x: p.x + Math.cos(a) * far,
+        y: p.y + Math.sin(a) * far,
+        scaleX: 0.2,
+        alpha: { from: 1, to: 0 },
+        delay,
+        duration: fx * 0.5,
+        ease: 'Cubic.easeOut',
+      });
+    }
+  };
+
+  /** 地面上往外擴的衝擊波（扁的橢圓） */
+  const shock = (p: ShowPoint, radius: number, color: number, delay: number): void => {
+    const s = keep(
+      scene.add
+        .graphics()
+        .setDepth(fxDepth)
+        .setPosition(p.x, p.y + p.r * 0.9),
+    );
+    s.lineStyle(6, color, 1);
+    s.strokeEllipse(0, 0, radius * 2, radius * 0.6);
+    s.lineStyle(2, 0xffffff, 0.9);
+    s.strokeEllipse(0, 0, radius * 1.6, radius * 0.48);
+    s.setScale(0.15).setAlpha(0);
+    tw.add({
+      targets: s,
+      scale: 1,
+      alpha: { from: 1, to: 0 },
+      delay,
+      duration: fx * 0.55,
+      ease: 'Quad.easeOut',
+    });
+  };
+
+  /** 從地面升起的光柱 */
+  const pillar = (p: ShowPoint, color: number, delay: number): void => {
+    const bottom = p.y + p.r;
+    for (const [wd, a, col] of [
+      [p.r * 2.0, 0.35, color],
+      [p.r * 0.9, 0.7, 0xffffff],
+    ] as const) {
+      const s = keep(
+        scene.add
+          .rectangle(p.x, bottom, wd, bottom - top, col, a)
+          .setOrigin(0.5, 1)
+          .setDepth(fxDepth - 0.5)
+          .setScale(1, 0)
+          .setAlpha(0),
+      );
+      tw.add({ targets: s, scaleY: 1, alpha: 1, delay, duration: fx * 0.2, ease: 'Cubic.easeOut' });
+      tw.add({ targets: s, scaleX: 0.1, alpha: 0, delay: delay + fx * 0.35, duration: fx * 0.4 });
+    }
+  };
+
+  /** 腳下轉動的法陣 */
+  const glyph = (p: ShowPoint, radius: number, color: number, delay: number): void => {
+    const s = keep(
+      scene.add
+        .graphics()
+        .setDepth(fxDepth - 0.5)
+        .setPosition(p.x, p.y + p.r * 0.9),
+    );
+    s.lineStyle(3, color, 1);
+    s.strokeCircle(0, 0, radius);
+    s.strokeCircle(0, 0, radius * 0.7);
+    for (let i = 0; i < 6; i++) {
+      const a = (i / 6) * Math.PI * 2;
+      const b = ((i + 2) / 6) * Math.PI * 2;
+      s.lineBetween(
+        Math.cos(a) * radius,
+        Math.sin(a) * radius,
+        Math.cos(b) * radius,
+        Math.sin(b) * radius,
+      );
+    }
+    s.setScale(0.3, 0.1).setAlpha(0);
+    tw.add({
+      targets: s,
+      scaleX: 1,
+      scaleY: 0.34,
+      alpha: 0.95,
+      delay,
+      duration: fx * 0.2,
+      ease: 'Back.easeOut',
+    });
+    tw.add({ targets: s, angle: 160, delay, duration: fx * 0.9 });
+    tw.add({ targets: s, alpha: 0, delay: delay + fx * 0.6, duration: fx * 0.3 });
+  };
+
+  /** 一道弧形的爪痕（三條平行的斜線） */
+  const claw = (p: ShowPoint, angle: number, color: number, delay: number): void => {
+    for (let i = -1; i <= 1; i++) {
+      const ox = Math.cos(angle + Math.PI / 2) * i * p.r * 0.45;
+      const oy = Math.sin(angle + Math.PI / 2) * i * p.r * 0.45;
+      const len = p.r * (i === 0 ? 4.4 : 3.6);
+      const s = keep(
+        scene.add
+          .rectangle(p.x + ox, p.y + oy, len, i === 0 ? 7 : 5, i === 0 ? 0xffffff : color, 1)
+          .setRotation(angle)
+          .setDepth(fxDepth)
+          .setScale(0, 1)
+          .setAlpha(0),
+      );
+      tw.add({
+        targets: s,
+        scaleX: 1,
+        alpha: 1,
+        delay: delay + (i + 1) * fx * 0.02,
+        duration: fx * 0.1,
+        ease: 'Cubic.easeOut',
+      });
+      tw.add({ targets: s, scaleY: 0.1, alpha: 0, delay: delay + fx * 0.18, duration: fx * 0.3 });
+    }
+  };
+
+  /** 從天上掉下來砸在目標上的東西（箭、星星） */
+  const drop = (p: ShowPoint, mark: string, color: string, delay: number, n: number): void => {
+    const count = rich ? n : Math.ceil(n / 2);
+    for (let i = 0; i < count; i++) {
+      const ox = (i - (count - 1) / 2) * p.r * 0.7;
+      const s = keep(
+        addText(scene, p.x + ox - dir * 60, top - 20, mark, Math.max(18, p.r * 0.8), color, true)
+          .setOrigin(0.5)
+          .setStroke('#3b2a1a', 4)
+          .setDepth(fxDepth)
+          .setAlpha(0),
+      );
+      tw.add({
+        targets: s,
+        x: p.x + ox,
+        y: p.y,
+        alpha: { from: 1, to: 1 },
+        delay: delay + i * fx * 0.05,
+        duration: fx * 0.2,
+        ease: 'Quad.easeIn',
+      });
+      tw.add({
+        targets: s,
+        alpha: 0,
+        scale: 1.6,
+        delay: delay + i * fx * 0.05 + fx * 0.2,
+        duration: fx * 0.15,
+      });
+    }
+  };
+
+  /** 施放者出招前的蓄力：光往身上收 */
+  const charge = (color: number): void => {
+    const p = o.caster;
+    for (let i = 0; i < (rich ? 3 : 1); i++) {
+      const s = keep(scene.add.graphics().setDepth(fxDepth).setPosition(p.x, p.y));
+      s.lineStyle(4, color, 1);
+      s.strokeCircle(0, 0, p.r * 2.6);
+      s.setAlpha(0);
+      tw.add({
+        targets: s,
+        scale: { from: 1, to: 0.25 },
+        alpha: { from: 0.9, to: 0 },
+        delay: c * (0.5 + i * 0.12),
+        duration: c * 0.3,
+        ease: 'Cubic.easeIn',
+      });
+    }
+  };
+
+  /** 打下去那一瞬間整個畫面閃一下顏色 */
+  const impact = (color: number, delay: number): void => {
+    const s = keep(
+      scene.add
+        .rectangle(0, top, w, h - top, color, 1)
+        .setOrigin(0, 0)
+        .setDepth(fxDepth - 1)
+        .setAlpha(0),
+    );
+    tw.add({ targets: s, alpha: { from: 0.45, to: 0 }, delay, duration: fx * 0.3 });
+  };
+
   let shake = 0;
   const t = o.target;
+  const hitAt = c + fx * 0.12;
   switch (o.kind) {
     case 'pierce': {
+      // 突擊：蓄力 → 殘影衝過去 → 三道光貫穿 → 每個被穿過的敵人炸開
       const angle = Math.atan2(t.y - o.caster.y, t.x - o.caster.x);
-      beam(o.caster, angle, w + h, 16, 0xfff2a8, c);
-      beam(o.caster, angle, w + h, 5, 0xffffff, c);
-      burst(t, t.r * 1.9, GOLD, c + fx * 0.1);
-      shake = 0.009;
+      charge(0xfff2a8);
+      for (let i = 0; i < (rich ? 4 : 2); i++) {
+        const ghost = keep(
+          scene.add
+            .circle(o.caster.x, o.caster.y, o.caster.r * 0.9, o.caster.color, 0.5)
+            .setDepth(fxDepth)
+            .setAlpha(0),
+        );
+        tw.add({
+          targets: ghost,
+          x: t.x,
+          y: t.y,
+          alpha: { from: 0.6, to: 0 },
+          delay: c + i * fx * 0.03,
+          duration: fx * 0.16,
+          ease: 'Cubic.easeIn',
+        });
+      }
+      beam(o.caster, angle, w + h, 26, 0xffd75e, c + fx * 0.04);
+      beam(o.caster, angle, w + h, 12, 0xfff2a8, c + fx * 0.06);
+      beam(o.caster, angle, w + h, 4, 0xffffff, c + fx * 0.06);
+      o.foes.forEach((p, i) => {
+        const near = Math.abs(Math.atan2(p.y - o.caster.y, p.x - o.caster.x) - angle) < 0.35;
+        if (p !== t && !near) return;
+        burst(p, p.r * (p === t ? 2.1 : 1.5), GOLD, hitAt + i * fx * 0.03);
+        sparks(p, 10, p.r * 3.2, 0xffd75e, hitAt + i * fx * 0.03);
+      });
+      if (!o.foes.includes(t)) burst(t, t.r * 2.1, GOLD, hitAt);
+      claw(t, angle + 0.5, 0xfff2a8, hitAt + fx * 0.05);
+      impact(0xfff2a8, hitAt);
+      shake = 0.012;
       break;
     }
     case 'row': {
+      // 謀略／頭目：敵方腳下浮出法陣 → 箭雨落下 → 光柱與衝擊波
+      const purple = o.side === 'team' ? 0xb99cff : 0xff8a5c;
+      const arrow = o.side === 'team' ? '➴' : '☄';
       o.foes.forEach((p, i) => {
-        const delay = c + i * fx * 0.09;
-        beam({ x: p.x, y: top }, Math.PI / 2, p.y - top, 9, 0xd9c8ff, delay);
-        burst(p, p.r * (p === t ? 1.9 : 1.2), 0xb99cff, delay + fx * 0.12);
+        const delay = c + i * fx * 0.06;
+        glyph(p, p.r * 1.8, purple, c - c * 0.12);
+        drop(p, arrow, o.side === 'team' ? '#e6dcff' : '#ffd0b8', delay, 3);
+        pillar(p, purple, delay + fx * 0.2);
+        burst(p, p.r * (p === t ? 1.9 : 1.3), purple, delay + fx * 0.22);
+        shock(p, p.r * 2.4, purple, delay + fx * 0.22);
+        sparks(p, 8, p.r * 2.6, purple, delay + fx * 0.22);
       });
-      if (!o.foes.includes(t)) burst(t, t.r * 1.9, 0xb99cff, c + fx * 0.12);
-      shake = 0.007;
+      if (!o.foes.includes(t)) burst(t, t.r * 1.9, purple, hitAt);
+      impact(purple, c + fx * 0.22);
+      shake = 0.01;
       break;
     }
     case 'heal': {
+      // 補血：每個隊友腳下綠色法陣、柔和的光柱、愛心與十字往上飄
       for (const p of o.allies) {
-        ring(p, p.r * 1.7, HEAL, c);
-        rise(p, 'plus', HEAL, c + fx * 0.05);
+        glyph(p, p.r * 1.6, HEAL, c - c * 0.1);
+        pillar(p, HEAL, c);
+        ring(p, p.r * 1.7, HEAL, c + fx * 0.05);
+        rise(p, 'plus', HEAL, c + fx * 0.08);
+        if (rich) {
+          const heart = keep(
+            addText(scene, p.x, p.y - p.r * 0.4, '♥', Math.max(16, p.r * 0.7), '#ff9bb5', true)
+              .setOrigin(0.5)
+              .setStroke('#ffffff', 3)
+              .setDepth(fxDepth)
+              .setAlpha(0),
+          );
+          tw.add({
+            targets: heart,
+            y: p.y - p.r * 2.4,
+            alpha: { from: 1, to: 0 },
+            scale: { from: 0.6, to: 1.3 },
+            delay: c + fx * 0.15,
+            duration: fx * 0.6,
+            ease: 'Quad.easeOut',
+          });
+        }
       }
+      impact(HEAL, c);
       break;
     }
     case 'buff': {
+      // 守護／補給：施放者一圈圈氣勢往外擴，隊友腳下金色法陣、光柱與上升的箭頭
+      charge(GOLD);
       ring(o.caster, o.caster.r * 3.2, GOLD, c);
+      ring(o.caster, o.caster.r * 5, 0xffffff, c + fx * 0.08);
+      shock(o.caster, o.caster.r * 4.5, GOLD, c);
+      sparks(o.caster, 12, o.caster.r * 4, GOLD, c);
       for (const p of o.allies) {
-        ring(p, p.r * 1.5, GOLD, c + fx * 0.1);
-        rise(p, 'arrow', GOLD, c + fx * 0.1);
+        glyph(p, p.r * 1.5, GOLD, c + fx * 0.05);
+        if (rich) pillar(p, GOLD, c + fx * 0.1);
+        ring(p, p.r * 1.5, GOLD, c + fx * 0.12);
+        rise(p, 'arrow', GOLD, c + fx * 0.12);
       }
+      impact(GOLD, c);
+      shake = 0.005;
       break;
     }
     default: {
-      beam({ x: t.x - t.r * 2, y: t.y - t.r * 1.4 }, 0.6, t.r * 4.6, 6, 0xffffff, c);
-      beam(
-        { x: t.x + t.r * 2, y: t.y - t.r * 1.4 },
-        Math.PI - 0.6,
-        t.r * 4.6,
-        6,
-        0xffffff,
-        c + fx * 0.08,
-      );
-      burst(t, t.r * 2.2, o.side === 'team' ? GOLD : 0xff8a5c, c + fx * 0.1);
-      shake = 0.009;
+      // 幸運（連打）：星星從天上砸下來，交叉的爪痕，火花四濺
+      const color = o.side === 'team' ? GOLD : 0xff8a5c;
+      drop(t, '★', o.side === 'team' ? '#ffd75e' : '#ff8a5c', c - fx * 0.05, 4);
+      claw(t, 0.7, color, hitAt);
+      claw(t, Math.PI - 0.7, color, hitAt + fx * 0.08);
+      claw(t, Math.PI / 2, color, hitAt + fx * 0.16);
+      burst(t, t.r * 2.2, color, hitAt + fx * 0.05);
+      ring(t, t.r * 2.6, 0xffffff, hitAt + fx * 0.08);
+      sparks(t, 14, t.r * 3.6, color, hitAt + fx * 0.05);
+      impact(color, hitAt);
+      shake = 0.011;
     }
   }
   if (shake > 0) {
