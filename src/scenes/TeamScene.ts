@@ -61,6 +61,7 @@ export class TeamScene extends Phaser.Scene {
         this.picker.render();
       },
       onCellTap: (dog) => this.openPanel(dog),
+      onCellHold: (dog) => this.openPanel(dog),
       onAuto: () => {
         setState(autoFillTeam(getState()));
         this.picker.render();
@@ -89,6 +90,7 @@ export class TeamScene extends Phaser.Scene {
         panel: this.panelDogId,
         panelStats: this.panel?.stats ?? null,
         panelButtons: this.panel?.buttons ?? null,
+        panelSkills: this.panel?.skills ?? null,
         lobbyDogId: st.lobbyDogId,
       },
     });

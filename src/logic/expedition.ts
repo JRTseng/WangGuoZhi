@@ -19,6 +19,7 @@ import {
 import { addGear, dropNote, grantExclusives, rollDrop } from './equipment';
 import { exclusiveGearOf, findGear } from '../data/equipment';
 import { battleRoleOf, teamCells } from './formation';
+import { newSkills, perkText, perksOf } from './levelSkills';
 import {
   addExp,
   dogStats,
@@ -81,6 +82,7 @@ export function battleDogOf(
   if (!d) return undefined;
   const s = dogStats(state, d);
   const role = battleRoleOf(d.role);
+  const perks = perksOf(role, s.level);
   return {
     id: d.id,
     name: d.name,
@@ -94,6 +96,7 @@ export function battleDogOf(
     ...(d.rarity ? { rarity: d.rarity } : {}),
     ...(d.afterHeal ? { afterHeal: true } : {}),
     ...(d.trait ? { trait: d.trait } : {}),
+    ...(perks ? { perks } : {}),
   };
 }
 
@@ -403,6 +406,14 @@ export function resultNotes(
   if (drop) notes.push(dropNote(drop));
   if (record.dropSnack) {
     notes.push(`獲得零食 ${snackLabel(record.dropSnack.id, record.dropSnack.amount)}（訓練場餵）`);
+  }
+  // 成長技能：這一仗升過 10 級的門檻就學會新的
+  for (const g of record.gains) {
+    const d = findDog(g.dogId);
+    if (!d) continue;
+    for (const sk of newSkills(battleRoleOf(d.role), g.fromLevel, g.toLevel)) {
+      notes.push(`${d.name} 學會技能「${sk.name}」（${perkText(sk.perks)}）`);
+    }
   }
   const gift = record.newDogId ? findDog(record.newDogId) : undefined;
   if (gift) {

@@ -67,6 +67,8 @@ export interface DogPickerOptions {
   };
   onSlotTap: (dogId: string) => void;
   onCellTap: (dog: DogData) => void;
+  /** 按住狗狗圖示不動（九宮格上的或卡片格裡的）：打開素質與技能頁面 */
+  onCellHold?: (dog: DogData) => void;
   onAuto: () => void;
   /**
    * 把一隻狗拖到九宮格的某一格（2026-11-14）：隊伍裡的狗是換位置，卡片格的狗是上陣。
@@ -90,6 +92,8 @@ export interface PickerCellInfo extends Rect {
 
 /** 卡片格的狗按住這麼久（毫秒）沒滑動就拿起來，可以拖到九宮格 */
 const HOLD_MS = 260;
+/** 按住不動這麼久（毫秒）就打開素質與技能頁面；比拿起來久，拿起來之後有拖動就不會開 */
+export const INFO_HOLD_MS = 650;
 /** 九宮格上的狗、或卡片格橫著滑超過這個距離就拿起來 */
 const LIFT_DISTANCE = 10;
 
@@ -120,6 +124,8 @@ export class DogPicker {
   /** 這次按下去按到哪隻狗（九宮格上的或卡片格裡的），還沒拿起來 */
   private press: { id: string; from: 'board' | 'roster'; x: number; y: number } | null = null;
   private holdTimer: number | null = null;
+  /** 長按看資料：按下去的位置與計時器（真實時間） */
+  private infoHold: { id: string; x: number; y: number; timer: number } | null = null;
   /** 拿在手上拖著的狗 */
   private lift: {
     id: string;
@@ -149,6 +155,13 @@ export class DogPicker {
     });
     input.on('pointermove', (p: Phaser.Input.Pointer) => {
       if (!p.isDown) return;
+      // 手指動了就不算長按看資料
+      if (
+        this.infoHold &&
+        Math.hypot(p.x - this.infoHold.x, p.y - this.infoHold.y) >= LIFT_DISTANCE
+      ) {
+        this.cancelInfoHold();
+      }
       if (this.lift) {
         this.lift.ghost.setPosition(p.x, p.y);
         return;
@@ -172,6 +185,7 @@ export class DogPicker {
     });
     input.on('pointerup', (p: Phaser.Input.Pointer) => {
       this.dragFrom = null;
+      this.cancelInfoHold();
       if (this.lift) this.drop(p);
       else if (this.press?.from === 'board' && !this.dragged && !this.o.locked?.()) {
         // 點一下九宮格上的狗：移出隊伍
@@ -536,12 +550,15 @@ export class DogPicker {
     const cell = this.boardCellAt(p);
     if (cell?.id) {
       this.press = { id: cell.id, from: 'board', x: p.x, y: p.y };
+      this.startInfoHold(cell.id, p);
       return;
     }
     if (!this.inGrid(p)) return;
     const card = this.cells.find(
       (c) => p.x >= c.x && p.x <= c.x + c.width && p.y >= c.y && p.y <= c.y + c.height,
     );
+    // 沒擁有、寄宿中的不能拿，但一樣可以長按看資料
+    if (card) this.startInfoHold(card.id, p);
     // 沒擁有、寄宿中的不能拿
     if (!card || !card.owned || card.busy) return;
     this.press = { id: card.id, from: 'roster', x: p.x, y: p.y };
@@ -551,6 +568,34 @@ export class DogPicker {
       if (!this.scene.sys.isActive()) return;
       if (this.press && !this.dragged && !this.lift) this.startLift(this.scene.input.activePointer);
     }, HOLD_MS);
+  }
+
+  private startInfoHold(id: string, p: Phaser.Input.Pointer): void {
+    this.cancelInfoHold();
+    if (!this.o.onCellHold) return;
+    const timer = window.setTimeout(() => {
+      this.infoHold = null;
+      if (!this.scene.sys.isActive() || this.o.locked?.()) return;
+      const d = findDog(id);
+      if (!d) return;
+      // 已經拿起來但沒拖動：放回去，不算上陣也不算移出
+      if (this.lift) {
+        this.lift.ghost.destroy();
+        this.lift = null;
+      }
+      this.cancelPress();
+      // 接下來放開手指不算點擊
+      this.dragged = true;
+      this.dragFrom = null;
+      this.render();
+      this.o.onCellHold?.(d);
+    }, INFO_HOLD_MS);
+    this.infoHold = { id, x: p.x, y: p.y, timer };
+  }
+
+  private cancelInfoHold(): void {
+    if (this.infoHold) window.clearTimeout(this.infoHold.timer);
+    this.infoHold = null;
   }
 
   private cancelPress(): void {

@@ -35,6 +35,18 @@ export async function drag(page: Page, from: R, to: R, hold = 0) {
   await page.mouse.up();
 }
 
+/** 按住遊戲座標中某個矩形的中心不動 ms 毫秒再放開（長按） */
+export async function hold(page: Page, r: R, ms: number) {
+  const box = await page.locator('canvas').boundingBox();
+  if (!box) throw new Error('找不到 canvas');
+  const gw = await page.evaluate(() => window.__WGZ__?.size?.width ?? 390);
+  const s = box.width / gw;
+  await page.mouse.move(box.x + (r.x + r.width / 2) * s, box.y + (r.y + r.height / 2) * s);
+  await page.mouse.down();
+  await page.waitForTimeout(ms);
+  await page.mouse.up();
+}
+
 export async function waitScene(page: Page, scene: string) {
   await page.waitForFunction((s) => window.__WGZ__?.scene === s, scene);
 }

@@ -325,7 +325,9 @@ interface WgzDebugState {
       power: number;
       star: number;
     } | null;
-    panelButtons: { team?: WgzRect; lobby?: WgzRect; gear?: WgzRect } | null;
+    panelButtons: { team?: WgzRect; lobby?: WgzRect; gear?: WgzRect; close?: WgzRect } | null;
+    /** 資料面板上的成長技能：學會幾個、一共幾個 */
+    panelSkills?: { learned: number; total: number } | null;
     lobbyDogId: string;
   };
 
@@ -388,6 +390,8 @@ interface WgzDebugState {
     runsLeft: number;
     /** 選隊伍畫面顯示的勝率（0～1，模擬出來的） */
     winChance?: number;
+    /** 長按狗狗圖示打開的素質與技能頁面 */
+    info?: { dogId: string; learned: number; total: number; close: WgzRect | null } | null;
   };
 
   /** 劇情 */

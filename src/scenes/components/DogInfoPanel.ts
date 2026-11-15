@@ -1,7 +1,9 @@
 import Phaser from 'phaser';
 import { COLORS, rarityHex } from '../../config';
 import type { DogData } from '../../data/dogs';
+import { battleRoleOf } from '../../logic/formation';
 import type { Rect } from '../../logic/layout';
+import { levelSkillsOf, perkText } from '../../logic/levelSkills';
 import type { DogStats } from '../../logic/leveling';
 import { MAX_LEVEL } from '../../logic/leveling';
 import { addText, openModal, viewOf } from '../ui';
@@ -20,29 +22,44 @@ export interface DogInfoOptions {
   isLobby: boolean;
   /** 頭像的外觀（T014）：頭飾與受傷 */
   look?: Pick<HeadOptions, 'gear' | 'hurt'>;
-  onToggleTeam: () => void;
-  onSetLobby: () => void;
+  /** 加入／移出隊伍、設為主頁角色；沒給就只看資料（出征選隊伍時長按打開的） */
+  onToggleTeam?: () => void;
+  onSetLobby?: () => void;
   /** 去倉庫幫這隻狗換裝備（T014）；沒給就不顯示按鈕 */
   onGear?: () => void;
   onClose: () => void;
 }
 
 /**
- * 角色資訊面板：頭像、數值、技能。
+ * 角色資訊面板（素質與技能頁面）：頭像、數值、大絕招，右邊是每 10 級學一個的成長技能。
+ * 組隊編排點卡片、或組隊與出征選隊伍時長按狗狗圖示打開。
  * 擁有的狗：下方有「加入／移出隊伍」「設為主頁角色」。
  * 沒擁有的狗：暗色頭像 + 「尚未擁有」。點遮罩關閉。
  */
 export class DogInfoPanel {
   readonly layer: Phaser.GameObjects.Container;
-  readonly buttons: { team?: Rect; lobby?: Rect; gear?: Rect } = {};
+  readonly buttons: { team?: Rect; lobby?: Rect; gear?: Rect; close?: Rect } = {};
   readonly stats: { level: number; exp: number; expNeed: number; power: number; star: number };
+  /** 成長技能：學會幾個、一共幾個 */
+  readonly skills: { learned: number; total: number } = { learned: 0, total: 0 };
+  /** 按著打開的時候，要等手指放開、再按下去之後，點遮罩才會關（不然一放手就關掉） */
+  private armed: boolean;
+  private readonly arm = (): void => {
+    this.armed = true;
+  };
+  private readonly scene: Phaser.Scene;
 
   constructor(scene: Phaser.Scene, dog: DogData, o: DogInfoOptions) {
     const { landscape } = viewOf(scene);
+    this.scene = scene;
+    this.armed = !scene.input.activePointer.isDown;
+    scene.input.on('pointerdown', this.arm);
     const { layer, box } = openModal(
       scene,
-      landscape ? { width: 560, height: 340 } : { width: 350, height: 470 },
-      o.onClose,
+      landscape ? { width: 790, height: 366 } : { width: 350, height: 470 },
+      () => {
+        if (this.armed) o.onClose();
+      },
       o.owned ? (dog.color === 0xf7f4ee ? COLORS.cardBorder : dog.color) : 0x6b5a4a,
     );
     this.layer = layer;
@@ -63,8 +80,10 @@ export class DogInfoPanel {
       );
     }
 
+    // 橫式分兩欄：左邊素質，右邊成長技能
+    const leftW = landscape ? 372 : box.width - 48;
     const tx = hx + hr + 20;
-    const textW = box.x + box.width - tx - 16;
+    const textW = box.x + 24 + leftW - tx;
     layer.add(
       addText(
         scene,
@@ -108,7 +127,7 @@ export class DogInfoPanel {
       ]);
     }
     const left = box.x + 24;
-    const wrap = box.width - 48;
+    const wrap = leftW;
     let y = box.y + 140;
     const line = (s: string, size: number, color: string = COLORS.ink, bold = false, gap = 30) => {
       const t = addText(scene, left, y, s, size, color, bold).setWordWrapWidth(wrap, true);
@@ -121,10 +140,61 @@ export class DogInfoPanel {
         (s.gearAttack + s.gearDefense > 0 ? `（裝備 +${s.gearAttack + s.gearDefense}）` : ''),
       16,
     );
-    line(`技能「${dog.skill.name}」：${dog.skill.description}`, 16, '#b5651d', true, 40);
+    line(`大絕招「${dog.skill.name}」：${dog.skill.description}`, 14, '#b5651d', true, 40);
+
+    if (landscape) {
+      // 成長技能：每 10 級學一個，學會的亮起來
+      const list = levelSkillsOf(battleRoleOf(dog.role));
+      const learned = o.owned ? list.filter((k) => k.level <= s.level).length : 0;
+      this.skills.learned = learned;
+      this.skills.total = list.length;
+      const sx = box.x + 24 + leftW + 20;
+      const g = scene.add.graphics();
+      g.lineStyle(1, COLORS.cardBorder, 0.7);
+      g.lineBetween(sx - 10, box.y + 22, sx - 10, box.y + box.height - 78);
+      layer.add(g);
+      layer.add(
+        addText(
+          scene,
+          sx,
+          box.y + 20,
+          `成長技能 ${learned}/${list.length}（每 10 級學一個）`,
+          15,
+          COLORS.ink,
+          true,
+        ),
+      );
+      list.forEach((k, i) => {
+        const got = o.owned && k.level <= s.level;
+        // 超過目前等級上限的要先升星
+        const needStar = o.owned && !got && k.level > s.levelCap;
+        layer.add(
+          addText(
+            scene,
+            sx,
+            box.y + 46 + i * 23.5,
+            `${got ? '✓' : '・'}Lv.${k.level} ${k.name}：${perkText(k.perks)}${needStar ? '（要升星）' : ''}`,
+            12,
+            got ? '#2f7d32' : needStar ? '#b9a48c' : COLORS.inkSoft,
+            got,
+          ),
+        );
+      });
+    }
 
     const by = box.y + box.height - 64;
-    if (o.owned) {
+    if (o.owned && !(o.onToggleTeam && o.onSetLobby)) {
+      // 只看資料：一顆關閉
+      this.buttons.close = this.button(
+        scene,
+        { x: box.x + box.width / 2 - 110, y: by, width: 220, height: 48 },
+        '關閉',
+        0x8a6f55,
+        o.onClose,
+      );
+    } else if (o.owned) {
+      const onToggleTeam = o.onToggleTeam!;
+      const onSetLobby = o.onSetLobby!;
       const n = o.onGear ? 3 : 2;
       const bw = (box.width - 48 - 12 * (n - 1)) / n;
       const blocked = o.boarding ? '寄宿中' : o.teamFull ? '隊伍已滿' : null;
@@ -135,14 +205,14 @@ export class DogInfoPanel {
         { x: left, y: by, width: bw, height: 48 },
         teamLabel,
         teamColor,
-        o.onToggleTeam,
+        onToggleTeam,
       );
       this.buttons.lobby = this.button(
         scene,
         { x: left + bw + 12, y: by, width: bw, height: 48 },
         o.isLobby ? '主頁角色 ✓' : '設為主頁角色',
         o.isLobby ? COLORS.buttonDisabled : COLORS.harvest,
-        o.onSetLobby,
+        onSetLobby,
       );
       if (o.onGear) {
         this.buttons.gear = this.button(
@@ -189,6 +259,7 @@ export class DogInfoPanel {
   }
 
   destroy(): void {
+    this.scene.input.off('pointerdown', this.arm);
     this.layer.destroy();
   }
 }

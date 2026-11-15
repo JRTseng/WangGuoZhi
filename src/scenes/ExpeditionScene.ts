@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import { COLORS, FONT_FAMILY } from '../config';
-import { DOGS } from '../data/dogs';
+import { DOGS, type DogData } from '../data/dogs';
 import { findStage, type StageData } from '../data/regions';
 import { battleSeedFromSearch } from '../logic/battle';
 import {
@@ -17,6 +17,7 @@ import { formatCountdown } from '../logic/format';
 import { autoTeam } from '../logic/dogFilter';
 import type { Rect } from '../logic/layout';
 import { SIDE_WIDTH } from '../logic/pickerLayout';
+import { dogStats } from '../logic/leveling';
 import { newStoriesAfter } from '../logic/progress';
 import {
   STAMINA_MAX,
@@ -31,7 +32,9 @@ import { dogContext, dogPower, placeDog, teamPower } from '../logic/team';
 import { presetSizes, switchTeam } from '../logic/teams';
 import { getState, setState, tick, timeOptions } from '../state/store';
 import { Button } from './components/Button';
+import { DogInfoPanel } from './components/DogInfoPanel';
 import { DogPicker } from './components/DogPicker';
+import { headLook } from './components/headLook';
 import { autoNextOption, nextLabel, planNext, startNext } from './components/nextStage';
 import { ResultPanel } from './components/ResultPanel';
 import { StaminaShop, type ShopKind } from './components/StaminaShop';
@@ -76,6 +79,8 @@ export class ExpeditionScene extends Phaser.Scene {
   private blockKey = '';
   private shop: StaminaShop | null = null;
   private result: ResultPanel | null = null;
+  /** 長按狗狗圖示打開的素質與技能頁面 */
+  private info: { panel: DogInfoPanel; dogId: string } | null = null;
   /** 勝率是模擬出來的，隊伍與陣型沒變就不重算 */
   private chanceKey = '';
   private chance = 0;
@@ -94,6 +99,7 @@ export class ExpeditionScene extends Phaser.Scene {
     this.selected = this.fit(st.team.filter((id) => st.owned.includes(id) && !busy.has(id)));
     this.shop = null;
     this.result = null;
+    this.info = null;
     this.chanceKey = '';
     this.confirmButton = null;
   }
@@ -155,6 +161,7 @@ export class ExpeditionScene extends Phaser.Scene {
       },
       onSlotTap: (id) => this.toggleDog(id),
       onCellTap: (dog) => this.toggleDog(dog.id),
+      onCellHold: (dog) => this.openInfo(dog),
       onAuto: () => {
         const st = getState();
         const team = autoTeam(DOGS, dogContext(st), this.max);
@@ -174,11 +181,33 @@ export class ExpeditionScene extends Phaser.Scene {
         }
         return r.error;
       },
-      locked: () => !!(this.shop || this.result),
+      locked: () => !!(this.shop || this.result || this.info),
       onUpdate: () => this.publish(),
     });
     this.render();
     this.time.addEvent({ delay: REFRESH_MS, loop: true, callback: () => this.refresh() });
+  }
+
+  /** 長按狗狗圖示：只看素質與技能，不改隊伍 */
+  private openInfo(d: DogData): void {
+    if (this.info || this.shop || this.result) return;
+    const st = getState();
+    const close = (): void => {
+      this.info?.panel.destroy();
+      this.info = null;
+      this.publish();
+    };
+    const panel = new DogInfoPanel(this, d, {
+      stats: dogStats(st, d),
+      owned: st.owned.includes(d.id),
+      inTeam: this.selected.includes(d.id),
+      teamFull: this.selected.length >= this.max,
+      isLobby: st.lobbyDogId === d.id,
+      look: headLook(st, d.id),
+      onClose: close,
+    });
+    this.info = { panel, dogId: d.id };
+    this.publish();
   }
 
   /** 超過這一關上陣上限的隊伍：留戰力最高的幾隻，順序不變 */
@@ -320,6 +349,13 @@ export class ExpeditionScene extends Phaser.Scene {
         buyButton: this.buyRect && this.buyKind ? { kind: this.buyKind, ...this.buyRect } : null,
         runsLeft: runsLeft(getState(), this.stage!.id, Date.now(), timeOptions()),
         winChance: this.chance,
+        info: this.info
+          ? {
+              dogId: this.info.dogId,
+              ...this.info.panel.skills,
+              close: this.info.panel.buttons.close ?? null,
+            }
+          : null,
       },
       stamina: { value: getState().stamina.value, max: STAMINA_MAX },
       resources: { ...getState().resources },
