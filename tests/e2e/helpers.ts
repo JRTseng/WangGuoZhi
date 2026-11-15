@@ -18,7 +18,10 @@ export async function tap(page: Page, r: R, fx = 0.5, fy = 0.5) {
   await page.mouse.click(box.x + (r.x + r.width * fx) * s, box.y + (r.y + r.height * fy) * s);
 }
 
-/** 從一個矩形的中心按住（hold 毫秒，長按用），拖到另一個矩形的中心放開 */
+/**
+ * 從一個矩形的中心按住，拖到另一個矩形的中心放開。
+ * hold > 0 是長按拿起：狗一被拿起來就拖，最多等 hold 毫秒（按太久不動會變成看資料）
+ */
 export async function drag(page: Page, from: R, to: R, hold = 0) {
   const box = await page.locator('canvas').boundingBox();
   if (!box) throw new Error('找不到 canvas');
@@ -29,7 +32,11 @@ export async function drag(page: Page, from: R, to: R, hold = 0) {
   const [x2, y2] = at(to);
   await page.mouse.move(x1, y1);
   await page.mouse.down();
-  if (hold > 0) await page.waitForTimeout(hold);
+  if (hold > 0) {
+    await page
+      .waitForFunction(() => !!window.__WGZ__?.picker?.lifting, null, { timeout: hold })
+      .catch(() => undefined);
+  }
   await page.mouse.move((x1 + x2) / 2, (y1 + y2) / 2, { steps: 6 });
   await page.mouse.move(x2, y2, { steps: 6 });
   await page.mouse.up();

@@ -92,6 +92,11 @@ test('組隊畫面：3×3 九宮格，拖曳換位置、對調、從清單拖上
   await drag(page, await card(page, 'tieya'), await cellAt(page, 1, 0), HOLD);
   await page.waitForTimeout(150);
   expect((await cellAt(page, 1, 0)).id).toBeNull();
+  // 機器慢的時候這一下會按得夠久、變成長按看資料（沒擁有的狗也能看），關掉再繼續
+  if ((await wgz(page)).team!.panel) {
+    await page.mouse.click(8, 8);
+    await page.waitForFunction(() => window.__WGZ__?.team?.panel === null);
+  }
   // （沒拿起來的話直著滑就是捲動清單，捲回最上面）
   const g = (await wgz(page)).picker!.grid;
   await page.mouse.move(g.x + g.width / 2, g.y + g.height / 2);

@@ -93,9 +93,11 @@ export interface PickerCellInfo extends Rect {
 /** 卡片格的狗按住這麼久（毫秒）沒滑動就拿起來，可以拖到九宮格 */
 const HOLD_MS = 260;
 /** 按住不動這麼久（毫秒）就打開素質與技能頁面；比拿起來久，拿起來之後有拖動就不會開 */
-export const INFO_HOLD_MS = 650;
+export const INFO_HOLD_MS = 800;
 /** 按住之後手指動超過這個距離就不算長按看資料（比拿起來的距離小，慢慢拖也不會誤開） */
 const INFO_MOVE_CANCEL = 6;
+/** 長按至少要經過的畫面格數（正常 60fps 約 0.25 秒，比 INFO_HOLD_MS 短，只在畫面很卡時有差） */
+const INFO_MIN_FRAMES = 15;
 /** 九宮格上的狗、或卡片格橫著滑超過這個距離就拿起來 */
 const LIFT_DISTANCE = 10;
 
@@ -575,9 +577,16 @@ export class DogPicker {
   private startInfoHold(id: string, p: Phaser.Input.Pointer): void {
     this.cancelInfoHold();
     if (!this.o.onCellHold) return;
-    const timer = window.setTimeout(() => {
+    const startFrame = this.scene.game.loop.frame;
+    const fire = (): void => {
+      if (this.infoHold?.id !== id || !this.scene.sys.isActive()) return;
+      // 畫面很卡的時候手指的移動會晚到：至少等畫面跑過幾格，確定真的沒有拖動才算長按
+      if (this.scene.game.loop.frame - startFrame < INFO_MIN_FRAMES) {
+        this.scene.events.once('update', fire);
+        return;
+      }
       this.infoHold = null;
-      if (!this.scene.sys.isActive() || this.o.locked?.()) return;
+      if (this.o.locked?.()) return;
       const d = findDog(id);
       if (!d) return;
       // 已經拿起來但沒拖動：放回去，不算上陣也不算移出
@@ -591,7 +600,8 @@ export class DogPicker {
       this.dragFrom = null;
       this.render();
       this.o.onCellHold?.(d);
-    }, INFO_HOLD_MS);
+    };
+    const timer = window.setTimeout(fire, INFO_HOLD_MS);
     this.infoHold = { id, x: p.x, y: p.y, timer };
   }
 
