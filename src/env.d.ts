@@ -55,6 +55,40 @@ interface WgzDebugState {
       WgzRect
     >;
   };
+  /** 每日小遊戲「接飛盤」（T022） */
+  frisbee?: {
+    phase: 'intro' | 'play' | 'result';
+    /** 今天還有沒有獎勵可拿 */
+    ready: boolean;
+    dogId: string;
+    best: number;
+    total: number;
+    /** 今天的經驗獎勵範圍（一個都沒接到～全部接到） */
+    reward: { min: number; max: number };
+    /** 開始前的選狗格子與「開始」按鈕 */
+    cells: ({ id: string; selected: boolean } & WgzRect)[];
+    start: WgzRect;
+    field: WgzRect;
+    /** 這一場每個飛盤的落點（畫面 x）、第幾毫秒丟、飛多久 */
+    plan: { landX: number; at: number; flight: number }[];
+    /** 每個飛盤接到沒；還沒落地是 null */
+    outcomes: (boolean | null)[];
+    catches: number;
+    dogX: number;
+    /** 這一場過了幾毫秒 */
+    elapsed: number;
+    result: {
+      catches: number;
+      rewarded: boolean;
+      newBest: boolean;
+      exp: number;
+      fromLevel: number;
+      toLevel: number;
+      snack: { id: string; amount: number } | null;
+      again: WgzRect;
+      back: WgzRect;
+    } | null;
+  };
   /** 任務畫面（T011） */
   quest?: {
     tab: 'main' | 'daily' | 'feat';
@@ -133,6 +167,8 @@ interface WgzDebugState {
     } | null;
     /** 右上角進板凳寄宿的按鈕（T021）：幾隻在寄宿／幾個位子 */
     boardingButton: { count: number; slots: number } & WgzRect;
+    /** 寄宿左邊進每日小遊戲的按鈕（T022）：今天還有沒有獎勵可拿（有就亮紅點） */
+    minigameButton: { ready: boolean } & WgzRect;
     list: WgzRect;
     /** 目前的排序條件，以及說明列右邊的排序按鈕 */
     sort: 'rarity' | 'level' | 'power' | 'star' | 'role';
