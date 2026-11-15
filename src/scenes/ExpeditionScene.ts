@@ -416,7 +416,9 @@ export class ExpeditionScene extends Phaser.Scene {
         : undefined,
     );
     patchDebug({
-      nextAuto: this.result.autoRect ? { on: this.result.autoOn, ...this.result.autoRect } : null,
+      nextAuto: this.result.autoRect
+        ? { on: this.result.autoOn, seconds: this.result.autoSeconds, ...this.result.autoRect }
+        : null,
       nextButton:
         this.result.nextRect && plan ? { stageId: plan.stage.id, ...this.result.nextRect } : null,
       result: { ...record.reward, win: record.win, newDogId: record.newDogId },

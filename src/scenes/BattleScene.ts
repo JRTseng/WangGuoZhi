@@ -788,7 +788,9 @@ export class BattleScene extends Phaser.Scene {
         : undefined,
     );
     patchDebug({
-      nextAuto: panel.autoRect ? { on: panel.autoOn, ...panel.autoRect } : null,
+      nextAuto: panel.autoRect
+        ? { on: panel.autoOn, seconds: panel.autoSeconds, ...panel.autoRect }
+        : null,
       nextButton: panel.nextRect && plan ? { stageId: plan.stage.id, ...panel.nextRect } : null,
       result: { ...rec.reward, win: rec.win, newDogId: rec.newDogId },
       drop: rec.dropGearId ?? null,
