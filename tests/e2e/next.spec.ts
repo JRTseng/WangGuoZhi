@@ -121,7 +121,8 @@ test('勾「自動」：打贏後自己接著打下一關，取消勾選就停',
   // 畫面上有倒數：從 3 秒開始往下數
   await page.waitForFunction(() => window.__WGZ__?.nextAuto?.seconds === 3);
   await page.screenshot({ path: `${SHOTS}/next-auto.png` });
-  await page.waitForFunction(() => (window.__WGZ__?.nextAuto?.seconds ?? 9) <= 2);
+  // 截圖慢的時候倒數可能已經數完、換到下一個畫面（那時沒有倒數），所以沒有數字也算過
+  await page.waitForFunction(() => (window.__WGZ__?.nextAuto?.seconds ?? 0) <= 2);
   await waitScene(page, 'StoryScene');
   await tap(page, (await wgz(page)).story!.skip!);
   await page.waitForFunction(
