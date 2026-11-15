@@ -267,7 +267,16 @@ interface WgzDebugState {
     /** 大絕招演出（T017）：已經播了幾次／整場會播幾次，以及正在播的那一招（沒有為 null） */
     ults: number;
     ultTotal: number;
-    ult: { id: string; side: string; skill: string; line: string; kind: string } | null;
+    ult: {
+      id: string;
+      side: string;
+      skill: string;
+      line: string;
+      kind: string;
+      /** 字卡上那隻狗擺的專屬姿勢、身上畫了幾件裝備 */
+      pose: string;
+      gear: number;
+    } | null;
     /** EN 值滿是多少（100） */
     enMax: number;
     /** 自動放招有沒有打勾，以及那顆勾選框的位置 */

@@ -86,7 +86,15 @@ test('訓練場填台詞，戰鬥中放大絕招會喊招式名與台詞；勝�
 
   // 第一招是大耳（EN 集滿 100）：喊「結義」與剛填的台詞；語音掛點有收到提示
   b = await waitUlt(page, 1);
-  expect(b.ult).toEqual({ id: 'daer', side: 'team', skill: '結義', line: LINE, kind: 'buff' });
+  expect(b.ult).toEqual({
+    id: 'daer',
+    side: 'team',
+    skill: '結義',
+    line: LINE,
+    kind: 'buff',
+    pose: 'howl',
+    gear: 0,
+  });
   expect(b.voiceCue).toBe('daer.ultimate');
   expect(b.phase).toBe('playing');
   await page.screenshot({ path: 'artifacts/screenshots/landscape/ultimate-buff.png' });

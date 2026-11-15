@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { hold, openLobby, patchSave, tap, waitScene, wgz } from './helpers';
+import { holdUntil, openLobby, patchSave, tap, waitScene, wgz } from './helpers';
 
 const SHOTS = 'artifacts/screenshots/landscape';
 
@@ -16,8 +16,7 @@ test('成長技能：每 10 級學一個；組隊時長按狗狗圖示看素質�
 
   // 卡片格：長按打開，手放開不會馬上關掉，也不會把狗拿起來
   const card = (await wgz(page)).team!.dogs.find((d) => d.id === 'daer')!;
-  await hold(page, card, 900);
-  await page.waitForFunction(() => window.__WGZ__?.team?.panel === 'daer');
+  await holdUntil(page, card, () => window.__WGZ__?.team?.panel === 'daer');
   let t = (await wgz(page)).team!;
   expect(t.panelSkills).toEqual({ learned: 2, total: 10 });
   expect((await wgz(page)).picker!.lifting).toBeNull();
@@ -29,8 +28,7 @@ test('成長技能：每 10 級學一個；組隊時長按狗狗圖示看素質�
   // 九宮格上的狗：長按也是看資料，不會被移出隊伍
   const before = (await wgz(page)).picker!.slots.map((s) => s.id);
   const slot = (await wgz(page)).picker!.board.find((b) => b.id === 'daer')!;
-  await hold(page, slot, 900);
-  await page.waitForFunction(() => window.__WGZ__?.team?.panel === 'daer');
+  await holdUntil(page, slot, () => window.__WGZ__?.team?.panel === 'daer');
   await page.mouse.click(8, 8);
   await page.waitForFunction(() => window.__WGZ__?.team?.panel === null);
   expect((await wgz(page)).picker!.slots.map((s) => s.id)).toEqual(before);
@@ -52,12 +50,11 @@ test('成長技能：每 10 級學一個；組隊時長按狗狗圖示看素質�
   await waitScene(page, 'ExpeditionScene');
   const cards = (await wgz(page)).expeditionPanel!.teamCards;
   const picked = cards.filter((c) => c.selected).map((c) => c.id);
-  await hold(
+  await holdUntil(
     page,
     cards.find((c) => c.id === 'daer')!,
-    900,
+    () => window.__WGZ__?.expeditionPanel?.info?.dogId === 'daer',
   );
-  await page.waitForFunction(() => window.__WGZ__?.expeditionPanel?.info?.dogId === 'daer');
   expect((await wgz(page)).expeditionPanel!.info).toMatchObject({ learned: 2, total: 10 });
   await page.screenshot({ path: `${SHOTS}/dog-skills-expedition.png` });
   await tap(page, (await wgz(page)).expeditionPanel!.info!.close!);

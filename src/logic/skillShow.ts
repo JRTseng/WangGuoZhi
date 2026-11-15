@@ -46,8 +46,8 @@ export interface ShowCasters {
 
 // ---- 播放節奏 ----
 
-/** 1 倍速時一次大絕招演出播多久（毫秒） */
-export const ULT_BASE_MS = 1500;
+/** 1 倍速時一次大絕招演出播多久（毫秒）。2026-11-15 Jimmy：整體約 3 秒（原本 1.5 秒） */
+export const ULT_BASE_MS = 3000;
 /** 測試模式（?fast=1）一次大絕招播多久 */
 export const ULT_FAST_MS = 40;
 /** 演出裡「喊招字卡」佔的比例，剩下的是招式打出去的特效 */
@@ -56,8 +56,8 @@ export const ULT_CUTIN_RATIO = 0.62;
 /** 一次大絕招演出播多久（毫秒，已含倍速）。倍速只影響快慢，不影響結果。 */
 export function ultDelayMs(speed: number, pace: BattlePace = 'normal'): number {
   if (pace === 'fast') return ULT_FAST_MS;
-  // slow 是給自動測試用的節奏，大絕招放慢 2 倍就夠看清楚
-  const base = ULT_BASE_MS * (pace === 'slow' ? 2 : 1);
+  // slow 是給自動測試用的節奏，3 秒本來就夠看清楚，只再放慢一點
+  const base = ULT_BASE_MS * (pace === 'slow' ? 1.2 : 1);
   return Math.round(base / Math.min(4, Math.max(1, speed)));
 }
 

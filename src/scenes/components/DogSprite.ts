@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { COLORS, FONT_FAMILY } from '../../config';
 import type { GearData } from '../../data/equipment';
+import type { UltPose } from '../../logic/ultPose';
 import { drawDogHead, drawEyes } from './dogArt';
 import { drawBandage, drawBodyGear } from './gearArt';
 
@@ -255,10 +256,242 @@ export class DogSprite extends Phaser.GameObjects.Container {
     return this;
   }
 
+  /**
+   * 大絕招的專屬姿勢（見 src/logic/ultPose.ts）：ms 是整段擺姿勢的時間，
+   * 前面約四分之一是預備動作，後面是定格加一點小動作。lean 是這隻狗自己的傾斜角度。
+   */
+  ultPose(pose: UltPose, lean: number, ms: number): this {
+    this.reset();
+    const t = (cfg: Phaser.Types.Tweens.TweenBuilderConfig) =>
+      this.tweensRunning.push(this.scene.tweens.add(cfg));
+    const { rig, head, tail, shadow } = this;
+    const wind = Math.max(1, ms * 0.25);
+    const rest = Math.max(1, ms - wind);
+    const beat = Math.max(40, ms * 0.09);
+    rig.setAngle(lean * 0.4);
+    switch (pose) {
+      case 'pounce':
+        rig.setScale(1.08, 0.82).setX(-26);
+        t({
+          targets: rig,
+          scaleX: 1,
+          scaleY: 1,
+          x: 30,
+          y: -34,
+          angle: -18 + lean,
+          duration: wind,
+          ease: 'Back.easeOut',
+        });
+        t({
+          targets: rig,
+          y: -22,
+          duration: beat * 2,
+          delay: wind,
+          yoyo: true,
+          repeat: -1,
+          ease: 'Sine.easeInOut',
+        });
+        t({ targets: shadow, scaleX: 0.7, duration: wind });
+        tail.setAngle(25);
+        head.setAngle(10);
+        break;
+      case 'howl':
+        t({ targets: head, angle: -40 + lean, y: -104, duration: wind, ease: 'Back.easeOut' });
+        t({ targets: rig, scaleY: 1.06, duration: beat * 2, delay: wind, yoyo: true, repeat: -1 });
+        t({ targets: tail, angle: { from: -50, to: -30 }, duration: beat, yoyo: true, repeat: -1 });
+        break;
+      case 'rear':
+        t({
+          targets: rig,
+          angle: -40 + lean,
+          y: -10,
+          x: -10,
+          duration: wind,
+          ease: 'Back.easeOut',
+        });
+        t({ targets: head, angle: 24, duration: wind });
+        t({ targets: rig, y: -18, duration: beat * 1.5, delay: wind, yoyo: true, repeat: -1 });
+        tail.setAngle(-55);
+        break;
+      case 'crouch':
+        t({
+          targets: rig,
+          scaleX: 1.1,
+          scaleY: 0.76,
+          angle: 6 + lean,
+          duration: wind,
+          ease: 'Quad.easeOut',
+        });
+        t({ targets: head, y: -78, angle: 12, duration: wind });
+        t({
+          targets: rig,
+          x: { from: -3, to: 3 },
+          duration: Math.max(30, beat * 0.3),
+          delay: wind,
+          yoyo: true,
+          repeat: -1,
+        });
+        t({
+          targets: tail,
+          angle: { from: -45, to: 10 },
+          duration: beat * 0.8,
+          yoyo: true,
+          repeat: -1,
+        });
+        break;
+      case 'spin':
+        t({
+          targets: rig,
+          y: -44,
+          duration: ms * 0.3,
+          yoyo: true,
+          hold: ms * 0.2,
+          ease: 'Quad.easeOut',
+        });
+        t({ targets: rig, angle: -360 + lean, duration: ms * 0.6, ease: 'Cubic.easeOut' });
+        t({ targets: shadow, scaleX: 0.6, duration: ms * 0.3, yoyo: true, hold: ms * 0.2 });
+        t({ targets: tail, angle: 30, duration: beat, yoyo: true, repeat: -1 });
+        break;
+      case 'guard':
+        t({ targets: rig, scaleX: 1.14, scaleY: 1.1, duration: wind, ease: 'Back.easeOut' });
+        t({ targets: head, angle: -10 + lean, duration: wind });
+        t({
+          targets: rig,
+          y: -8,
+          duration: beat,
+          delay: wind,
+          yoyo: true,
+          repeat: 2,
+          repeatDelay: rest * 0.2,
+          ease: 'Quad.easeIn',
+        });
+        tail.setAngle(-60);
+        break;
+      case 'leap':
+        rig.setScale(1.06, 0.84);
+        t({
+          targets: rig,
+          scaleX: 1,
+          scaleY: 1,
+          y: -64,
+          angle: 14 + lean,
+          duration: wind,
+          ease: 'Cubic.easeOut',
+        });
+        t({
+          targets: rig,
+          y: -54,
+          duration: beat * 2,
+          delay: wind,
+          yoyo: true,
+          repeat: -1,
+          ease: 'Sine.easeInOut',
+        });
+        t({ targets: shadow, scaleX: 0.5, duration: wind });
+        t({ targets: tail, angle: 20, duration: beat, yoyo: true, repeat: -1 });
+        break;
+      case 'tailwhip':
+        t({ targets: rig, scaleX: -1, duration: wind * 0.6, ease: 'Sine.easeInOut' });
+        t({ targets: rig, angle: 8 + lean, duration: wind });
+        t({
+          targets: tail,
+          angle: { from: -70, to: 40 },
+          duration: beat * 0.7,
+          yoyo: true,
+          repeat: -1,
+        });
+        t({ targets: head, angle: -16, duration: beat * 2, delay: wind, yoyo: true, repeat: -1 });
+        break;
+      case 'paw':
+        t({
+          targets: rig,
+          scaleX: 1.04,
+          scaleY: 0.86,
+          angle: -12 + lean,
+          duration: wind,
+          ease: 'Back.easeOut',
+        });
+        head.setY(-90);
+        t({
+          targets: head,
+          angle: { from: -14, to: 14 },
+          duration: beat * 1.2,
+          delay: wind * 0.5,
+          yoyo: true,
+          repeat: -1,
+          ease: 'Sine.easeInOut',
+        });
+        t({ targets: tail, angle: { from: -40, to: 10 }, duration: beat, yoyo: true, repeat: -1 });
+        break;
+      case 'roll':
+        rig.setX(-40);
+        t({ targets: rig, x: 34, angle: 360 + lean, duration: ms * 0.55, ease: 'Cubic.easeOut' });
+        t({
+          targets: rig,
+          y: -22,
+          duration: ms * 0.14,
+          yoyo: true,
+          repeat: 1,
+          ease: 'Quad.easeOut',
+        });
+        t({ targets: tail, angle: 25, duration: beat, delay: ms * 0.55, yoyo: true, repeat: -1 });
+        break;
+      case 'dash':
+        rig.setX(-90).setScale(1.3, 0.88);
+        t({
+          targets: rig,
+          x: 24,
+          scaleX: 1.08,
+          scaleY: 0.96,
+          angle: -8 + lean,
+          duration: wind,
+          ease: 'Cubic.easeOut',
+        });
+        t({ targets: rig, x: 34, duration: beat * 0.5, delay: wind, yoyo: true, repeat: -1 });
+        tail.setAngle(-80);
+        head.setAngle(8);
+        break;
+      case 'snooze':
+        rig.setScale(1.06, 0.8);
+        head.setY(-82).setAngle(12);
+        this.lids.setVisible(true);
+        this.zzz.setVisible(true);
+        t({ targets: this.zzz, y: -176, alpha: { from: 1, to: 0 }, duration: ms * 0.45 });
+        // 驚醒：睜眼、彈起來
+        this.tweensRunning.push(
+          this.scene.tweens.addCounter({
+            from: 0,
+            to: 1,
+            duration: 1,
+            delay: ms * 0.45,
+            onComplete: () => {
+              if (!this.active) return;
+              this.lids.setVisible(false);
+              this.zzz.setVisible(false);
+            },
+          }),
+        );
+        t({
+          targets: rig,
+          scaleX: 1,
+          scaleY: 1,
+          y: -30,
+          duration: ms * 0.12,
+          delay: ms * 0.45,
+          yoyo: true,
+          ease: 'Quad.easeOut',
+        });
+        t({ targets: head, y: -100, angle: -14 + lean, duration: ms * 0.12, delay: ms * 0.45 });
+        t({ targets: tail, angle: 20, duration: beat, delay: ms * 0.5, yoyo: true, repeat: -1 });
+        break;
+    }
+    return this;
+  }
+
   private reset(): void {
     for (const tw of this.tweensRunning) tw.stop();
     this.tweensRunning = [];
-    this.rig.setScale(1).setPosition(0, 0);
+    this.rig.setScale(1).setPosition(0, 0).setAngle(0);
     this.shadow.setScale(1);
     this.head.setAngle(0).setPosition(46, -96);
     this.tail.setAngle(-20);

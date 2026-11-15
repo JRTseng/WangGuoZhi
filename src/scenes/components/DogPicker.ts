@@ -94,6 +94,8 @@ export interface PickerCellInfo extends Rect {
 const HOLD_MS = 260;
 /** 按住不動這麼久（毫秒）就打開素質與技能頁面；比拿起來久，拿起來之後有拖動就不會開 */
 export const INFO_HOLD_MS = 650;
+/** 按住之後手指動超過這個距離就不算長按看資料（比拿起來的距離小，慢慢拖也不會誤開） */
+const INFO_MOVE_CANCEL = 6;
 /** 九宮格上的狗、或卡片格橫著滑超過這個距離就拿起來 */
 const LIFT_DISTANCE = 10;
 
@@ -158,7 +160,7 @@ export class DogPicker {
       // 手指動了就不算長按看資料
       if (
         this.infoHold &&
-        Math.hypot(p.x - this.infoHold.x, p.y - this.infoHold.y) >= LIFT_DISTANCE
+        Math.hypot(p.x - this.infoHold.x, p.y - this.infoHold.y) >= INFO_MOVE_CANCEL
       ) {
         this.cancelInfoHold();
       }

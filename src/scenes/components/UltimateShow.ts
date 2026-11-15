@@ -2,7 +2,9 @@ import Phaser from 'phaser';
 import type { BattleSide } from '../../logic/battle';
 import type { UltKind } from '../../logic/skillShow';
 import { addText } from '../ui';
-import { drawDogHead } from './dogArt';
+import type { GearData } from '../../data/equipment';
+import type { UltPoseSpec } from '../../logic/ultPose';
+import { DogSprite } from './DogSprite';
 
 /** 場上的一個位置（頭的中心與半徑） */
 export interface ShowPoint {
@@ -25,7 +27,15 @@ export interface UltimateShowOptions {
   skill: string;
   line: string;
   /** 施放者的位置與外觀 */
-  caster: ShowPoint & { color: number; accent: number; fierce: boolean };
+  caster: ShowPoint & {
+    color: number;
+    accent: number;
+    fierce: boolean;
+    /** 專屬姿勢 */
+    pose: UltPoseSpec;
+    /** 身上穿的裝備：字卡上的狗照樣畫出來 */
+    gear?: readonly GearData[];
+  };
   /** 這一下實際打到（或補到）的對象 */
   target: ShowPoint;
   /** 施放者這一方、對面那一方還站著的角色 */
@@ -47,7 +57,7 @@ const GOLD = 0xffd75e;
 const HEAL = 0x8df07a;
 
 /**
- * 播一次大絕招演出（T017）：壓暗 → 斜的字卡滑進來（大頭、招式名、台詞）→ 字卡滑走 →
+ * 播一次大絕招演出（T017）：壓暗 → 斜的字卡滑進來（整隻狗擺專屬姿勢、招式名、台詞）→ 字卡滑走 →
  * 依種類播招式特效（單體、穿透、整排、補血、強化）。
  * 純裝飾：不決定任何結果，傷害數字與扣血由戰鬥畫面照紀錄處理。
  * 全部用 tween 加延遲排好時間，回傳產生的物件，戰鬥畫面在下一次出手或略過時負責清掉。
@@ -139,29 +149,35 @@ export function playUltimate(
     });
   }
 
-  // 大頭
+  // 整隻狗擺出自己的姿勢（穿著的裝備照樣畫出來），站在字卡下緣、頭會超出字卡上緣
   const headR = bandH * 0.36;
   const headX = dir > 0 ? w * 0.2 : w * 0.8;
-  const head = scene.add.container(headX, -dir * tilt * 0.6);
-  const hg = scene.add.graphics();
-  hg.fillStyle(0xffffff, 0.16);
-  hg.fillCircle(0, 0, headR * 1.3);
-  drawDogHead(hg, 0, headR * 0.08, headR, o.caster.color, o.caster.accent, {
+  const glow = scene.add.graphics();
+  glow.fillStyle(0xffffff, 0.16);
+  glow.fillCircle(headX, -dir * tilt * 0.6 - bandH * 0.1, headR * 1.7);
+  band.add(glow);
+  const size0 = (bandH / 104) * 0.92;
+  const dog = new DogSprite(scene, headX, bandH * 0.46 - dir * tilt * 0.6, {
+    color: o.caster.color,
+    accent: o.caster.accent,
     fierce: o.caster.fierce,
+    gear: o.caster.gear,
   });
-  head.add(hg);
-  head.setScale(0.5);
-  band.add(head);
+  // 敵方面向左邊
+  dog.setScale(dir * size0 * 0.5, size0 * 0.5);
+  band.add(dog);
   tw.add({
-    targets: head,
-    scale: 1,
-    delay: c * 0.1,
-    duration: c * 0.18,
+    targets: dog,
+    scaleX: dir * size0,
+    scaleY: size0,
+    delay: c * 0.06,
+    duration: c * 0.14,
     ease: 'Back.easeOut',
   });
+  dog.ultPose(o.caster.pose.pose, o.caster.pose.lean, c * 0.86);
 
   // 名字 + 招式名（越長字越小，一定放得進去）
-  const textX = dir > 0 ? headX + headR + 18 : headX - headR - 18;
+  const textX = dir > 0 ? headX + headR * 2 + 18 : headX - headR * 2 - 18;
   const avail = (dir > 0 ? w - textX : textX) - 14;
   const shout = `${o.skill}！`;
   const size = Math.max(22, Math.min(o.landscape ? 44 : 46, Math.floor(avail / shout.length)));
