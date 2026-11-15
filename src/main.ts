@@ -109,6 +109,16 @@ function onResize(): void {
   applyViewport();
   timers = [100, 300, 700].map((ms) => window.setTimeout(applyViewport, ms));
 }
+// 手機防誤觸（T008）：iPhone 兩指縮放、長按或右鍵跳出的選單都擋掉（輸入框除外）
+for (const type of ['gesturestart', 'gesturechange', 'gestureend']) {
+  document.addEventListener(type, (e) => e.preventDefault(), { passive: false });
+}
+document.addEventListener('contextmenu', (e) => {
+  const el = e.target as HTMLElement | null;
+  if (el?.tagName !== 'INPUT' && el?.tagName !== 'TEXTAREA') e.preventDefault();
+});
+
 window.addEventListener('resize', onResize);
 window.addEventListener('orientationchange', onResize);
 window.visualViewport?.addEventListener('resize', onResize);
+document.addEventListener('fullscreenchange', onResize);

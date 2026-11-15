@@ -1,5 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import { layoutGrid, layoutList, layoutPath, rectInside, rectsOverlap } from './layout';
+import {
+  MIN_TAP,
+  layoutGrid,
+  layoutList,
+  layoutPath,
+  rectInside,
+  rectsOverlap,
+  tapPad,
+  tapRect,
+} from './layout';
 
 const area = { x: 16, y: 120, width: 358, height: 580 };
 
@@ -73,5 +82,31 @@ describe('layoutPath', () => {
       expect(p.y).toBeGreaterThanOrEqual(mapArea.y);
       expect(p.y).toBeLessThanOrEqual(mapArea.y + mapArea.height);
     }
+  });
+});
+
+describe('tapRect（T008 手指好按的最小範圍）', () => {
+  it('比 44 小的邊以中心往外補', () => {
+    expect(tapRect({ x: 100, y: 60, width: 52, height: 28 })).toEqual({
+      x: 100,
+      y: 52,
+      width: 52,
+      height: 44,
+    });
+    expect(tapRect({ x: 10, y: 10, width: 10, height: 20 })).toEqual({
+      x: -7,
+      y: -2,
+      width: 44,
+      height: 44,
+    });
+  });
+
+  it('夠大的不動，也可以指定別的大小', () => {
+    const r = { x: 0, y: 0, width: 120, height: 48 };
+    expect(tapRect(r)).toEqual(r);
+    expect(tapRect(r, 60).height).toBe(60);
+    expect(tapPad(28)).toBe(8);
+    expect(tapPad(44)).toBe(0);
+    expect(MIN_TAP).toBe(44);
   });
 });

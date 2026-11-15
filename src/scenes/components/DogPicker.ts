@@ -512,7 +512,7 @@ export class DogPicker {
             c.x + c.width / 2,
             c.y + c.height - 10,
             battleRoleOf(d.role) ?? '',
-            11,
+            12,
             '#b5651d',
           ).setOrigin(0.5),
         ]);

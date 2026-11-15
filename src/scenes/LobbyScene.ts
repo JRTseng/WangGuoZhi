@@ -9,7 +9,7 @@ import { STORIES } from '../data/stories';
 import { clearAutoSummary, setAuto } from '../logic/auto';
 import { lordExpNeeded, lordTitle } from '../logic/lord';
 import { formatAmount, formatCountdown } from '../logic/format';
-import type { Rect } from '../logic/layout';
+import { tapRect, type Rect } from '../logic/layout';
 import { gearOf } from '../logic/equipment';
 import { woundLevel, type WoundLevel } from '../logic/wounds';
 import { headLook } from './components/headLook';
@@ -260,8 +260,12 @@ export class LobbyScene extends Phaser.Scene {
         .setOrigin(0, 0.5)
         .setName(`resource-${key}`);
       // ＋：之後接商城
-      const plus = addText(this, r.x + r.width - 15, iy, '+', 16, '#5a3a1c', true).setOrigin(0.5);
-      plus
+      addText(this, r.x + r.width - 15, iy, '+', 16, '#5a3a1c', true).setOrigin(0.5);
+      // 整條都可以點（T008：原本只有「＋」那個小字點得到）
+      const hit = tapRect(r);
+      this.add
+        .zone(hit.x, hit.y, hit.width, hit.height)
+        .setOrigin(0, 0)
         .setInteractive({ cursor: 'pointer' })
         .on('pointerup', () => this.showToast(`商城${COMING_SOON}`));
     });

@@ -56,9 +56,9 @@ const STAR_BUTTON_COLOR = 0xc98a12;
 /** 手指移動超過這個距離就當成捲動，不算點按鈕 */
 const TAP_SLOP = 8;
 /** 按鈕的點擊範圍上下各多留一點，手機比較好按 */
-const TAP_PAD = 3;
+const TAP_PAD = 4;
 /** 「改台詞」按鈕比較小，點擊範圍上下左右多留一些 */
-const LINE_TAP_PAD = 8;
+const LINE_TAP_PAD = 9;
 /** 「改台詞」按鈕的顏色（深藍，和大絕招字卡同色系） */
 const LINE_BUTTON_COLOR = 0x3d5a94;
 const FEED_BUTTON_COLOR = 0xc0522b;

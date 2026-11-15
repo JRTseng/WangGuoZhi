@@ -22,13 +22,15 @@ export function viewOf(scene: Phaser.Scene): View {
 
 /** 這台裝置現在該用幾倍解析度畫（T008）；跟著畫質設定，網址 ?res= 可以指定 */
 export function pickRenderScale(quality: Quality): number {
+  const search = window.location.search;
   return renderScaleFor({
     dpr: window.devicePixelRatio,
     viewWidth: window.innerWidth,
     viewHeight: window.innerHeight,
     quality,
-    override: renderScaleFromSearch(window.location.search),
-    automated: navigator.webdriver === true,
+    override: renderScaleFromSearch(search),
+    // 畫面測試固定 1 倍；要測真正的倍數就在網址加 ?res=auto
+    automated: navigator.webdriver === true && !/[?&]res=auto(&|$)/.test(search),
   });
 }
 
