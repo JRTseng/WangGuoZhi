@@ -126,7 +126,13 @@ export function settle(state: GameState, now: number, o?: TimeOptions): GameStat
   const day = dayKey(now, o);
   const daily = state.daily.day === day ? state.daily : emptyDaily(day);
   if (stamina === state.stamina && daily === state.daily) return state;
-  return { ...state, stamina, daily };
+  // 換日：每日任務（T011）也跟著清空
+  const quests =
+    daily === state.daily ||
+    (!Object.keys(state.quests.daily.counts).length && !state.quests.daily.claimed.length)
+      ? state.quests
+      : { ...state.quests, daily: { counts: {}, claimed: [] } };
+  return { ...state, stamina, daily, quests };
 }
 
 /** 現在有多少體力 */

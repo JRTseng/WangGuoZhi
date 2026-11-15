@@ -310,12 +310,13 @@ describe('陣型與開戰中的仗（T023）', () => {
 
   it('排過陣型、關掉自動放招的進度存了再讀，完全一樣', () => {
     let st = setDogRow(playedState(), TEAM, 'changxu', 2);
-    st = { ...st, settings: { ...st.settings, autoUlt: false } };
+    st = { ...st, settings: { ...st.settings, autoUlt: false, autoNext: true } };
     const out = deserialize(serialize(st, NOW), NOW);
     expect(out.status).toBe('ok');
     // 記的是九宮格的格子（排 × 3 + 格 + 3）：大耳中排中、黑旋前排上、長鬚後排中
     expect(out.state.formation).toEqual({ daer: 7, heixuan: 3, changxu: 10 });
     expect(out.state.settings.autoUlt).toBe(false);
+    expect(out.state.settings.autoNext).toBe(true);
     expect(teamRows(out.state, TEAM)).toEqual([1, 0, 2]);
     expect(out.state).toEqual(grantExclusives(st));
   });
@@ -330,6 +331,7 @@ describe('陣型與開戰中的仗（T023）', () => {
     expect(out.formation).toEqual({});
     expect(out.pending).toBeNull();
     expect(out.settings.autoUlt).toBe(true);
+    expect(out.settings.autoNext).toBe(false);
     expect(teamRows(out, TEAM)).toEqual([1, 0, 0]);
     expect(out.dogs).toEqual(st.dogs);
     // 舊的出征紀錄（隊伍資料沒有定位與站位）照樣留著

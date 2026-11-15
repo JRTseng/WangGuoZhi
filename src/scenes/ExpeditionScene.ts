@@ -32,7 +32,7 @@ import { presetSizes, switchTeam } from '../logic/teams';
 import { getState, setState, tick, timeOptions } from '../state/store';
 import { Button } from './components/Button';
 import { DogPicker } from './components/DogPicker';
-import { nextLabel, planNext, startNext } from './components/nextStage';
+import { autoNextOption, nextLabel, planNext, startNext } from './components/nextStage';
 import { ResultPanel } from './components/ResultPanel';
 import { StaminaShop, type ShopKind } from './components/StaminaShop';
 import { drawHeader, patchDebug, resetDebug, viewOf } from './ui';
@@ -389,7 +389,7 @@ export class ExpeditionScene extends Phaser.Scene {
       record.reward,
       record.win,
       () => {
-        patchDebug({ result: null, growth: null, drop: null, nextButton: null });
+        patchDebug({ result: null, growth: null, drop: null, nextButton: null, nextAuto: null });
         if (storyId) this.scene.start('StoryScene', { mode: 'play', storyId });
         else this.scene.start('CampaignScene', { chapter: this.chapter });
       },
@@ -398,8 +398,15 @@ export class ExpeditionScene extends Phaser.Scene {
       plan
         ? {
             label: nextLabel(plan),
+            auto: autoNextOption(),
             onTap: () => {
-              patchDebug({ result: null, growth: null, drop: null, nextButton: null });
+              patchDebug({
+                result: null,
+                growth: null,
+                drop: null,
+                nextButton: null,
+                nextAuto: null,
+              });
               if (storyId) this.scene.start('StoryScene', { mode: 'play', storyId, next: from });
               else if (!startNext(this, from)) {
                 this.scene.start('CampaignScene', { chapter: plan.chapter });
@@ -409,6 +416,7 @@ export class ExpeditionScene extends Phaser.Scene {
         : undefined,
     );
     patchDebug({
+      nextAuto: this.result.autoRect ? { on: this.result.autoOn, ...this.result.autoRect } : null,
       nextButton:
         this.result.nextRect && plan ? { stageId: plan.stage.id, ...this.result.nextRect } : null,
       result: { ...record.reward, win: record.win, newDogId: record.newDogId },

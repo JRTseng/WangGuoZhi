@@ -206,11 +206,17 @@ export function dropWeights(chapter: number, boss: boolean): Record<DogRarity, n
 }
 
 /**
- * 抽這一仗掉什麼：DROP_RATE 的機率掉 1 件，先照比重抽稀有度，再從那個稀有度裡平均抽一件。
+ * 抽這一仗掉什麼：DROP_RATE 的機率掉 1 件（guaranteed 時一定掉），先照比重抽稀有度，再從那個稀有度裡平均抽一件。
  * 沒掉回傳 null。rng 回傳 0～1（不含 1）。
  */
-export function rollDrop(chapter: number, boss: boolean, rng: () => number): GearData | null {
-  if (rng() >= DROP_RATE) return null;
+export function rollDrop(
+  chapter: number,
+  boss: boolean,
+  rng: () => number,
+  /** 一定掉（第一次過關）；亂數照樣先抽一次，後面抽到哪一件才不會跟著變 */
+  guaranteed = false,
+): GearData | null {
+  if (rng() >= DROP_RATE && !guaranteed) return null;
   const w = dropWeights(chapter, boss);
   const order: DogRarity[] = ['N', 'R', 'SR', 'SSR'];
   const sum = order.reduce((s, r) => s + w[r], 0);

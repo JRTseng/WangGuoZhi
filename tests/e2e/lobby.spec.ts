@@ -33,7 +33,7 @@ test('主頁：左上帳號、左側選單、右上資源與小圖示、右側�
   expect(b.train.y).toBe(b.event.y);
 
   // 還沒做的功能點了顯示「即將開放」，不會換畫面
-  await tap(page, b.quest);
+  await tap(page, b.shop);
   await page.waitForTimeout(200);
   expect((await wgz(page)).scene).toBe('LobbyScene');
   // 出征卡底部：體力條與自動出征勾選框（預設關）
@@ -65,6 +65,7 @@ test('帳號與設定：開關、畫質、優惠碼', async ({ page }) => {
     skipBattle: false,
     battleSpeed: 1,
     autoUlt: true,
+    autoNext: false,
     trainingSort: 'rarity',
   });
   for (const k of [

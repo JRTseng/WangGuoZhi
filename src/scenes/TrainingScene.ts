@@ -8,6 +8,9 @@ import { formatAmount } from '../logic/format';
 import type { Rect } from '../logic/layout';
 import { MAX_LEVEL, STAR_MAX, dogStats } from '../logic/leveling';
 import { SKILL_LINE_MAX, setSkillLine, skillLineOf } from '../logic/skillShow';
+import { countQuest } from '../logic/quests';
+import { SNACKS, feedBlock, feedSnack, snackCount } from '../logic/snacks';
+import { Button } from './components/Button';
 import { checkStarUp, starReadyCount, starUp, starUpAll, type StarCheck } from '../logic/star';
 import {
   TRAINING_SORT_LABEL,
@@ -28,6 +31,7 @@ import {
 import {
   trainingButtons,
   trainingLayout,
+  trainingFeedButton,
   trainingLineButton,
   trainingRow,
   type TrainingLayout,
@@ -40,7 +44,7 @@ import { drawDogHead } from './components/dogArt';
 import { headLook } from './components/headLook';
 import { drawExpBar, expLabel } from './components/ExpBar';
 import { closeTextPrompt, isTextPromptOpen, openTextPrompt } from './components/TextPrompt';
-import { addText, drawHeader, patchDebug, resetDebug, viewOf } from './ui';
+import { addText, drawHeader, openModal, patchDebug, resetDebug, viewOf } from './ui';
 
 const BAR = 56;
 /** 多久結算一次寄宿經驗並更新數字（T021） */
@@ -56,6 +60,7 @@ const TAP_PAD = 3;
 const LINE_TAP_PAD = 8;
 /** 「改台詞」按鈕的顏色（深藍，和大絕招字卡同色系） */
 const LINE_BUTTON_COLOR = 0x3d5a94;
+const FEED_BUTTON_COLOR = 0xc0522b;
 
 /**
  * 訓練場（T005、T020、T021、T007）：看每隻狗的等級、經驗條、攻防與升級累積的成長，
@@ -73,6 +78,15 @@ export class TrainingScene extends Phaser.Scene {
   private scrollY = 0;
   private dragFrom: { x: number; y: number; scroll: number } | null = null;
   private ids: string[] = [];
+  /** 餵零食的視窗；沒開為 null */
+  private feed: {
+    layer: Phaser.GameObjects.Container;
+    dogId: string;
+    level: number;
+    exp: number;
+    rows: { id: string; count: number; enabled: boolean; one: Rect; ten: Rect }[];
+    close: Rect;
+  } | null = null;
   private boardingButton!: Rect;
   private boardingLabel!: Phaser.GameObjects.Text;
   private seenDogs: GameState['dogs'] | null = null;
@@ -92,6 +106,7 @@ export class TrainingScene extends Phaser.Scene {
   }
 
   create(): void {
+    this.feed = null;
     resetDebug(this);
     this.scrollY = 0;
     this.dragFrom = null;
@@ -164,7 +179,7 @@ export class TrainingScene extends Phaser.Scene {
     // 上下拖曳或滾輪捲動；沒有拖動就當成點按鈕
     const inList = (p: Phaser.Input.Pointer) => p.y >= l.list.y && p.y <= l.list.y + l.list.height;
     this.input.on('pointerdown', (p: Phaser.Input.Pointer) => {
-      this.dragFrom = inList(p) ? { x: p.x, y: p.y, scroll: this.scrollY } : null;
+      this.dragFrom = !this.feed && inList(p) ? { x: p.x, y: p.y, scroll: this.scrollY } : null;
       this.stopHold();
       if (this.dragFrom) this.startHold(p.x, p.y + this.scrollY);
     });
@@ -186,9 +201,9 @@ export class TrainingScene extends Phaser.Scene {
       if (Math.abs(p.x - from.x) > TAP_SLOP || Math.abs(p.y - from.y) > TAP_SLOP) return;
       this.tapAt(p.x, p.y + this.scrollY);
     });
-    this.input.on('wheel', (_p: unknown, _o: unknown, _dx: number, dy: number) =>
-      this.scrollTo(this.scrollY + dy),
-    );
+    this.input.on('wheel', (_p: unknown, _o: unknown, _dx: number, dy: number) => {
+      if (!this.feed) this.scrollTo(this.scrollY + dy);
+    });
 
     // 寄宿中的狗經驗會自己漲：定時結算，有變才重畫
     this.time.addEvent({
@@ -229,7 +244,7 @@ export class TrainingScene extends Phaser.Scene {
 
   /** 換下一種排序：記進設定、重排、捲回最上面 */
   private cycleSort(): void {
-    if (isTextPromptOpen()) return;
+    if (this.blocked()) return;
     const st = tick();
     const sort: TrainingSortKey = nextTrainingSort(st.settings.trainingSort);
     setState({ ...st, settings: { ...st.settings, trainingSort: sort } });
@@ -274,12 +289,16 @@ export class TrainingScene extends Phaser.Scene {
       const lb = trainingLineButton(l, i);
       g.fillStyle(LINE_BUTTON_COLOR, 1);
       g.fillRoundedRect(lb.x - r.x, lb.y - r.y, lb.width, lb.height, 13);
+      const fb = trainingFeedButton(l, i);
+      g.fillStyle(FEED_BUTTON_COLOR, 1);
+      g.fillRoundedRect(fb.x - r.x, fb.y - r.y, fb.width, fb.height, 13);
       const tx = 16 + hr * 2 + 14;
       const right = r.width - 14;
       const maxed = s.expNeed === 0;
       drawExpBar(g, tx, top + gapY * 2 + 22, right - tx, 8, s.exp / (s.expNeed || 1), maxed);
       let lv: Phaser.GameObjects.Text;
       let stars: Phaser.GameObjects.Text;
+      let rest: Phaser.GameObjects.Text;
       c.add([
         g,
         addText(this, tx, top, d.name, 18, COLORS.ink, true),
@@ -302,7 +321,7 @@ export class TrainingScene extends Phaser.Scene {
           '#d99a1c',
           true,
         )),
-        addText(
+        (rest = addText(
           this,
           stars.x + stars.width,
           top + 3,
@@ -310,7 +329,7 @@ export class TrainingScene extends Phaser.Scene {
           13,
           '#d9cdbb',
           true,
-        ),
+        )),
         addText(
           this,
           16 + hr,
@@ -324,13 +343,23 @@ export class TrainingScene extends Phaser.Scene {
         addText(this, tx, top + gapY, `攻擊 ${s.attack}\u3000防禦 ${s.defense}`, 14, COLORS.ink),
         addText(
           this,
-          lb.x - r.x - 8,
-          top + gapY,
+          rest.x + rest.width + 6,
+          top + 3,
           busy.has(d.id) ? '寄宿中' : '',
           13,
           '#2f7d32',
           true,
-        ).setOrigin(1, 0),
+        ),
+        // 「零食」小按鈕：餵經驗零食
+        addText(
+          this,
+          fb.x - r.x + fb.width / 2,
+          fb.y - r.y + fb.height / 2,
+          '零食 ›',
+          13,
+          '#ffffff',
+          true,
+        ).setOrigin(0.5),
         // 「改台詞」小按鈕（T017）
         addText(
           this,
@@ -404,12 +433,17 @@ export class TrainingScene extends Phaser.Scene {
 
   /** 點到哪顆特訓按鈕就做一次特訓（y 已加上捲動量） */
   private tapAt(x: number, y: number): void {
-    if (isTextPromptOpen()) return;
+    if (this.blocked()) return;
     const hit = (b: Rect, padX = 0, padY = TAP_PAD) =>
       x >= b.x - padX && x <= b.x + b.width + padX && y >= b.y - padY && y <= b.y + b.height + padY;
     for (let i = 0; i < this.ids.length; i++) {
       if (hit(trainingLineButton(this.layout, i), LINE_TAP_PAD, LINE_TAP_PAD)) {
         this.editLine(this.ids[i]);
+        return;
+      }
+      if (hit(trainingFeedButton(this.layout, i), 4, LINE_TAP_PAD)) {
+        playSfx('tap');
+        this.openFeed(this.ids[i]);
         return;
       }
       const buttons = trainingButtons(this.layout, i);
@@ -431,11 +465,109 @@ export class TrainingScene extends Phaser.Scene {
     }
   }
 
+  /** 打字視窗或餵零食視窗開著：下面的列表不能點、不能捲 */
+  private blocked(): boolean {
+    return isTextPromptOpen() || !!this.feed;
+  }
+
+  // ---- 餵零食 ----
+
+  /** 開（或重畫）餵零食的視窗：三種零食各有「餵 1」「餵 10」 */
+  private openFeed(dogId: string, message = ''): void {
+    this.feed?.layer.destroy();
+    const st = tick();
+    const d = this.dog(dogId);
+    const s = dogStats(st, d);
+    const maxed = s.expNeed === 0;
+    const { layer, box } = openModal(this, { width: 480, height: 318 }, () => this.closeFeed());
+    const add = (o: Phaser.GameObjects.GameObject) => (layer.add(o), o);
+    const g = this.add.graphics();
+    add(g);
+    drawDogHead(g, box.x + 44, box.y + 40, 24, d.color, d.accent, headLook(st, d.id));
+    add(addText(this, box.x + 80, box.y + 16, `餵「${d.name}」吃零食`, 19, COLORS.ink, true));
+    add(
+      addText(
+        this,
+        box.x + 80,
+        box.y + 42,
+        maxed
+          ? `Lv.${s.level}・已經到等級上限（升星可以再提高）`
+          : `Lv.${s.level}・經驗 ${formatAmount(s.exp)} / ${formatAmount(s.expNeed)}`,
+        14,
+        COLORS.inkSoft,
+      ),
+    );
+    if (message) {
+      add(
+        addText(this, box.x + box.width - 20, box.y + 18, message, 15, '#2f7d32', true).setOrigin(
+          1,
+          0,
+        ),
+      );
+    }
+    const rows = SNACKS.map((snack, i) => {
+      const y = box.y + 76 + i * 58;
+      const have = snackCount(st, snack.id);
+      const ok = feedBlock(st, dogId, snack.id) === null;
+      g.fillStyle(0xf4e9d8, 1);
+      g.fillRoundedRect(box.x + 16, y, box.width - 32, 50, 12);
+      g.fillStyle(snack.color, 1);
+      g.fillCircle(box.x + 40, y + 25, 12);
+      add(addText(this, box.x + 62, y + 6, snack.name, 16, COLORS.ink, true));
+      add(
+        addText(
+          this,
+          box.x + 62,
+          y + 28,
+          `經驗 +${formatAmount(snack.exp)}・有 ${have} 個`,
+          13,
+          COLORS.inkSoft,
+        ),
+      );
+      const ten: Rect = { x: box.x + box.width - 26 - 84, y: y + 5, width: 84, height: 40 };
+      const one: Rect = { x: ten.x - 8 - 72, y: y + 5, width: 72, height: 40 };
+      add(
+        new Button(this, one, '餵 1', () => this.feedOnce(dogId, snack.id, 1), 16).setEnabled(ok),
+      );
+      add(
+        new Button(this, ten, '餵 10', () => this.feedOnce(dogId, snack.id, 10), 16).setEnabled(
+          ok && have > 1,
+        ),
+      );
+      return { id: snack.id, count: have, enabled: ok, one, ten };
+    });
+    const close: Rect = {
+      x: box.x + box.width / 2 - 70,
+      y: box.y + box.height - 54,
+      width: 140,
+      height: 40,
+    };
+    add(new Button(this, close, '關閉', () => this.closeFeed(), 17).setColor(COLORS.bar));
+    this.feed = { layer, dogId, level: s.level, exp: s.exp, rows, close };
+    this.publish();
+  }
+
+  private feedOnce(dogId: string, snackId: string, count: number): void {
+    const r = feedSnack(tick(), dogId, snackId, count, Math.random);
+    if (!r.gain) return;
+    setState(r.state);
+    const up = r.gain.toLevel > r.gain.fromLevel;
+    playSfx(up ? 'levelup' : 'equip');
+    this.renderRows();
+    this.openFeed(dogId, up ? `升到 Lv.${r.gain.toLevel}！` : `經驗 +${formatAmount(r.gain.exp)}`);
+  }
+
+  private closeFeed(): void {
+    this.feed?.layer.destroy();
+    this.feed = null;
+    this.publish();
+  }
+
   /** 做一次特訓並播回饋；不能練（練滿、糧草不夠）回傳 false */
   private drillOnce(i: number, stat: DrillStat): boolean {
     const r = drill(getState(), this.ids[i], stat);
     if (!r.check.ok) return false;
-    setState(r.state);
+    setState(countQuest(r.state, 'drill'));
     playSfx('equip');
     this.renderRows();
     this.floatText(trainingButtons(this.layout, i)[stat], `${DRILL_LABELS[stat]} +1`);
@@ -445,7 +577,7 @@ export class TrainingScene extends Phaser.Scene {
 
   /** 手指按在特訓按鈕上：按住一下之後開始自動連續特訓（y 已加上捲動量） */
   private startHold(x: number, y: number): void {
-    if (isTextPromptOpen()) return;
+    if (this.blocked()) return;
     for (let i = 0; i < this.ids.length; i++) {
       const buttons = trainingButtons(this.layout, i);
       for (const stat of STATS) {
@@ -488,7 +620,7 @@ export class TrainingScene extends Phaser.Scene {
 
   /** 全部升星：碎片夠的狗一次全部升到不能再升 */
   private starAll(): void {
-    if (isTextPromptOpen()) return;
+    if (this.blocked()) return;
     const r = starUpAll(tick(), Date.now());
     if (r.ups.length === 0) return;
     setState(r.state);
@@ -558,6 +690,15 @@ export class TrainingScene extends Phaser.Scene {
     patchDebug({
       training: {
         lineEditor: isTextPromptOpen(),
+        feed: this.feed
+          ? {
+              dogId: this.feed.dogId,
+              level: this.feed.level,
+              exp: this.feed.exp,
+              rows: this.feed.rows,
+              close: this.feed.close,
+            }
+          : null,
         boardingButton: {
           ...this.boardingButton,
           count: st.boarding.length,
@@ -601,6 +742,7 @@ export class TrainingScene extends Phaser.Scene {
               };
             })(),
             levelCap: s.levelCap,
+            feedButton: shift(trainingFeedButton(this.layout, i)),
             skillLine: {
               ...shift(trainingLineButton(this.layout, i)),
               skill: this.dog(id).skill.name,

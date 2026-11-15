@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { COLORS } from '../config';
 import { BACKGROUNDS } from '../data/backgrounds';
 import { DOGS, findDog } from '../data/dogs';
+import { claimableCount } from '../logic/quests';
 import { REGIONS, findStage } from '../data/regions';
 import { RESOURCE_LABELS, type Resources } from '../data/resources';
 import { STORIES } from '../data/stories';
@@ -66,6 +67,7 @@ export class LobbyScene extends Phaser.Scene {
   private resourceTexts: Partial<Record<keyof Resources, Phaser.GameObjects.Text>> = {};
   private settings: SettingsPanel | null = null;
   private storyCard!: LobbyCard;
+  private questItem!: MenuItem;
   private expeditionCard!: LobbyCard;
   private toast: Phaser.GameObjects.Text | null = null;
 
@@ -270,14 +272,8 @@ export class LobbyScene extends Phaser.Scene {
     const M = this.layout.menu;
     const compact = this.layout.menuCompact;
     new MenuItem(this, M.team, '武將', 'team', compact, () => this.scene.start('TeamScene'));
-    new MenuItem(
-      this,
-      M.quest,
-      '任務',
-      'quest',
-      compact,
-      () => this.showToast(`任務${COMING_SOON}（T011）`),
-      compact ? undefined : COMING_SOON,
+    this.questItem = new MenuItem(this, M.quest, '任務', 'quest', compact, () =>
+      this.scene.start('QuestScene'),
     );
     new MenuItem(this, M.bag, '倉庫', 'bag', compact, () => this.scene.start('GearScene'));
     new MenuItem(this, M.background, '背景', 'background', compact, () => this.switchBackground());
@@ -555,6 +551,12 @@ export class LobbyScene extends Phaser.Scene {
     this.storyCard.setDot(
       STORIES.some((x) => isStoryUnlocked(state, x) && !state.seenStories.includes(x.id)),
     );
+    // 任務有獎勵可領就亮紅點（T011）
+    const questReady = claimableCount(state);
+    this.questItem.setDot(questReady > 0);
+    if (window.__WGZ__?.lobby && window.__WGZ__.lobby.questReady !== questReady) {
+      window.__WGZ__.lobby.questReady = questReady;
+    }
     this.expeditionCard.setSubtitle(this.nextStageLabel());
 
     // 體力條：數字 + 下一點還要多久，上面一條細細的進度

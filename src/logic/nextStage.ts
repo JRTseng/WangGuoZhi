@@ -54,3 +54,11 @@ export function nextStagePlan(
   if (!runBlock(state, next.stage.id, now, o).ok) return null;
   return { ...next, team: going, benched: able.length - going.length };
 }
+
+/** 勾了「自動」：結算出來後等多久自己打下一關（留時間看獎勵，也來得及取消） */
+export const AUTO_NEXT_DELAY_MS = 2500;
+
+/** 結算面板最下面那行提示 */
+export function nextHint(auto: boolean): string {
+  return auto ? '馬上自動打下一關・取消勾選就停' : '點其他地方回地圖';
+}

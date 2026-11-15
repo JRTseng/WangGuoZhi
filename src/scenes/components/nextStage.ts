@@ -41,3 +41,14 @@ export function startNext(scene: Phaser.Scene, from: NextFrom): boolean {
   });
   return true;
 }
+
+/** 結算「下一關」旁邊的「自動」勾選框：讀設定、勾了就存 */
+export function autoNextOption(): { on: boolean; onToggle: (on: boolean) => void } {
+  return {
+    on: getState().settings.autoNext,
+    onToggle: (on) => {
+      const st = getState();
+      setState({ ...st, settings: { ...st.settings, autoNext: on } });
+    },
+  };
+}

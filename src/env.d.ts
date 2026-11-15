@@ -34,6 +34,8 @@ interface WgzDebugState {
     background: string;
     /** 背景裡有幾個會動的東西（低畫質是 0） */
     backgroundMoving?: number;
+    /** 任務有幾個獎勵可以領（T011）；大於 0 時「任務」亮紅點 */
+    questReady?: number;
     buttons: Record<
       | 'account'
       | 'mail'
@@ -49,6 +51,27 @@ interface WgzDebugState {
       | 'event'
       | 'train',
       WgzRect
+    >;
+  };
+  /** 任務畫面（T011） */
+  quest?: {
+    tab: 'main' | 'daily' | 'feat';
+    /** 分頁按鈕與各自有幾個獎勵可領 */
+    tabs: Record<'main' | 'daily' | 'feat', WgzRect & { count: number }>;
+    claimAll: WgzRect & { count: number };
+    rows: Array<
+      WgzRect & {
+        id: string;
+        title: string;
+        progress: number;
+        target: number;
+        done: boolean;
+        claimed: boolean;
+        food: number;
+        bones: number;
+        go: string | null;
+        button: WgzRect;
+      }
     >;
   };
   /** 主頁出征卡底部的體力條（點了補體力） */
@@ -79,6 +102,8 @@ interface WgzDebugState {
   result?: { food: number; bones: number; win: boolean; newDogId?: string } | null;
   /** 結算面板上的「下一關」按鈕與它會去的關卡；沒有按鈕為 null */
   nextButton?: (WgzRect & { stageId: string }) | null;
+  /** 「下一關」旁邊的「自動」勾選框（開戰時的狀態；有沒有勾以存檔的 settings.autoNext 為準） */
+  nextAuto?: (WgzRect & { on: boolean }) | null;
   /** 這一仗掉的裝備 id（T014）；結算面板沒開或沒掉為 null */
   drop?: string | null;
   /** 結算面板上每隻狗的經驗與升級（T005），沒開為 null */
@@ -96,6 +121,14 @@ interface WgzDebugState {
   training?: {
     /** 改台詞的打字視窗是不是開著（T017） */
     lineEditor: boolean;
+    /** 餵零食的視窗；沒開為 null */
+    feed?: {
+      dogId: string;
+      level: number;
+      exp: number;
+      rows: { id: string; count: number; enabled: boolean; one: WgzRect; ten: WgzRect }[];
+      close: WgzRect;
+    } | null;
     /** 右上角進板凳寄宿的按鈕（T021）：幾隻在寄宿／幾個位子 */
     boardingButton: { count: number; slots: number } & WgzRect;
     list: WgzRect;
@@ -125,6 +158,8 @@ interface WgzDebugState {
       };
       /** 升星按鈕（T007）：目前幾星、手上碎片、升下一星要幾個、能不能按 */
       star: { star: number; shards: number; cost: number; enabled: boolean } & WgzRect;
+      /** 「零食」小按鈕：點了開餵零食的視窗 */
+      feedButton: WgzRect;
       /** 等級上限（看星數） */
       levelCap: number;
       /** 招式台詞那一條（T017）：點了可以改；line 是目前會喊的台詞，custom 代表是玩家自己填的 */
