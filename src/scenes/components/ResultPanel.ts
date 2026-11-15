@@ -10,7 +10,7 @@ import { playSfx } from './audio';
 import { Button } from './Button';
 import { drawDogHead } from './dogArt';
 import { makeTapArea } from './hitArea';
-import { AUTO_NEXT_DELAY_MS, nextHint } from '../../logic/nextStage';
+import { AUTO_NEXT_DELAY_MS, autoNextSeconds, nextHint } from '../../logic/nextStage';
 
 const WIN_COLOR = { text: '#4f8a3c', border: COLORS.harvest };
 const LOSE_COLOR = { text: '#b0413e', border: 0xb0413e };
@@ -33,6 +33,8 @@ export class ResultPanel extends Phaser.GameObjects.Container {
   readonly autoRect: Rect | null = null;
   /** 「自動」現在有沒有勾 */
   autoOn = false;
+  /** 自動下一關倒數剩幾秒；沒在倒數為 null */
+  autoSeconds: number | null = null;
 
   constructor(
     scene: Phaser.Scene,
@@ -141,7 +143,7 @@ export class ResultPanel extends Phaser.GameObjects.Container {
     const hint = text(
       px + pw / 2,
       py + ph - 22,
-      next ? nextHint(false) : '點一下關閉',
+      next ? nextHint() : '點一下關閉',
       14,
       COLORS.inkSoft,
     ).setOrigin(0.5);
@@ -191,10 +193,34 @@ export class ResultPanel extends Phaser.GameObjects.Container {
             box.lineTo(24, cy - 6);
             box.strokePath();
           }
-          hint.setText(nextHint(on));
-          // 勾著：等一下自己按「下一關」；取消就停
+          // 勾著：倒數幾秒後自己按「下一關」，每秒更新剩幾秒；取消就停。
+          // 用真實時間算（無頭瀏覽器或切到背景時 Phaser 的時鐘會變慢）
           timer?.remove();
-          timer = on ? scene.time.delayedCall(AUTO_NEXT_DELAY_MS, next.onTap) : null;
+          timer = null;
+          this.autoSeconds = null;
+          const debug = (seconds: number | null) => {
+            const d = window.__WGZ__?.nextAuto;
+            if (d) Object.assign(d, { on, seconds });
+          };
+          debug(null);
+          if (!on) {
+            hint.setText(nextHint()).setColor(COLORS.inkSoft).setFontStyle('normal');
+            return;
+          }
+          const deadline = Date.now() + AUTO_NEXT_DELAY_MS;
+          const tickDown = () => {
+            const left = autoNextSeconds(deadline, Date.now());
+            this.autoSeconds = left;
+            debug(left);
+            hint.setText(nextHint(left)).setColor('#b5651d').setFontStyle('bold');
+            if (left <= 0) {
+              timer?.remove();
+              timer = null;
+              next.onTap();
+            }
+          };
+          tickDown();
+          timer = scene.time.addEvent({ delay: 100, loop: true, callback: tickDown });
         };
         c.on('pointerup', () => {
           playSfx('tap');

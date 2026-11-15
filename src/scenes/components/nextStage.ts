@@ -17,7 +17,7 @@ export function planNext(from: NextFrom): NextStagePlan | null {
 
 /** 「下一關」按鈕上的字 */
 export function nextLabel(plan: NextStagePlan): string {
-  return plan.benched > 0 ? `下一關（上 ${plan.team.length} 隻）▶` : '下一關 ▶';
+  return plan.benched > 0 || plan.added > 0 ? `下一關（上 ${plan.team.length} 隻）▶` : '下一關 ▶';
 }
 
 /**

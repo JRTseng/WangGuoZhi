@@ -40,11 +40,14 @@ test('打贏後按「下一關」用同一隊直接挑戰下一關；體力與�
   expect(s.nextButton).toMatchObject({ stageId: 'luoyepo-3' });
   await page.screenshot({ path: `${SHOTS}/next-button-trimmed.png` });
 
-  // 再按一次：沒有劇情，直接進第 3 關；隊伍還是剛剛那 3 隻
+  // 再按一次：沒有劇情，直接進第 3 關；第 3 關能上比較多，剛剛留下來的隊員自動補回來
   const team = s.battle!.team.map((u) => u.id);
   await tap(page, s.nextButton!);
   s = await skipToResult(page, 'luoyepo-3');
-  expect(s.battle!.team.map((u) => u.id)).toEqual(team);
+  const now = s.battle!.team.map((u) => u.id);
+  expect(now.length).toBeGreaterThan(team.length);
+  expect(now.slice(0, team.length)).toEqual(team);
+  for (const id of now) expect(ALL).toContain(id);
 
   // 點其他地方照舊回地圖；打了三場體力沒有少
   await tap(page, CLOSE);
@@ -107,7 +110,7 @@ test('勾「自動」：打贏後自己接著打下一關，取消勾選就停',
   expect(s.nextAuto!.y).toBe(s.nextButton!.y);
   expect(s.nextAuto!.x).toBeGreaterThanOrEqual(s.nextButton!.x + s.nextButton!.width);
   expect(s.nextAuto!.height).toBeGreaterThanOrEqual(40);
-  await page.waitForTimeout(3200);
+  await page.waitForTimeout(3700);
   expect((await wgz(page)).scene).toBe('ExpeditionScene');
 
   // 勾起來：等一下自己按下一關（第一次過關先看劇情）
@@ -115,7 +118,10 @@ test('勾「自動」：打贏後自己接著打下一關，取消勾選就停',
   await page.waitForFunction(
     () => JSON.parse(window.localStorage.getItem('wgz-save')!).state.settings.autoNext === true,
   );
+  // 畫面上有倒數：從 3 秒開始往下數
+  await page.waitForFunction(() => window.__WGZ__?.nextAuto?.seconds === 3);
   await page.screenshot({ path: `${SHOTS}/next-auto.png` });
+  await page.waitForFunction(() => (window.__WGZ__?.nextAuto?.seconds ?? 9) <= 2);
   await waitScene(page, 'StoryScene');
   await tap(page, (await wgz(page)).story!.skip!);
   await page.waitForFunction(
@@ -129,13 +135,16 @@ test('勾「自動」：打贏後自己接著打下一關，取消勾選就停',
     () => window.__WGZ__?.battle?.stageId === 'luoyepo-3' && !!window.__WGZ__?.result,
   );
   s = await wgz(page);
+  // 第 2 關只能上 3 隻，第 3 關能上比較多：自動補滿，不會一直維持 3 隻
+  expect(s.battle!.team.length).toBeGreaterThan(3);
   if (s.result!.win) {
-    // 取消勾選：停在這一關的結算，不再往下打
+    // 取消勾選：倒數停掉，停在這一關的結算，不再往下打
     await tap(page, s.nextAuto!);
     await page.waitForFunction(
       () => JSON.parse(window.localStorage.getItem('wgz-save')!).state.settings.autoNext === false,
     );
-    await page.waitForTimeout(3200);
+    expect((await wgz(page)).nextAuto).toMatchObject({ on: false, seconds: null });
+    await page.waitForTimeout(3700);
     s = await wgz(page);
     expect(s.battle!.stageId).toBe('luoyepo-3');
     expect(s.scene).toBe('BattleScene');

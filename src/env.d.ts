@@ -102,8 +102,8 @@ interface WgzDebugState {
   result?: { food: number; bones: number; win: boolean; newDogId?: string } | null;
   /** 結算面板上的「下一關」按鈕與它會去的關卡；沒有按鈕為 null */
   nextButton?: (WgzRect & { stageId: string }) | null;
-  /** 「下一關」旁邊的「自動」勾選框（開戰時的狀態；有沒有勾以存檔的 settings.autoNext 為準） */
-  nextAuto?: (WgzRect & { on: boolean }) | null;
+  /** 「下一關」旁邊的「自動」勾選框：有沒有勾、倒數剩幾秒（沒在倒數為 null） */
+  nextAuto?: (WgzRect & { on: boolean; seconds?: number | null }) | null;
   /** 這一仗掉的裝備 id（T014）；結算面板沒開或沒掉為 null */
   drop?: string | null;
   /** 結算面板上每隻狗的經驗與升級（T005），沒開為 null */
