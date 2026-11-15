@@ -45,7 +45,7 @@ import { makeTapArea } from './components/hitArea';
 import { ResultPanel } from './components/ResultPanel';
 import { Scenery } from './components/Scenery';
 import { playSfx } from './components/audio';
-import { nextLabel, planNext, startNext } from './components/nextStage';
+import { autoNextOption, nextLabel, planNext, startNext } from './components/nextStage';
 import { playUltimate } from './components/UltimateShow';
 import { playVoiceCue } from './components/voice';
 import { addText, patchDebug, resetDebug, viewOf } from './ui';
@@ -754,7 +754,7 @@ export class BattleScene extends Phaser.Scene {
       rec.reward,
       rec.win,
       () => {
-        patchDebug({ result: null, growth: null, drop: null, nextButton: null });
+        patchDebug({ result: null, growth: null, drop: null, nextButton: null, nextAuto: null });
         if (storyId) {
           this.scene.start('StoryScene', { mode: 'play', storyId });
         } else {
@@ -769,8 +769,15 @@ export class BattleScene extends Phaser.Scene {
       plan
         ? {
             label: nextLabel(plan),
+            auto: autoNextOption(),
             onTap: () => {
-              patchDebug({ result: null, growth: null, drop: null, nextButton: null });
+              patchDebug({
+                result: null,
+                growth: null,
+                drop: null,
+                nextButton: null,
+                nextAuto: null,
+              });
               // 有新劇情先看劇情，看完接著打下一關
               if (storyId) this.scene.start('StoryScene', { mode: 'play', storyId, next: from });
               else if (!startNext(this, from)) {
@@ -781,6 +788,7 @@ export class BattleScene extends Phaser.Scene {
         : undefined,
     );
     patchDebug({
+      nextAuto: panel.autoRect ? { on: panel.autoOn, ...panel.autoRect } : null,
       nextButton: panel.nextRect && plan ? { stageId: plan.stage.id, ...panel.nextRect } : null,
       result: { ...rec.reward, win: rec.win, newDogId: rec.newDogId },
       drop: rec.dropGearId ?? null,

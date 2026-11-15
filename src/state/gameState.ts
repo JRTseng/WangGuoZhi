@@ -175,6 +175,8 @@ export interface Settings {
   battleSpeed: 1 | 2 | 3 | 4;
   /** 戰鬥中自動放大絕招（T023）：關掉後要自己點 EN 滿的狗才會放 */
   autoUlt: boolean;
+  /** 結算「下一關」旁邊的「自動」：打贏後自己接著打下一關，直到打輸、沒體力或沒有下一關 */
+  autoNext: boolean;
   /** 訓練場上次選的排序條件，下次進去沿用 */
   trainingSort: TrainingSortKey;
 }
@@ -269,6 +271,7 @@ export function createInitialState(now: number = Date.now()): GameState {
       skipBattle: false,
       battleSpeed: 1,
       autoUlt: true,
+      autoNext: false,
       trainingSort: DEFAULT_TRAINING_SORT,
     },
     stamina: { value: STAMINA_MAX, updatedAt: now },

@@ -92,3 +92,56 @@ test('打輸、或開了「略過戰鬥畫面」：下一關按鈕照規則出�
   expect(s.result!.win).toBe(false);
   expect(s.nextButton).toBeNull();
 });
+
+test('勾「自動」：打贏後自己接著打下一關，取消勾選就停', async ({ page }) => {
+  test.setTimeout(120_000);
+  await openLobby(page, '?fast=1&seed=7&limits=0');
+  await enableSkipBattle(page);
+  await tap(page, (await wgz(page)).lobby!.buttons.expedition);
+  await battleFromMap(page, 0, ALL);
+  await page.waitForFunction(() => !!window.__WGZ__?.result);
+  let s = await wgz(page);
+  expect(s.result!.win).toBe(true);
+  // 「自動」在「下一關」右邊、同一排，預設沒勾；沒勾就不會自己走
+  expect(s.nextAuto).toMatchObject({ on: false });
+  expect(s.nextAuto!.y).toBe(s.nextButton!.y);
+  expect(s.nextAuto!.x).toBeGreaterThanOrEqual(s.nextButton!.x + s.nextButton!.width);
+  expect(s.nextAuto!.height).toBeGreaterThanOrEqual(40);
+  await page.waitForTimeout(3200);
+  expect((await wgz(page)).scene).toBe('ExpeditionScene');
+
+  // 勾起來：等一下自己按下一關（第一次過關先看劇情）
+  await tap(page, s.nextAuto!);
+  await page.waitForFunction(
+    () => JSON.parse(window.localStorage.getItem('wgz-save')!).state.settings.autoNext === true,
+  );
+  await page.screenshot({ path: `${SHOTS}/next-auto.png` });
+  await waitScene(page, 'StoryScene');
+  await tap(page, (await wgz(page)).story!.skip!);
+  await page.waitForFunction(
+    () => window.__WGZ__?.battle?.stageId === 'luoyepo-2' && !!window.__WGZ__?.result,
+  );
+  s = await wgz(page);
+  expect(s.result!.win).toBe(true);
+  // 下一場的結算記得剛剛勾了，不用再按就進第 3 關
+  expect(s.nextAuto).toMatchObject({ on: true });
+  await page.waitForFunction(
+    () => window.__WGZ__?.battle?.stageId === 'luoyepo-3' && !!window.__WGZ__?.result,
+  );
+  s = await wgz(page);
+  if (s.result!.win) {
+    // 取消勾選：停在這一關的結算，不再往下打
+    await tap(page, s.nextAuto!);
+    await page.waitForFunction(
+      () => JSON.parse(window.localStorage.getItem('wgz-save')!).state.settings.autoNext === false,
+    );
+    await page.waitForTimeout(3200);
+    s = await wgz(page);
+    expect(s.battle!.stageId).toBe('luoyepo-3');
+    expect(s.scene).toBe('BattleScene');
+  } else {
+    // 打輸就沒有下一關，也沒有自動
+    expect(s.nextButton).toBeNull();
+    expect(s.nextAuto).toBeNull();
+  }
+});

@@ -9,6 +9,8 @@ import { viewOf } from '../ui';
 import { playSfx } from './audio';
 import { Button } from './Button';
 import { drawDogHead } from './dogArt';
+import { makeTapArea } from './hitArea';
+import { AUTO_NEXT_DELAY_MS, nextHint } from '../../logic/nextStage';
 
 const WIN_COLOR = { text: '#4f8a3c', border: COLORS.harvest };
 const LOSE_COLOR = { text: '#b0413e', border: 0xb0413e };
@@ -27,6 +29,10 @@ const GAINS_HEAD = 34;
 export class ResultPanel extends Phaser.GameObjects.Container {
   /** 「下一關」按鈕的位置（沒有按鈕為 null；測試用） */
   readonly nextRect: Rect | null = null;
+  /** 「自動」勾選框的位置（沒有為 null；測試用） */
+  readonly autoRect: Rect | null = null;
+  /** 「自動」現在有沒有勾 */
+  autoOn = false;
 
   constructor(
     scene: Phaser.Scene,
@@ -39,7 +45,12 @@ export class ResultPanel extends Phaser.GameObjects.Container {
     /** 隊伍每隻狗拿到的經驗與升級結果 */
     gains: readonly DogExpGain[] = [],
     /** 「下一關」按鈕（打贏而且下一關可以打才給） */
-    next?: { label: string; onTap: () => void },
+    next?: {
+      label: string;
+      onTap: () => void;
+      /** 旁邊的「自動」勾選框：目前有沒有勾，以及勾／取消時要做的事（存進設定） */
+      auto?: { on: boolean; onToggle: (on: boolean) => void };
+    },
   ) {
     super(scene, 0, 0);
     const { w: GAME_WIDTH, h: GAME_HEIGHT, landscape } = viewOf(scene);
@@ -110,25 +121,73 @@ export class ResultPanel extends Phaser.GameObjects.Container {
       ...extra.map((e, i) =>
         center(py + 132 + keys.length * 30 + i * 26, e, 15, win ? '#b5651d' : tone.text, true),
       ),
-      text(
-        px + pw / 2,
-        py + ph - 22,
-        next ? '點其他地方回地圖' : '點一下關閉',
-        14,
-        COLORS.inkSoft,
-      ).setOrigin(0.5),
     ];
+    const hint = text(
+      px + pw / 2,
+      py + ph - 22,
+      next ? nextHint(false) : '點一下關閉',
+      14,
+      COLORS.inkSoft,
+    ).setOrigin(0.5);
+    items.push(hint);
     if (next) {
-      const bw = Math.min(220, mainW - 40);
-      this.nextRect = {
-        x: cx - bw / 2,
-        y: py + ph - 40 - NEXT_HEIGHT,
-        width: bw,
-        height: NEXT_HEIGHT,
-      };
+      const AUTO_WIDTH = 78;
+      const total = Math.min(next.auto ? 290 : 220, mainW - 24);
+      const bw = next.auto ? total - AUTO_WIDTH - 8 : total;
+      const by = py + ph - 40 - NEXT_HEIGHT;
+      this.nextRect = { x: cx - total / 2, y: by, width: bw, height: NEXT_HEIGHT };
       const button = new Button(scene, this.nextRect, next.label, next.onTap, 20);
       button.setColor(COLORS.harvest);
       items.push(button);
+
+      if (next.auto) {
+        const auto = next.auto;
+        const r = (this.autoRect = {
+          x: this.nextRect.x + bw + 8,
+          y: by,
+          width: AUTO_WIDTH,
+          height: NEXT_HEIGHT,
+        });
+        const box = scene.add.graphics();
+        const c = scene.add.container(r.x, r.y, [
+          box,
+          text(34, r.height / 2, '自動', 17, COLORS.ink, true).setOrigin(0, 0.5),
+        ]);
+        makeTapArea(c, r.width, r.height);
+        let timer: Phaser.Time.TimerEvent | null = null;
+        const apply = (on: boolean) => {
+          this.autoOn = on;
+          box.clear();
+          box.fillStyle(0xfff6e8, 1);
+          box.lineStyle(2, COLORS.cardBorder, 1);
+          box.fillRoundedRect(0, 0, r.width, r.height, 12);
+          box.strokeRoundedRect(0, 0, r.width, r.height, 12);
+          const cy = r.height / 2;
+          box.fillStyle(on ? COLORS.harvest : 0xffffff, 1);
+          box.lineStyle(2, on ? COLORS.harvest : COLORS.inkHex, 1);
+          box.fillRoundedRect(8, cy - 10, 20, 20, 5);
+          box.strokeRoundedRect(8, cy - 10, 20, 20, 5);
+          if (on) {
+            box.lineStyle(3, 0xffffff, 1);
+            box.beginPath();
+            box.moveTo(12, cy);
+            box.lineTo(17, cy + 5);
+            box.lineTo(24, cy - 6);
+            box.strokePath();
+          }
+          hint.setText(nextHint(on));
+          // 勾著：等一下自己按「下一關」；取消就停
+          timer?.remove();
+          timer = on ? scene.time.delayedCall(AUTO_NEXT_DELAY_MS, next.onTap) : null;
+        };
+        c.on('pointerup', () => {
+          playSfx('tap');
+          auto.onToggle(!this.autoOn);
+          apply(!this.autoOn);
+        });
+        apply(auto.on);
+        items.push(c);
+      }
     }
 
     // ---- 經驗與升級 ----

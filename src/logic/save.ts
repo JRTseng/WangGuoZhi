@@ -218,6 +218,7 @@ function settings(v: unknown, fallback: Settings): Settings {
     battleSpeed:
       speed === 1 || speed === 2 || speed === 3 || speed === 4 ? speed : fallback.battleSpeed,
     autoUlt: bool(v.autoUlt, fallback.autoUlt),
+    autoNext: bool(v.autoNext, fallback.autoNext),
     trainingSort: isTrainingSort(v.trainingSort) ? v.trainingSort : fallback.trainingSort,
   };
 }
