@@ -104,7 +104,8 @@ test('體力與每日次數：打 3 次用完次數、體力打完要等，骨�
   expect(e.buyButton).toMatchObject({ kind: 'stamina' });
   await page.screenshot({ path: 'artifacts/screenshots/landscape/no-stamina.png' });
 
-  // 補體力：30 骨頭幣換 60；買 2 次後骨頭幣不夠（50 + 12 × 2 = 74 → 14）
+  // 補體力：30 骨頭幣換 60。打贏 5 場城主升到 Lv.2 多送 40 骨頭幣（50 + 12 × 2 + 40 = 114），
+  // 所以一天 3 次買得完（114 → 24），買完就不能再買
   await tap(page, e.buyButton!);
   await page.waitForFunction(() => !!window.__WGZ__?.shop);
   shop = (await wgz(page)).shop!;
@@ -114,15 +115,17 @@ test('體力與每日次數：打 3 次用完次數、體力打完要等，骨�
   await page.waitForFunction(() => window.__WGZ__?.shop?.left === 2);
   await tap(page, shop.ok);
   await page.waitForFunction(() => window.__WGZ__?.shop?.left === 1);
+  await tap(page, shop.ok);
+  await page.waitForFunction(() => window.__WGZ__?.shop?.left === 0);
   shop = (await wgz(page)).shop!;
-  expect(shop).toMatchObject({ enabled: false, message: '骨頭幣不夠' });
+  expect(shop.enabled).toBe(false);
   await tap(page, shop.ok);
   await tap(page, shop.cancel);
   await page.waitForFunction(() => !window.__WGZ__?.shop);
   s = await wgz(page);
-  expect(s.resources!.bones).toBe(14);
+  expect(s.resources!.bones).toBe(24);
   // 買的可以超過上限
-  expect(s.stamina).toEqual({ value: 120, max: 100 });
+  expect(s.stamina).toEqual({ value: 180, max: 100 });
   expect(s.expeditionPanel!.confirmButton).toMatchObject({ label: '開戰！', enabled: true });
 });
 
