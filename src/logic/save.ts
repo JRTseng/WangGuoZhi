@@ -25,6 +25,7 @@ import { PITY_SSR } from './gacha';
 import { MAX_LEVEL, STAR_MAX, expNeeded, initialProgress, levelCapForStar } from './leveling';
 import { cleanSkillLine } from './skillShow';
 import { DRILL_MAX } from './training';
+import { sanitizeQuests } from './quests';
 import { isTrainingSort } from './trainingSort';
 import { sanitizeWounds } from './wounds';
 
@@ -408,6 +409,7 @@ export function sanitizeState(raw: unknown, now: number): GameState {
     gear,
     equipped,
     wounds: sanitizeWounds(raw.wounds, isOwned, now),
+    quests: sanitizeQuests(raw.quests, cleared.length),
   };
 }
 

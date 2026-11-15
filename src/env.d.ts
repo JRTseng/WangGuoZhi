@@ -34,6 +34,8 @@ interface WgzDebugState {
     background: string;
     /** 背景裡有幾個會動的東西（低畫質是 0） */
     backgroundMoving?: number;
+    /** 任務有幾個獎勵可以領（T011）；大於 0 時「任務」亮紅點 */
+    questReady?: number;
     buttons: Record<
       | 'account'
       | 'mail'
@@ -49,6 +51,27 @@ interface WgzDebugState {
       | 'event'
       | 'train',
       WgzRect
+    >;
+  };
+  /** 任務畫面（T011） */
+  quest?: {
+    tab: 'main' | 'daily' | 'feat';
+    /** 分頁按鈕與各自有幾個獎勵可領 */
+    tabs: Record<'main' | 'daily' | 'feat', WgzRect & { count: number }>;
+    claimAll: WgzRect & { count: number };
+    rows: Array<
+      WgzRect & {
+        id: string;
+        title: string;
+        progress: number;
+        target: number;
+        done: boolean;
+        claimed: boolean;
+        food: number;
+        bones: number;
+        go: string | null;
+        button: WgzRect;
+      }
     >;
   };
   /** 主頁出征卡底部的體力條（點了補體力） */

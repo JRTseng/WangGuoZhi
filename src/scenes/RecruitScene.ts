@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { countQuest } from '../logic/quests';
 import { COLORS, RARITY_COLORS, rarityHex } from '../config';
 import { findDog, type DogData } from '../data/dogs';
 import {
@@ -143,7 +144,7 @@ export class RecruitScene extends Phaser.Scene {
     if (r.items.length === 0) return;
     // 新抽到的 SR、SSR 附專屬裝備（T014）
     const before = totalGear(r.state);
-    const next = grantExclusives(r.state);
+    const next = countQuest(grantExclusives(r.state), 'pull', r.items.length);
     this.gifts = totalGear(next) - before;
     setState(next);
     this.items = r.items;

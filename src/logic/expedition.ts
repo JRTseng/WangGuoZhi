@@ -29,6 +29,7 @@ import {
   type DogExpGain,
 } from './leveling';
 import { isStageUnlocked, unlockedBackgrounds } from './progress';
+import { countQuest } from './quests';
 import { runBlock, spendRun, type TimeOptions } from './stamina';
 import { markWounds } from './wounds';
 
@@ -313,6 +314,8 @@ function settleBattle(
     cleared:
       !win || state.cleared.includes(exp.stageId) ? state.cleared : [...state.cleared, exp.stageId],
     history: [...state.history, record].slice(-HISTORY_MAX),
+    // 任務（T011）：每日的出征／打贏次數與累計勝場
+    quests: countQuest(countQuest(state, 'battle'), 'win', win ? 1 : 0).quests,
   };
   // 新夥伴有專屬裝備的話一起送（T014）
   return { record, state: newDog ? grantExclusives(next) : next };

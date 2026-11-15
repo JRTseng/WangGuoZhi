@@ -142,6 +142,22 @@ export interface GachaState {
   sinceSSR: number;
 }
 
+/** 每日任務會數的事情（T011）：出征、打贏、特訓、召募 */
+export type DailyCounter = 'battle' | 'win' | 'drill' | 'pull';
+
+/**
+ * 任務（T011）。主線與成就的進度都從別的欄位算出來（通關紀錄、擁有的狗……），
+ * 這裡只記「領過哪些獎勵」、累計打贏幾場，還有今天的每日任務。
+ */
+export interface QuestState {
+  /** 已領獎的主線與成就任務 id */
+  claimed: string[];
+  /** 累計打贏幾場 */
+  wins: number;
+  /** 今天的每日任務：各種事情做了幾次、領過哪些；換日時（05:00）清空 */
+  daily: { counts: Partial<Record<DailyCounter, number>>; claimed: string[] };
+}
+
 export type Quality = 'low' | 'medium' | 'high';
 
 /** 帳號設定（語音／推播目前只記住開關，還沒有實際功能；音樂與音效見 T016） */
@@ -220,6 +236,8 @@ export interface GameState {
   equipped: Record<string, Partial<Record<GearSlot, string>>>;
   /** 受傷外觀（T014）：哪些狗剛出征回來或掛彩、到什麼時候為止；純外觀（見 src/logic/wounds.ts） */
   wounds: Record<string, { until: number; level: 1 | 2 }>;
+  /** 任務（T011）：領過的獎勵、累計勝場與今天的每日任務（規則見 src/logic/quests.ts） */
+  quests: QuestState;
 }
 
 /** 體力上限；新遊戲從滿體力開始 */
@@ -266,5 +284,6 @@ export function createInitialState(now: number = Date.now()): GameState {
     gear: {},
     equipped: {},
     wounds: {},
+    quests: { claimed: [], wins: 0, daily: { counts: {}, claimed: [] } },
   };
 }

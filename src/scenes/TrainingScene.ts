@@ -8,6 +8,7 @@ import { formatAmount } from '../logic/format';
 import type { Rect } from '../logic/layout';
 import { MAX_LEVEL, STAR_MAX, dogStats } from '../logic/leveling';
 import { SKILL_LINE_MAX, setSkillLine, skillLineOf } from '../logic/skillShow';
+import { countQuest } from '../logic/quests';
 import { checkStarUp, starReadyCount, starUp, starUpAll, type StarCheck } from '../logic/star';
 import {
   TRAINING_SORT_LABEL,
@@ -435,7 +436,7 @@ export class TrainingScene extends Phaser.Scene {
   private drillOnce(i: number, stat: DrillStat): boolean {
     const r = drill(getState(), this.ids[i], stat);
     if (!r.check.ok) return false;
-    setState(r.state);
+    setState(countQuest(r.state, 'drill'));
     playSfx('equip');
     this.renderRows();
     this.floatText(trainingButtons(this.layout, i)[stat], `${DRILL_LABELS[stat]} +1`);
