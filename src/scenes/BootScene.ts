@@ -1,6 +1,8 @@
 import Phaser from 'phaser';
 import { COLORS, FONT_FAMILY } from '../config';
 import { formatVersion } from '../logic/version';
+import { renderScale } from '../logic/resolution';
+import { viewOf } from './ui';
 
 /** 開機畫面停留時間（毫秒） */
 const BOOT_HOLD_MS = 800;
@@ -11,8 +13,7 @@ export class BootScene extends Phaser.Scene {
   }
 
   create(): void {
-    const GAME_WIDTH = this.scale.width;
-    const GAME_HEIGHT = this.scale.height;
+    const { w: GAME_WIDTH, h: GAME_HEIGHT } = viewOf(this);
     const cx = GAME_WIDTH / 2;
     const version = formatVersion(__APP_VERSION__, __GIT_HASH__);
 
@@ -46,6 +47,7 @@ export class BootScene extends Phaser.Scene {
       version,
       orientation: GAME_WIDTH > GAME_HEIGHT ? 'landscape' : 'portrait',
       size: { width: GAME_WIDTH, height: GAME_HEIGHT },
+      renderScale: renderScale.value,
     };
 
     // 載入畫面停一下再進主畫面；網址加 ?stay=boot 可停在這裡（截圖用）

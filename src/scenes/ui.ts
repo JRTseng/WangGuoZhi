@@ -1,7 +1,9 @@
 import Phaser from 'phaser';
 import { COLORS, FONT_FAMILY } from '../config';
 import type { Rect } from '../logic/layout';
-import { orientationFor } from '../logic/orientation';
+import { gameSizeFor, orientationFor } from '../logic/orientation';
+import { renderScale, renderScaleFor, renderScaleFromSearch } from '../logic/resolution';
+import type { Quality } from '../state/gameState';
 import { audioDebug, playSfx } from './components/audio';
 
 /** 目前的畫面尺寸與方向（直式 390 x 844，橫式 844 x 390） */
@@ -12,9 +14,49 @@ export interface View {
 }
 
 export function viewOf(scene: Phaser.Scene): View {
-  const w = scene.scale.width;
-  const h = scene.scale.height;
+  // 畫布是「版面 x 解析度倍數」那麼大（T008），版面座標要除回來
+  const w = scene.scale.width / renderScale.value;
+  const h = scene.scale.height / renderScale.value;
   return { w, h, landscape: orientationFor(w, h) === 'landscape' };
+}
+
+/** 這台裝置現在該用幾倍解析度畫（T008）；跟著畫質設定，網址 ?res= 可以指定 */
+export function pickRenderScale(quality: Quality): number {
+  const search = window.location.search;
+  return renderScaleFor({
+    dpr: window.devicePixelRatio,
+    viewWidth: window.innerWidth,
+    viewHeight: window.innerHeight,
+    quality,
+    override: renderScaleFromSearch(search),
+    // 畫面測試固定 1 倍；要測真正的倍數就在網址加 ?res=auto
+    automated: navigator.webdriver === true && !/[?&]res=auto(&|$)/.test(search),
+  });
+}
+
+/** 畫布要開多大：版面 844 x 390 乘上解析度倍數 */
+export function canvasSizeFor(scale: number): { width: number; height: number } {
+  const base = gameSizeFor('landscape');
+  return { width: Math.round(base.width * scale), height: Math.round(base.height * scale) };
+}
+
+/** 鏡頭放大成解析度倍數，場景裡照舊用 844 x 390 的版面座標（每個場景開始時都要做） */
+export function fitCamera(scene: Phaser.Scene): void {
+  scene.cameras?.main?.setOrigin(0, 0).setZoom(renderScale.value);
+}
+
+/**
+ * 畫質改了以後換解析度。倍數有變就回傳 true：畫布已經換大小，
+ * 呼叫的場景要自己重開（文字是照建立當下的倍數畫的，要重畫才會變清楚）。
+ */
+export function applyRenderScale(scene: Phaser.Scene, quality: Quality): boolean {
+  const next = pickRenderScale(quality);
+  if (next === renderScale.value) return false;
+  renderScale.value = next;
+  const size = canvasSizeFor(next);
+  scene.scale.setGameSize(size.width, size.height);
+  patchDebug({ renderScale: next });
+  return true;
 }
 
 export function addText(
@@ -56,6 +98,7 @@ export function resetDebug(scene: Phaser.Scene): WgzDebugState {
     version: window.__WGZ__?.version ?? '',
     orientation: v.landscape ? 'landscape' : 'portrait',
     size: { width: v.w, height: v.h },
+    renderScale: renderScale.value,
     audio: audioDebug(),
   };
   return window.__WGZ__;

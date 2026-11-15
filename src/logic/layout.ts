@@ -5,6 +5,21 @@ export interface Rect {
   height: number;
 }
 
+/** 手指好按的最小邊長（版面座標）。按鈕畫得比這小的，可點範圍會往外補到這麼大（T008） */
+export const MIN_TAP = 44;
+
+/** 往外補的量：把 size 補到 min 要在兩邊各加多少 */
+export function tapPad(size: number, min: number = MIN_TAP): number {
+  return Math.max(0, (min - size) / 2);
+}
+
+/** 把矩形以中心往外補到至少 min x min（已經夠大的那一邊不動） */
+export function tapRect(r: Rect, min: number = MIN_TAP): Rect {
+  const px = tapPad(r.width, min);
+  const py = tapPad(r.height, min);
+  return { x: r.x - px, y: r.y - py, width: r.width + px * 2, height: r.height + py * 2 };
+}
+
 export interface ListLayoutOptions {
   /** 區域左上角與寬高 */
   area: Rect;

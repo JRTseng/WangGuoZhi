@@ -5,6 +5,7 @@ import type { Rect } from '../../logic/layout';
 import type { Quality, Settings } from '../../state/gameState';
 import { getState, resetSave, setState } from '../../state/store';
 import { addText, openModal, patchDebug, viewOf } from '../ui';
+import { fullscreenAvailable, isFullscreen, toggleFullscreen } from './fullscreen';
 import { makeTapArea } from './hitArea';
 import { lordExpNeeded, lordTitle } from '../../logic/lord';
 
@@ -15,7 +16,7 @@ export const FORUM_URL = 'https://github.com/JRTseng/WangGuoZhi/issues';
 const QUALITY_LABEL: Record<Quality, string> = { low: '低', medium: '中', high: '高' };
 
 type ToggleKey = 'voice' | 'music' | 'sfx' | 'push' | 'effects' | 'skipBattle';
-type Key = ToggleKey | Quality | 'site' | 'forum' | 'redeem' | 'reset' | 'close';
+type Key = ToggleKey | Quality | 'site' | 'forum' | 'redeem' | 'fullscreen' | 'reset' | 'close';
 
 /**
  * 左上角「帳號與設定」面板：語音、音樂、音效、推播、略過戰鬥畫面開關，畫質，官方連結、討論區、優惠碼。
@@ -63,12 +64,12 @@ export class SettingsPanel {
     const lordNeed = lordExpNeeded(lord.level);
     const pad = 18;
 
-    layer.add(addText(this.scene, box.x + pad, box.y + 14, '帳號與設定', 22, COLORS.ink, true));
+    layer.add(addText(this.scene, box.x + pad, box.y + 10, '帳號與設定', 22, COLORS.ink, true));
     layer.add(
       addText(
         this.scene,
         box.x + pad,
-        box.y + 44,
+        box.y + 39,
         `城主 Lv.${lord.level}「${lordTitle(lord.level)}」${lordNeed ? `・經驗 ${lord.exp}/${lordNeed}` : '・已滿級'}\u3000ID：WGZ-000001（尚未綁定帳號）`,
         13,
         COLORS.inkSoft,
@@ -79,9 +80,9 @@ export class SettingsPanel {
     const colW = landscape ? (box.width - pad * 3) / 2 : box.width - pad * 2;
     const leftX = box.x + pad;
     const rightX = landscape ? leftX + colW + pad : leftX;
-    let y = box.y + 72;
-    // 橫式放六個開關：一列矮一點才放得下
-    const rowH = landscape ? 29 : 46;
+    let y = box.y + 62;
+    // 橫式放六個開關：一列矮一點才放得下（T008：29 加到 35，手指比較不會按到隔壁）
+    const rowH = landscape ? 35 : 46;
 
     const toggles: [ToggleKey, string][] = [
       ['voice', '語音'],
@@ -96,8 +97,20 @@ export class SettingsPanel {
       y += rowH;
     }
 
-    layer.add(addText(this.scene, leftX, y + 8, '遊戲畫質', 17, COLORS.ink, true));
-    y += 36;
+    layer.add(addText(this.scene, leftX, y + 7, '遊戲畫質', 17, COLORS.ink, true));
+    if (landscape) {
+      layer.add(
+        addText(
+          this.scene,
+          leftX + 78,
+          y + 11,
+          '越高越清楚；低最省電、沒有特效',
+          12,
+          COLORS.inkSoft,
+        ),
+      );
+    }
+    y += 34;
     const qs: Quality[] = ['low', 'medium', 'high'];
     const segW = (colW - 16) / 3;
     qs.forEach((q, i) => {
@@ -114,12 +127,14 @@ export class SettingsPanel {
       );
     });
     y += 48;
-    layer.add(
-      addText(this.scene, leftX, y, '低畫質會關掉落葉、雪花等特效，比較省電', 12, COLORS.inkSoft),
-    );
+    if (!landscape) {
+      layer.add(
+        addText(this.scene, leftX, y, '低畫質會關掉落葉、雪花等特效，比較省電', 12, COLORS.inkSoft),
+      );
+    }
 
     // 右欄（橫式）／接續（直式）
-    let ry = landscape ? box.y + 72 : y + 30;
+    let ry = landscape ? box.y + 66 : y + 30;
     const half = (colW - 10) / 2;
     this.pill(
       { x: rightX, y: ry, width: half, height: 44 },
@@ -137,10 +152,10 @@ export class SettingsPanel {
       'forum',
       () => window.open(FORUM_URL, '_blank', 'noopener'),
     );
-    ry += 60;
+    ry += 54;
 
     layer.add(addText(this.scene, rightX, ry, '優惠碼', 17, COLORS.ink, true));
-    ry += 28;
+    ry += 26;
     const inputW = colW - 96;
     const inputRect = { x: rightX, y: ry, width: inputW, height: 44 };
     this.input = this.scene.add
@@ -183,6 +198,24 @@ export class SettingsPanel {
     ry += 40;
 
     const closeY = landscape ? box.y + box.height - 58 : box.y + box.height - 62;
+    // 全螢幕（T008）：瀏覽器支援才出現（Android 可以，iPhone 的 Safari 不行）；順便把畫面鎖成橫向
+    if (fullscreenAvailable()) {
+      const on = isFullscreen();
+      const fy = landscape ? closeY - 54 : ry;
+      this.pill(
+        { x: rightX, y: fy, width: colW, height: 44 },
+        on ? '離開全螢幕' : '全螢幕（藏起網址列）',
+        on ? 0xe9dcc8 : 0x4f6d8a,
+        !on,
+        'fullscreen',
+        () => {
+          void toggleFullscreen().then(() =>
+            this.scene.time.delayedCall(300, () => this.rerender()),
+          );
+        },
+      );
+      if (!landscape) ry += 54;
+    }
     // 最下面一列：左邊「重新開始」（要按兩次才會清除存檔），右邊「關閉」
     const lastY = Math.max(ry, closeY);
     const resetW = Math.floor((colW - 10) * 0.46);
@@ -239,7 +272,8 @@ export class SettingsPanel {
     // 點整列都可以切換
     const row = { x, y, width: w, height: h };
     const hit = this.scene.add.container(row.x, row.y);
-    makeTapArea(hit, row.width, row.height);
+    // 六列緊貼著排，可點範圍不往外補
+    makeTapArea(hit, row.width, row.height, 0);
     hit.on('pointerup', () => this.update({ [key]: !on } as Partial<Settings>, false));
     this.layer.add([c, hit]);
     this.rects[key] = row;
@@ -280,6 +314,11 @@ export class SettingsPanel {
     this.disarmReset();
     this.render();
     this.onChange(qualityChanged);
+  }
+
+  /** 面板還開著就重畫一次（全螢幕切換後按鈕文字要跟著變） */
+  private rerender(): void {
+    if (this.layer?.active) this.render();
   }
 
   /** 做了別的事就取消「重新開始」的確認狀態 */

@@ -73,7 +73,7 @@ function addTag(
   const t = scene.add
     .text(x, y, s, {
       fontFamily: FONT_FAMILY,
-      fontSize: '11px',
+      fontSize: '12px',
       fontStyle: 'bold',
       color: '#3b2a1a',
       backgroundColor: '#f5d38a',

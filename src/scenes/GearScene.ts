@@ -107,19 +107,20 @@ export class GearScene extends Phaser.Scene {
 
     // 清單上下拖曳或滾輪捲動；沒有拖動就當成點卡片
     const inList = (p: Phaser.Input.Pointer) =>
-      p.x >= l.list.x && p.y >= l.list.y && p.y <= l.list.y + l.list.height;
+      p.worldX >= l.list.x && p.worldY >= l.list.y && p.worldY <= l.list.y + l.list.height;
     this.input.on('pointerdown', (p: Phaser.Input.Pointer) => {
-      this.dragFrom = inList(p) ? { x: p.x, y: p.y, scroll: this.scrollY } : null;
+      this.dragFrom = inList(p) ? { x: p.worldX, y: p.worldY, scroll: this.scrollY } : null;
     });
     this.input.on('pointermove', (p: Phaser.Input.Pointer) => {
-      if (this.dragFrom && p.isDown) this.scrollTo(this.dragFrom.scroll - (p.y - this.dragFrom.y));
+      if (this.dragFrom && p.isDown)
+        this.scrollTo(this.dragFrom.scroll - (p.worldY - this.dragFrom.y));
     });
     this.input.on('pointerup', (p: Phaser.Input.Pointer) => {
       const from = this.dragFrom;
       this.dragFrom = null;
       if (!from || !inList(p)) return;
-      if (Math.abs(p.x - from.x) > TAP_SLOP || Math.abs(p.y - from.y) > TAP_SLOP) return;
-      this.tapCard(p.x, p.y + this.scrollY);
+      if (Math.abs(p.worldX - from.x) > TAP_SLOP || Math.abs(p.worldY - from.y) > TAP_SLOP) return;
+      this.tapCard(p.worldX, p.worldY + this.scrollY);
     });
     this.input.on('wheel', (_p: unknown, _o: unknown, _dx: number, dy: number) =>
       this.scrollTo(this.scrollY + dy),
