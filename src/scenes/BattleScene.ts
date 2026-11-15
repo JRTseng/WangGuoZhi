@@ -26,6 +26,8 @@ import {
   ROW_NAMES,
 } from '../logic/battle';
 import { battleLayout, type BattleLayout, type BattleSlot } from '../logic/battleLayout';
+import type { GearData } from '../data/equipment';
+import { gearOf } from '../logic/equipment';
 import { battleInputOf, completeExpedition, resultNotes } from '../logic/expedition';
 import { newStoriesAfter } from '../logic/progress';
 import {
@@ -36,6 +38,7 @@ import {
   type ShowCasters,
   type ShowUlt,
 } from '../logic/skillShow';
+import { ultPoseOf } from '../logic/ultPose';
 import { voiceCueId } from '../logic/voicePack';
 import type { ExpeditionRecord, GameState, PendingBattle } from '../state/gameState';
 import { getState, setState } from '../state/store';
@@ -75,6 +78,8 @@ interface UnitView {
   color: number;
   accent: number;
   fierce: boolean;
+  /** 身上的裝備（我方才有） */
+  gear?: readonly GearData[];
   maxHp: number;
   hp: number;
   /** 站第幾排（0 前、1 中、2 後） */
@@ -284,6 +289,8 @@ export class BattleScene extends Phaser.Scene {
         color: d?.color ?? 0xd9894a,
         accent: d?.accent ?? 0xfff3e0,
         fierce: false,
+        // 身上的裝備：頭飾畫在場上的頭像，大絕招時整套畫出來
+        gear: gearOf(getState(), u.id),
       });
       this.units.team.push(unit);
       // 手動放招：點 EN 滿的狗，輪到牠就放大絕招；再點一次取消
@@ -309,7 +316,7 @@ export class BattleScene extends Phaser.Scene {
     index: number,
     name: string,
     slot: BattleSlot,
-    look: { color: number; accent: number; fierce: boolean },
+    look: { color: number; accent: number; fierce: boolean; gear?: readonly GearData[] },
   ): UnitView {
     const data = (side === 'team' ? this.sim.team : this.sim.enemies)[index];
     const box = this.add.container(slot.x, slot.y);
@@ -369,7 +376,11 @@ export class BattleScene extends Phaser.Scene {
   private redrawUnit(u: UnitView): void {
     const down = u.hp <= 0;
     u.head.clear();
-    drawDogHead(u.head, 0, 0, u.slot.r, u.color, u.accent, { fierce: u.fierce, dark: down });
+    drawDogHead(u.head, 0, 0, u.slot.r, u.color, u.accent, {
+      fierce: u.fierce,
+      dark: down,
+      gear: u.gear,
+    });
     u.box.setAlpha(down ? 0.7 : 1);
 
     const bw = Math.max(56, u.slot.r * 2.2);
@@ -482,9 +493,11 @@ export class BattleScene extends Phaser.Scene {
       this.hit(e, this.stepMs);
       return;
     }
+    // 設定關掉「戰鬥特效」：不播喊招字卡與招式特效，只比一般出手多停一下
+    const effects = getState().settings.effects;
     // 大絕招：先播喊招字卡，字卡滑走後才真的打下去
-    const total = ultDelayMs(this.speed, this.pace);
-    const cutIn = Math.round(total * ULT_CUTIN_RATIO);
+    const total = effects ? ultDelayMs(this.speed, this.pace) : Math.round(this.stepMs * 1.6);
+    const cutIn = effects ? Math.round(total * ULT_CUTIN_RATIO) : Math.round(total * 0.3);
     const ult: ShowUlt = {
       ...caster,
       kind: e.kind === 'attack' ? caster.kind : e.kind,
@@ -496,7 +509,7 @@ export class BattleScene extends Phaser.Scene {
     this.queued = e;
     this.lastVoiceCue = voiceCueId(actor.id, 'ultimate');
     playVoiceCue(this.lastVoiceCue);
-    if (this.pace !== 'fast') this.showUltimate(e, ult, total, cutIn);
+    if (this.pace !== 'fast' && effects) this.showUltimate(e, ult, total, cutIn);
     playSfx('ultimate');
     this.sync();
     this.timer = this.time.delayedCall(cutIn, () => this.hit(e, total - cutIn, true));
@@ -543,13 +556,24 @@ export class BattleScene extends Phaser.Scene {
       name: ult.name,
       skill: ult.skill,
       line: ult.line,
-      caster: { ...caster.slot, color: caster.color, accent: caster.accent, fierce: caster.fierce },
+      caster: {
+        ...caster.slot,
+        color: caster.color,
+        accent: caster.accent,
+        fierce: caster.fierce,
+        pose: ultPoseOf(
+          caster.id,
+          (ult.side === 'team' ? this.sim.team : this.sim.enemies)[ult.index].role,
+        ),
+        gear: caster.gear,
+      },
       target: (e.hits[0] ? this.units[e.hits[0].side][e.hits[0].target] : caster).slot,
       allies: alive(this.units[ult.side]),
       foes: alive(this.units[foeSide]),
       total,
       cutIn,
       depth: ULT_DEPTH,
+      rich: getState().settings.quality !== 'low',
     });
   }
 
@@ -838,6 +862,11 @@ export class BattleScene extends Phaser.Scene {
               skill: this.ult.skill,
               line: this.ult.line,
               kind: this.ult.kind,
+              pose: ultPoseOf(
+                this.units[this.ult.side][this.ult.index].id,
+                (this.ult.side === 'team' ? this.sim.team : this.sim.enemies)[this.ult.index].role,
+              ).pose,
+              gear: this.units[this.ult.side][this.ult.index].gear?.length ?? 0,
             }
           : null,
         enMax: EN_MAX,

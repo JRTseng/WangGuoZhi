@@ -1,3 +1,4 @@
+import { RAGE_BELOW, type Perks } from './levelSkills';
 import { calcPower } from './power';
 
 /**
@@ -191,6 +192,8 @@ export interface BattleDog {
   afterHeal?: boolean;
   /** 專屬特性（T024） */
   trait?: BattleTrait;
+  /** 成長技能的被動效果合計（每 10 級學一個，見 levelSkills.ts）；沒學會任何技能就沒有 */
+  perks?: Perks;
 }
 
 /**
@@ -255,6 +258,8 @@ export interface BattleUnit {
   heal?: boolean;
   /** 專屬特性（T024） */
   trait?: BattleTrait;
+  /** 成長技能的被動效果（我方才有） */
+  perks?: Perks;
   /** 敵人的配色與大小（T018，畫面用） */
   look?: EnemyLook;
 }
@@ -485,7 +490,7 @@ export function createBattle(input: BattleInput): BattleState {
     return {
       id: d.id,
       name: d.name,
-      maxHp: hpOf(defense),
+      maxHp: Math.round(hpOf(defense) * (1 + (d.perks?.hp ?? 0))),
       attack,
       defense,
       might: 1,
@@ -498,6 +503,7 @@ export function createBattle(input: BattleInput): BattleState {
       afterHeal: !!d.afterHeal,
       ...(role === '補血' ? { heal: true } : {}),
       ...(d.trait ? { trait: d.trait } : {}),
+      ...(d.perks ? { perks: d.perks } : {}),
     };
   });
 
@@ -505,7 +511,11 @@ export function createBattle(input: BattleInput): BattleState {
     team,
     enemies: [],
     hp: { team: team.map((u) => u.maxHp), enemy: [] },
-    en: { team: team.map(() => 0), enemy: [] },
+    // 成長技能：開場就先有一些 EN
+    en: {
+      team: team.map((u) => (u.canUlt ? Math.min(EN_MAX, u.perks?.startEn ?? 0) : 0)),
+      enemy: [],
+    },
     acts: { team: team.map(() => 0), enemy: [] },
     taunt: { team: team.map(() => 0), enemy: [] },
     inspire: { team: 0, enemy: 0 },
@@ -660,8 +670,11 @@ function strike(
   const foe = other(side);
   const a = unitsOf(s, side)[actor];
   const t = unitsOf(s, foe)[target];
-  const dodge = t.trait === 'evasive' ? EVASIVE_DODGE_CHANCE : DODGE_CHANCE;
-  if (t.role === '幸運' && rand(s) < dodge) {
+  // 閃避：幸運本來就會，成長技能再加上去（沒有閃避機率的不抽亂數）
+  const dodge =
+    (t.role === '幸運' ? (t.trait === 'evasive' ? EVASIVE_DODGE_CHANCE : DODGE_CHANCE) : 0) +
+    (t.perks?.dodge ?? 0);
+  if (dodge > 0 && rand(s) < dodge) {
     return {
       side: foe,
       target,
@@ -671,10 +684,22 @@ function strike(
       dodged: true,
     };
   }
-  const critChance = a.trait === 'fortune' ? FORTUNE_CRIT_CHANCE : CRIT_CHANCE;
-  const crit = !!opts.crit && rand(s) < critChance;
+  // 爆擊：幸運的亂打本來就會，成長技能讓每一下都多一點機率
+  const critChance =
+    (opts.crit ? (a.trait === 'fortune' ? FORTUNE_CRIT_CHANCE : CRIT_CHANCE) : 0) +
+    (a.perks?.crit ?? 0);
+  const crit = critChance > 0 && rand(s) < critChance;
+  // 成長技能：傷害加成（平常、第 1 回合、血量低的時候）
+  const ap = a.perks;
+  const perkRate = ap
+    ? 1 +
+      (ap.atk ?? 0) +
+      (s.round === 1 ? (ap.opening ?? 0) : 0) +
+      (s.hp[side][actor] < a.maxHp * RAGE_BELOW ? (ap.rage ?? 0) : 0)
+    : 1;
   const attack =
     a.attack *
+    perkRate *
     (s.inspire[side] >= s.round ? INSPIRE_RATE : 1) *
     (s.cheer[side][actor] >= s.round ? CHEER_RATE : 1) *
     (s.weak[side][actor] >= s.round ? SLOW_RATE : 1);
@@ -700,6 +725,7 @@ function strike(
     (1 - DAMAGE_SPREAD + rand(s) * DAMAGE_SPREAD * 2);
   if (s.taunt[foe][target] >= s.round) dmg *= TAUNT_TAKEN;
   else if (t.role === '守護') dmg *= GUARD_TAKEN;
+  if (t.perks?.guard) dmg *= 1 - t.perks.guard;
   if (s.rally[foe] >= s.round) dmg *= RALLY_TAKEN;
   if (sheltered) dmg *= RESCUE_AREA_TAKEN;
   if (shielded) {
@@ -709,7 +735,9 @@ function strike(
   const damage = Math.min(s.hp[foe][target], Math.max(1, Math.round(dmg)));
   s.hp[foe][target] -= damage;
   const defeated = s.hp[foe][target] <= 0;
-  if (!defeated && t.canUlt) s.en[foe][target] = Math.min(EN_MAX, s.en[foe][target] + EN_PER_HIT);
+  if (!defeated && t.canUlt) {
+    s.en[foe][target] = Math.min(EN_MAX, s.en[foe][target] + EN_PER_HIT + (t.perks?.enHit ?? 0));
+  }
   if (defeated) s.en[foe][target] = 0;
   return {
     side: foe,
@@ -808,6 +836,8 @@ function act(s: BattleState, useUlt: boolean): BattleAction {
   const hits: BattleHit[] = [];
   let kind: ActionKind = 'attack';
   let buff: BattleAction['buff'];
+  // 成長技能：自己補血的量提高
+  const healUp = 1 + (u.perks?.heal ?? 0);
 
   if (ult) {
     s.en[side][actor] = 0;
@@ -857,7 +887,7 @@ function act(s: BattleState, useUlt: boolean): BattleAction {
       kind = 'heal';
       const rescue = u.trait === 'rescue';
       for (const i of aliveOf(s, side)) {
-        const h = mend(s, side, i, rescue ? RESCUE_ULT_RATE : HEAL_ULT_RATE);
+        const h = mend(s, side, i, (rescue ? RESCUE_ULT_RATE : HEAL_ULT_RATE) * healUp);
         if (h) hits.push(h);
       }
       // 海晏：救起一隻倒下的隊友（隊伍順序最前面的），一場一次
@@ -904,10 +934,15 @@ function act(s: BattleState, useUlt: boolean): BattleAction {
         if (u.trait === 'rowHeal') {
           // 麥穗：同一排受傷的都補
           for (const i of hurt.filter((m) => units[m].row === units[low].row)) {
-            hits.push(mend(s, side, i, ROW_HEAL_RATE)!);
+            hits.push(mend(s, side, i, ROW_HEAL_RATE * healUp)!);
           }
         } else {
-          const h = mend(s, side, low, u.trait === 'smallHeal' ? SMALL_HEAL_RATE : HEAL_RATE)!;
+          const h = mend(
+            s,
+            side,
+            low,
+            (u.trait === 'smallHeal' ? SMALL_HEAL_RATE : HEAL_RATE) * healUp,
+          )!;
           // 絨耳：被補的隊友攻擊提高
           if (u.trait === 'cheer') {
             s.cheer[side][low] = s.round + BUFF_ROUNDS;
@@ -922,7 +957,7 @@ function act(s: BattleState, useUlt: boolean): BattleAction {
       // 攻擊後補血（暖桶）：對面還有人站著才補
       if (u.afterHeal && aliveOf(s, foe).length > 0) {
         for (const i of hurtMates(s, side).slice(0, HEAL_TARGETS)) {
-          const h = mend(s, side, i, HEAL_RATE);
+          const h = mend(s, side, i, HEAL_RATE * healUp);
           if (h) hits.push(h);
         }
       }
@@ -946,6 +981,23 @@ function act(s: BattleState, useUlt: boolean): BattleAction {
           });
         }
       }
+    }
+  }
+  // 成長技能：攻擊後回復造成傷害的一部分（自己還站著、有受傷才回）
+  if (u.perks?.steal) {
+    const dealt = hits.reduce((sum, h) => sum + (h.side === foe ? h.damage : 0), 0);
+    const hp = s.hp[side][actor];
+    if (dealt > 0 && hp > 0 && hp < u.maxHp) {
+      const amount = Math.min(u.maxHp - hp, Math.max(1, Math.round(dealt * u.perks.steal)));
+      s.hp[side][actor] += amount;
+      hits.push({
+        side,
+        target: actor,
+        damage: 0,
+        heal: amount,
+        targetHp: s.hp[side][actor],
+        defeated: false,
+      });
     }
   }
   s.acts[side][actor]++;

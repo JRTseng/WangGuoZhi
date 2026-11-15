@@ -36,6 +36,8 @@ interface WgzDebugState {
     backgroundMoving?: number;
     /** 任務有幾個獎勵可以領（T011）；大於 0 時「任務」亮紅點 */
     questReady?: number;
+    /** 城主等級、經驗與稱號 */
+    lord?: { level: number; exp: number; title: string };
     buttons: Record<
       | 'account'
       | 'mail'
@@ -267,7 +269,16 @@ interface WgzDebugState {
     /** 大絕招演出（T017）：已經播了幾次／整場會播幾次，以及正在播的那一招（沒有為 null） */
     ults: number;
     ultTotal: number;
-    ult: { id: string; side: string; skill: string; line: string; kind: string } | null;
+    ult: {
+      id: string;
+      side: string;
+      skill: string;
+      line: string;
+      kind: string;
+      /** 字卡上那隻狗擺的專屬姿勢、身上畫了幾件裝備 */
+      pose: string;
+      gear: number;
+    } | null;
     /** EN 值滿是多少（100） */
     enMax: number;
     /** 自動放招有沒有打勾，以及那顆勾選框的位置 */
@@ -291,6 +302,7 @@ interface WgzDebugState {
       sfx: boolean;
       push: boolean;
       quality: string;
+      effects: boolean;
       skipBattle: boolean;
       battleSpeed: number;
       autoUlt: boolean;
@@ -325,7 +337,9 @@ interface WgzDebugState {
       power: number;
       star: number;
     } | null;
-    panelButtons: { team?: WgzRect; lobby?: WgzRect; gear?: WgzRect } | null;
+    panelButtons: { team?: WgzRect; lobby?: WgzRect; gear?: WgzRect; close?: WgzRect } | null;
+    /** 資料面板上的成長技能：學會幾個、一共幾個 */
+    panelSkills?: { learned: number; total: number } | null;
     lobbyDogId: string;
   };
 
@@ -388,6 +402,8 @@ interface WgzDebugState {
     runsLeft: number;
     /** 選隊伍畫面顯示的勝率（0～1，模擬出來的） */
     winChance?: number;
+    /** 長按狗狗圖示打開的素質與技能頁面 */
+    info?: { dogId: string; learned: number; total: number; close: WgzRect | null } | null;
   };
 
   /** 劇情 */

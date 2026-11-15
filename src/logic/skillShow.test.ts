@@ -31,8 +31,8 @@ describe('ultKindOfRole', () => {
 
 describe('ultDelayMs', () => {
   it('倍速越高越短；測試模式很短；字卡佔一部分', () => {
-    expect(ultDelayMs(1)).toBe(1500);
-    expect(ultDelayMs(2)).toBe(750);
+    expect(ultDelayMs(1)).toBe(3000);
+    expect(ultDelayMs(2)).toBe(1500);
     expect(ultDelayMs(4)).toBeLessThan(ultDelayMs(3));
     expect(ultDelayMs(9)).toBe(ultDelayMs(4));
     expect(ultDelayMs(1, 'fast')).toBeLessThanOrEqual(50);

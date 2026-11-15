@@ -19,6 +19,8 @@ import {
 import { addGear, dropNote, grantExclusives, rollDrop } from './equipment';
 import { exclusiveGearOf, findGear } from '../data/equipment';
 import { battleRoleOf, teamCells } from './formation';
+import { newSkills, perkText, perksOf } from './levelSkills';
+import { addLordExp, lordExpOf, lordNotes } from './lord';
 import {
   addExp,
   dogStats,
@@ -81,6 +83,7 @@ export function battleDogOf(
   if (!d) return undefined;
   const s = dogStats(state, d);
   const role = battleRoleOf(d.role);
+  const perks = perksOf(role, s.level);
   return {
     id: d.id,
     name: d.name,
@@ -94,6 +97,7 @@ export function battleDogOf(
     ...(d.rarity ? { rarity: d.rarity } : {}),
     ...(d.afterHeal ? { afterHeal: true } : {}),
     ...(d.trait ? { trait: d.trait } : {}),
+    ...(perks ? { perks } : {}),
   };
 }
 
@@ -288,6 +292,8 @@ function settleBattle(
   // 送的狗已經先從召募抽到了：改送碎片，可以拿去升星
   const giftShards =
     gift && !newDog ? { dogId: gift.id, amount: GIFT_DUPLICATE_SHARDS } : undefined;
+  // 城主經驗：升級的話送資源
+  const lordStep = addLordExp(state, lordExpOf(win));
   const record: ExpeditionRecord = {
     id: `exp-${state.nextExpeditionNo}`,
     ...exp,
@@ -297,6 +303,7 @@ function settleBattle(
     gains: growth.gains,
     ...(opts.auto ? { auto: true } : {}),
     ...(dropGearId ? { dropGearId } : {}),
+    lord: lordStep.gain,
     ...(dropSnack ? { dropSnack } : {}),
     ...(newDog ? { newDogId: newDog.id } : {}),
     ...(giftShards ? { giftShards } : {}),
@@ -308,9 +315,10 @@ function settleBattle(
     wounds: markWounds(state, exp.dogIds, win, ticket.at),
     gear: dropGearId ? addGear(state, dropGearId).gear : state.gear,
     snacks: dropSnack ? addSnacks(state, dropSnack.id, dropSnack.amount).snacks : state.snacks,
+    lord: lordStep.state.lord,
     resources: {
-      food: state.resources.food + reward.food,
-      bones: state.resources.bones + reward.bones,
+      food: lordStep.state.resources.food + reward.food,
+      bones: lordStep.state.resources.bones + reward.bones,
     },
     dogs: newDog ? { ...growth.dogs, [newDog.id]: initialProgress(newDog) } : growth.dogs,
     owned: newDog ? [...state.owned, newDog.id] : state.owned,
@@ -404,6 +412,15 @@ export function resultNotes(
   if (record.dropSnack) {
     notes.push(`獲得零食 ${snackLabel(record.dropSnack.id, record.dropSnack.amount)}（訓練場餵）`);
   }
+  // 成長技能：這一仗升過 10 級的門檻就學會新的
+  for (const g of record.gains) {
+    const d = findDog(g.dogId);
+    if (!d) continue;
+    for (const sk of newSkills(battleRoleOf(d.role), g.fromLevel, g.toLevel)) {
+      notes.push(`${d.name} 學會技能「${sk.name}」（${perkText(sk.perks)}）`);
+    }
+  }
+  notes.push(...lordNotes(record.lord));
   const gift = record.newDogId ? findDog(record.newDogId) : undefined;
   if (gift) {
     notes.push(`新夥伴「${gift.name}」加入！（${gift.breed}・${battleRoleOf(gift.role) ?? ''}）`);

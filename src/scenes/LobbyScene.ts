@@ -7,6 +7,7 @@ import { REGIONS, findStage } from '../data/regions';
 import { RESOURCE_LABELS, type Resources } from '../data/resources';
 import { STORIES } from '../data/stories';
 import { clearAutoSummary, setAuto } from '../logic/auto';
+import { lordExpNeeded, lordTitle } from '../logic/lord';
 import { formatAmount, formatCountdown } from '../logic/format';
 import type { Rect } from '../logic/layout';
 import { gearOf } from '../logic/equipment';
@@ -106,6 +107,7 @@ export class LobbyScene extends Phaser.Scene {
         dogHurt: this.dogHurt,
         background: getState().backgroundId,
         backgroundMoving: this.scenery?.moving ?? 0,
+        lord: { ...getState().lord, title: lordTitle(getState().lord.level) },
         buttons: buttons as NonNullable<WgzDebugState['lobby']>['buttons'],
       },
       result: null,
@@ -209,11 +211,20 @@ export class LobbyScene extends Phaser.Scene {
     g.lineStyle(1.5, 0x8a5a1a, 1);
     g.strokeCircle(cx, cy, R + 2);
     const tx = cx + R + 10;
+    // 城主等級、稱號與經驗條
+    const lv = addText(this, tx, 9, `Lv.${st.lord.level}`, 17, LOBBY.goldText, true);
+    const need = lordExpNeeded(st.lord.level);
+    const barW = Math.max(40, r.width - tx - 30);
+    g.fillStyle(0x000000, 0.35);
+    g.fillRoundedRect(tx, 31, barW, 5, 2.5);
+    g.fillStyle(LOBBY.gold, 1);
+    const fill = need === 0 ? barW : Math.max(0, Math.min(1, st.lord.exp / need)) * barW;
+    if (fill >= 2) g.fillRoundedRect(tx, 31, fill, 5, 2.5);
     c.add([
       g,
-      addText(this, tx, 12, 'Lv.1', 17, LOBBY.goldText, true),
-      addText(this, tx + 44, 13, '城主', 15, LOBBY.text, true),
-      addText(this, tx, 36, `總戰力 ${formatAmount(teamPower(st, st.team))}`, 15, LOBBY.text, true),
+      lv,
+      addText(this, tx + lv.width + 8, 11, lordTitle(st.lord.level), 15, LOBBY.text, true),
+      addText(this, tx, 39, `總戰力 ${formatAmount(teamPower(st, st.team))}`, 14, LOBBY.text, true),
       // 設定小齒輪
       addText(this, r.width - 8, r.height - 10, '⚙', 15, LOBBY.goldText).setOrigin(1, 1),
     ]);
