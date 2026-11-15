@@ -30,6 +30,7 @@ import {
 } from './leveling';
 import { isStageUnlocked, unlockedBackgrounds } from './progress';
 import { countQuest } from './quests';
+import { addSnacks, snackDrop, snackLabel } from './snacks';
 import { runBlock, spendRun, type TimeOptions } from './stamina';
 import { markWounds } from './wounds';
 
@@ -238,16 +239,18 @@ function openBattle(
 /** 掉落亂數的種子：和升級一樣由這一仗的種子算出，同一仗怎麼算都掉一樣的東西 */
 const DROP_SEED_SALT = 0xd409;
 
-/** 這一仗掉的裝備（T014）：打贏才會掉，機率與比重見 src/logic/equipment.ts；沒掉回傳 null */
+/** 這一仗掉的裝備（T014）：打贏才會掉，第一次過關一定掉，機率與比重見 src/logic/equipment.ts；沒掉回傳 null */
 export function expeditionDrop(
   exp: Pick<ExpeditionRecord, 'stageId' | 'seed'>,
   win: boolean,
+  /** 第一次打贏這一關：一定掉一件 */
+  firstClear = false,
 ): string | null {
   const stage = findStage(exp.stageId);
   if (!win || !stage) return null;
   const chapter = findRegionOfStage(exp.stageId)?.chapter ?? 1;
   const rng = createRng(mixSeed(exp.seed, DROP_SEED_SALT));
-  return rollDrop(chapter, !!stage.boss, rng)?.id ?? null;
+  return rollDrop(chapter, !!stage.boss, rng, firstClear)?.id ?? null;
 }
 
 /**
@@ -272,9 +275,14 @@ function settleBattle(
   const { win } = expeditionBattle(exp);
   const reward = expeditionReward(exp, win);
   const growth = expeditionGrowth(state, exp, win);
-  const dropGearId = expeditionDrop(exp, win);
-  // 第一次打贏有送狗的關卡：狗狗加入（已經擁有就不再送）
   const firstClear = win && !state.cleared.includes(exp.stageId);
+  const dropGearId = expeditionDrop(exp, win, firstClear);
+  // 經驗零食：打贏就有，看章節與是不是頭目關
+  const dropSnack =
+    win && stage
+      ? snackDrop(findRegionOfStage(exp.stageId)?.chapter ?? 1, !!stage.boss)
+      : undefined;
+  // 第一次打贏有送狗的關卡：狗狗加入（已經擁有就不再送）
   const gift = firstClear ? findDog(stage?.firstClearDog ?? '') : undefined;
   const newDog = gift && !state.owned.includes(gift.id) ? gift : undefined;
   // 送的狗已經先從召募抽到了：改送碎片，可以拿去升星
@@ -289,6 +297,7 @@ function settleBattle(
     gains: growth.gains,
     ...(opts.auto ? { auto: true } : {}),
     ...(dropGearId ? { dropGearId } : {}),
+    ...(dropSnack ? { dropSnack } : {}),
     ...(newDog ? { newDogId: newDog.id } : {}),
     ...(giftShards ? { giftShards } : {}),
   };
@@ -298,6 +307,7 @@ function settleBattle(
     // 受傷外觀：出戰的狗休息一下，打輸的全部掛彩（不影響數值）
     wounds: markWounds(state, exp.dogIds, win, ticket.at),
     gear: dropGearId ? addGear(state, dropGearId).gear : state.gear,
+    snacks: dropSnack ? addSnacks(state, dropSnack.id, dropSnack.amount).snacks : state.snacks,
     resources: {
       food: state.resources.food + reward.food,
       bones: state.resources.bones + reward.bones,
@@ -391,6 +401,9 @@ export function resultNotes(
   } else if (!before.cleared.includes(record.stageId)) notes.push('通過關卡！下一關已開放');
   const drop = findGear(record.dropGearId ?? '');
   if (drop) notes.push(dropNote(drop));
+  if (record.dropSnack) {
+    notes.push(`獲得零食 ${snackLabel(record.dropSnack.id, record.dropSnack.amount)}（訓練場餵）`);
+  }
   const gift = record.newDogId ? findDog(record.newDogId) : undefined;
   if (gift) {
     notes.push(`新夥伴「${gift.name}」加入！（${gift.breed}・${battleRoleOf(gift.role) ?? ''}）`);

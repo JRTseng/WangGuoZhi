@@ -117,3 +117,9 @@ export function trainingLineButton(l: TrainingLayout, index: number): Rect {
   const r = trainingRow(l, index);
   return { x: r.x + r.width - BUTTON_PAD - 76, y: r.y + 29, width: 76, height: 26 };
 }
+
+/** 「改台詞」左邊的「零食」小按鈕（還沒扣掉捲動量）：點了開餵零食的視窗 */
+export function trainingFeedButton(l: TrainingLayout, index: number): Rect {
+  const lb = trainingLineButton(l, index);
+  return { x: lb.x - 8 - 64, y: lb.y, width: 64, height: lb.height };
+}

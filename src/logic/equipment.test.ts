@@ -258,7 +258,10 @@ describe('掉落', () => {
     const team = ['daer', 'heixuan', 'changxu', 'xiaosuan', 'abai'];
     let hit = 0;
     for (let seed = 1; seed <= 60; seed++) {
-      const r = runExpedition(base(), 'luoyepo-1', team, 1000, { seed });
+      // 已經過關的關卡再打：照三成機率掉
+      const r = runExpedition({ ...base(), cleared: ['luoyepo-1'] }, 'luoyepo-1', team, 1000, {
+        seed,
+      });
       if (!r.ok) throw new Error(r.error);
       const want = expeditionDrop({ stageId: 'luoyepo-1', seed }, r.record.win);
       expect(r.record.dropGearId ?? null).toBe(want);
@@ -271,6 +274,25 @@ describe('掉落', () => {
     }
     expect(hit).toBeGreaterThan(5);
     expect(hit).toBeLessThan(35);
+  });
+
+  it('第一次過關一定掉一件；掉到的和「剛好抽中」時是同一件', () => {
+    const team = ['daer', 'heixuan', 'changxu', 'xiaosuan', 'abai'];
+    let wins = 0;
+    for (let seed = 1; seed <= 30; seed++) {
+      const r = runExpedition(base(), 'luoyepo-1', team, 1000, { seed });
+      if (!r.ok) throw new Error(r.error);
+      if (!r.record.win) {
+        expect(r.record.dropGearId).toBeUndefined();
+        continue;
+      }
+      wins++;
+      expect(r.record.dropGearId).toBe(expeditionDrop({ stageId: 'luoyepo-1', seed }, true, true));
+      expect(r.state.gear).toEqual({ [r.record.dropGearId!]: 1 });
+      const lucky = expeditionDrop({ stageId: 'luoyepo-1', seed }, true);
+      if (lucky) expect(r.record.dropGearId).toBe(lucky);
+    }
+    expect(wins).toBeGreaterThan(10);
   });
 });
 

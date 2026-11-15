@@ -60,6 +60,8 @@ export interface ExpeditionRecord {
   newDogId?: string;
   /** 這一仗掉的裝備 id（T014）；沒掉就沒有這個欄位 */
   dropGearId?: string;
+  /** 這一仗掉的經驗零食；打輸沒有 */
+  dropSnack?: { id: string; amount: number };
   /** 第一次通關要送的狗已經先抽到了，改送的碎片 */
   giftShards?: { dogId: string; amount: number };
 }
@@ -238,6 +240,8 @@ export interface GameState {
   equipped: Record<string, Partial<Record<GearSlot, string>>>;
   /** 受傷外觀（T014）：哪些狗剛出征回來或掛彩、到什麼時候為止；純外觀（見 src/logic/wounds.ts） */
   wounds: Record<string, { until: number; level: 1 | 2 }>;
+  /** 經驗零食：每種有幾個，以零食 id 為鍵（見 src/logic/snacks.ts） */
+  snacks: Record<string, number>;
   /** 任務（T011）：領過的獎勵、累計勝場與今天的每日任務（規則見 src/logic/quests.ts） */
   quests: QuestState;
 }
@@ -287,6 +291,7 @@ export function createInitialState(now: number = Date.now()): GameState {
     gear: {},
     equipped: {},
     wounds: {},
+    snacks: {},
     quests: { claimed: [], wins: 0, daily: { counts: {}, claimed: [] } },
   };
 }

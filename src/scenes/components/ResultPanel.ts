@@ -101,6 +101,12 @@ export class ResultPanel extends Phaser.GameObjects.Container {
       text(cx, y, s, size, color, bold).setOrigin(0.5);
 
     const keys = Object.keys(RESOURCE_LABELS) as (keyof Resources)[];
+    // 訊息很多（第一次打倒頭目：過關、裝備、零食、新夥伴、背景……）而且畫面不夠高：
+    // 資源併成一行、訊息字小一點排密一點，才不會壓到下面的按鈕
+    const tight = mainHeight > ph;
+    const resTop = py + 132;
+    const extraTop = tight ? resTop + 28 : resTop + keys.length * 30;
+    const extraStep = tight ? 18 : 26;
     const items: Phaser.GameObjects.GameObject[] = [
       center(py + 42, win ? '勝利！' : '敗北…', 34, tone.text, true),
       center(
@@ -109,17 +115,27 @@ export class ResultPanel extends Phaser.GameObjects.Container {
         18,
         COLORS.inkSoft,
       ),
-      ...keys.map((k, i) =>
-        center(
-          py + 132 + i * 30,
-          `${RESOURCE_LABELS[k]} +${formatAmount(reward[k])}`,
-          22,
-          COLORS.ink,
-          true,
-        ),
-      ),
+      ...(tight
+        ? [
+            center(
+              resTop,
+              keys.map((k) => `${RESOURCE_LABELS[k]} +${formatAmount(reward[k])}`).join('\u3000'),
+              19,
+              COLORS.ink,
+              true,
+            ),
+          ]
+        : keys.map((k, i) =>
+            center(
+              resTop + i * 30,
+              `${RESOURCE_LABELS[k]} +${formatAmount(reward[k])}`,
+              22,
+              COLORS.ink,
+              true,
+            ),
+          )),
       ...extra.map((e, i) =>
-        center(py + 132 + keys.length * 30 + i * 26, e, 15, win ? '#b5651d' : tone.text, true),
+        center(extraTop + i * extraStep, e, tight ? 13 : 15, win ? '#b5651d' : tone.text, true),
       ),
     ];
     const hint = text(

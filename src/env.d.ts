@@ -121,6 +121,14 @@ interface WgzDebugState {
   training?: {
     /** 改台詞的打字視窗是不是開著（T017） */
     lineEditor: boolean;
+    /** 餵零食的視窗；沒開為 null */
+    feed?: {
+      dogId: string;
+      level: number;
+      exp: number;
+      rows: { id: string; count: number; enabled: boolean; one: WgzRect; ten: WgzRect }[];
+      close: WgzRect;
+    } | null;
     /** 右上角進板凳寄宿的按鈕（T021）：幾隻在寄宿／幾個位子 */
     boardingButton: { count: number; slots: number } & WgzRect;
     list: WgzRect;
@@ -150,6 +158,8 @@ interface WgzDebugState {
       };
       /** 升星按鈕（T007）：目前幾星、手上碎片、升下一星要幾個、能不能按 */
       star: { star: number; shards: number; cost: number; enabled: boolean } & WgzRect;
+      /** 「零食」小按鈕：點了開餵零食的視窗 */
+      feedButton: WgzRect;
       /** 等級上限（看星數） */
       levelCap: number;
       /** 招式台詞那一條（T017）：點了可以改；line 是目前會喊的台詞，custom 代表是玩家自己填的 */

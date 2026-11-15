@@ -26,6 +26,7 @@ import { MAX_LEVEL, STAR_MAX, expNeeded, initialProgress, levelCapForStar } from
 import { cleanSkillLine } from './skillShow';
 import { DRILL_MAX } from './training';
 import { sanitizeQuests } from './quests';
+import { findSnack } from './snacks';
 import { isTrainingSort } from './trainingSort';
 import { sanitizeWounds } from './wounds';
 
@@ -174,6 +175,10 @@ function historyRecord(v: unknown): ExpeditionRecord | null {
   }
   if (v.dropGearId !== undefined && (typeof v.dropGearId !== 'string' || !findGear(v.dropGearId))) {
     return null;
+  }
+  if (v.dropSnack !== undefined) {
+    const d = v.dropSnack;
+    if (!isObj(d) || typeof d.id !== 'string' || !findSnack(d.id) || !isNum(d.amount)) return null;
   }
   // 放招時機（T023）：手動放招的紀錄才有，要是一串不是負數的整數
   if (v.ultTurns !== undefined) {
@@ -410,6 +415,8 @@ export function sanitizeState(raw: unknown, now: number): GameState {
     gear,
     equipped,
     wounds: sanitizeWounds(raw.wounds, isOwned, now),
+    // 經驗零食：只留認得的種類、正整數
+    snacks: countMap(raw.snacks, (id) => !!findSnack(id)),
     quests: sanitizeQuests(raw.quests, cleared.length),
   };
 }
