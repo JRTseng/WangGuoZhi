@@ -168,6 +168,14 @@ export interface LordState {
   exp: number;
 }
 
+/** 訓練場每日小遊戲「接飛盤」（T022，規則見 src/logic/frisbee.ts） */
+export interface FrisbeeState {
+  /** 上次拿到獎勵是哪一天（以 05:00 為界的日期字串）；和今天一樣就是今天玩過了 */
+  day: string;
+  /** 一場最多接到幾個 */
+  best: number;
+}
+
 export type Quality = 'low' | 'medium' | 'high';
 
 /** 帳號設定（語音／推播目前只記住開關，還沒有實際功能；音樂與音效見 T016） */
@@ -256,6 +264,8 @@ export interface GameState {
   lord: LordState;
   /** 任務（T011）：領過的獎勵、累計勝場與今天的每日任務（規則見 src/logic/quests.ts） */
   quests: QuestState;
+  /** 訓練場每日小遊戲（T022）：今天玩過沒、最佳紀錄 */
+  frisbee: FrisbeeState;
 }
 
 /** 體力上限；新遊戲從滿體力開始 */
@@ -307,5 +317,6 @@ export function createInitialState(now: number = Date.now()): GameState {
     snacks: {},
     quests: { claimed: [], wins: 0, daily: { counts: {}, claimed: [] } },
     lord: { level: 1, exp: 0 },
+    frisbee: { day: '', best: 0 },
   };
 }

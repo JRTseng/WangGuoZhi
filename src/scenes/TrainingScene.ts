@@ -3,6 +3,7 @@ import { COLORS, rarityHex } from '../config';
 import { DOGS, type DogData } from '../data/dogs';
 import { DEFAULT_SKILL_LINES } from '../data/skillLines';
 import { boardingSlotCount } from '../logic/boarding';
+import { frisbeeReady } from '../logic/frisbee';
 import { busyDogIds } from '../logic/expedition';
 import { formatAmount } from '../logic/format';
 import type { Rect } from '../logic/layout';
@@ -37,7 +38,7 @@ import {
   type TrainingLayout,
 } from '../logic/trainingLayout';
 import type { GameState } from '../state/gameState';
-import { getState, setState, tick } from '../state/store';
+import { getState, setState, tick, timeOptions } from '../state/store';
 import { playSfx } from './components/audio';
 import { makeTapArea } from './components/hitArea';
 import { drawDogHead } from './components/dogArt';
@@ -88,6 +89,7 @@ export class TrainingScene extends Phaser.Scene {
     close: Rect;
   } | null = null;
   private boardingButton!: Rect;
+  private minigameButton!: Rect;
   private boardingLabel!: Phaser.GameObjects.Text;
   private seenDogs: GameState['dogs'] | null = null;
   private sortLabel!: Phaser.GameObjects.Text;
@@ -127,6 +129,22 @@ export class TrainingScene extends Phaser.Scene {
     bc.add([bg, this.boardingLabel.setOrigin(0.5)]);
     makeTapArea(bc, bb.width, bb.height);
     bc.on('pointerup', () => this.scene.start('BoardingScene'));
+
+    // 寄宿左邊：每日小遊戲（T022）；今天還沒玩就亮紅點
+    const mb = (this.minigameButton = { x: bb.x - 8 - 96, y: 6, width: 96, height: BAR - 12 });
+    const mc = this.add.container(mb.x, mb.y).setDepth(51);
+    const mg = this.add.graphics();
+    mg.fillStyle(COLORS.button, 1);
+    mg.fillRoundedRect(0, 0, mb.width, mb.height, 12);
+    const dot = this.add.circle(mb.width - 4, 4, 7, 0xe0452b).setStrokeStyle(2, 0xffffff);
+    dot.setVisible(frisbeeReady(st, Date.now(), timeOptions()));
+    mc.add([
+      mg,
+      addText(this, mb.width / 2, mb.height / 2, '小遊戲 ›', 16, '#ffffff', true).setOrigin(0.5),
+      dot,
+    ]);
+    makeTapArea(mc, mb.width, mb.height);
+    mc.on('pointerup', () => this.scene.start('FrisbeeScene'));
 
     this.ids = this.sortedIds(st);
     const l = (this.layout = trainingLayout(w, h, landscape, this.ids.length, BAR));
@@ -703,6 +721,10 @@ export class TrainingScene extends Phaser.Scene {
           ...this.boardingButton,
           count: st.boarding.length,
           slots: boardingSlotCount(st),
+        },
+        minigameButton: {
+          ...this.minigameButton,
+          ready: frisbeeReady(st, Date.now(), timeOptions()),
         },
         list: this.layout.list,
         sort: st.settings.trainingSort,

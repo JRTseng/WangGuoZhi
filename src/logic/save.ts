@@ -25,6 +25,7 @@ import { PITY_SSR } from './gacha';
 import { MAX_LEVEL, STAR_MAX, expNeeded, initialProgress, levelCapForStar } from './leveling';
 import { cleanSkillLine } from './skillShow';
 import { DRILL_MAX } from './training';
+import { sanitizeFrisbee } from './frisbee';
 import { sanitizeLord } from './lord';
 import { sanitizeQuests } from './quests';
 import { findSnack } from './snacks';
@@ -432,6 +433,8 @@ export function sanitizeState(raw: unknown, now: number): GameState {
     quests,
     // 城主等級：舊存檔照累計勝場補算
     lord: sanitizeLord(raw.lord, quests.wins),
+    // 每日小遊戲（T022）
+    frisbee: sanitizeFrisbee(raw.frisbee),
   };
 }
 
