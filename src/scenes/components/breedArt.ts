@@ -1025,6 +1025,130 @@ function oneEye(
   g.fillCircle(ex + er * 0.34, ey - er * 0.36, Math.max(1, er * 0.34));
 }
 
+// ---------------------------------------------------------------- 視覺型獵犬（靈緹、蘇俄牧羊犬）
+
+/**
+ * 靈緹與蘇俄牧羊犬：頭又窄又長、耳朵往後貼、脖子長、胸很深、腰往上收、腿細長、尾巴低低地垂著。
+ * silky 是蘇俄牧羊犬那種波浪長毛：脖子、胸口、肚子、後腿與尾巴都掛著長毛。
+ */
+function sighthound(silky: boolean): BreedArt {
+  const eye = { dx: 0.3, dy: -0.3, r: 0.09, lid: (p: BreedPalette) => p.main };
+  return {
+    tailAt: { x: -60, y: -80 },
+    eye,
+    head(g, x, y, r, pal, o) {
+      const lw = Math.max(2, r / 14);
+      const main = pal.main;
+      const light = lightOf(pal);
+      // 往後貼的小耳朵（玫瑰耳）
+      const ears = new Shapes();
+      for (const s of [-1, 1]) {
+        ears.tri(
+          x + s * r * 0.42,
+          y - r * 0.86,
+          x + s * r * 1.12,
+          y - r * 0.5,
+          x + s * r * 0.56,
+          y - r * 0.26,
+        );
+        if (silky) ears.circle(x + s * r * 0.98, y - r * 0.4, r * 0.16);
+      }
+      ears.draw(g, dark(main, 0.2), lw);
+      // 蘇俄牧羊犬脖子兩側的波浪長毛
+      if (silky) {
+        const ruff = new Shapes();
+        for (const s of [-1, 1]) {
+          for (let i = 0; i < 4; i++) {
+            ruff.circle(x + s * r * (0.62 - i * 0.07), y + r * (0.2 + i * 0.26), r * 0.24);
+          }
+        }
+        ruff.draw(g, dark(main, 0.1), lw);
+      }
+      // 窄窄的頭，往下接一條很長的嘴
+      new Shapes()
+        .ellipse(x, y - r * 0.26, r * 1.36, r * 1.42)
+        .ellipse(x, y + r * 0.42, r * 0.8, r * 1.3)
+        .circle(x, y + r * 0.96, r * 0.3)
+        .draw(g, main, lw);
+      // 暗面與亮面
+      g.fillStyle(dark(main, 0.3), 0.26);
+      g.fillEllipse(x - r * 0.42, y - r * 0.1, r * 0.4, r * 1.0);
+      g.fillStyle(lite(main, 0.5), 0.5);
+      g.fillEllipse(x + r * 0.16, y - r * 0.78, r * 0.6, r * 0.24);
+      // 鼻梁一道淺色，一路到嘴
+      g.fillStyle(light, 1);
+      g.fillEllipse(x, y + r * 0.3, r * 0.3, r * 1.5);
+      g.fillEllipse(x, y + r * 0.86, r * 0.56, r * 0.5);
+      g.fillStyle(dark(light, 0.2), 0.5);
+      g.fillEllipse(x - r * 0.1, y + r * 1.08, r * 0.36, r * 0.12);
+      if (!o.fierce) blush(g, x, y, r, 0.5, -0.02);
+      eyes(g, x, y, r, eye, !!o.eyesClosed, 0x7a4a22);
+      nose(g, x, y + r * 0.84, r, 0.1);
+      if (!o.fierce) smile(g, x, y + r * 1.0, r * 0.8, false);
+    },
+    body(g, pal) {
+      const main = pal.main;
+      const light = lightOf(pal);
+      const leg = 52;
+      legs(g, [-52, -38, 20, 34], -leg, 10, main, light, 12);
+      // 深胸、往上收的腰、圓圓的後腿
+      const sil = new Shapes()
+        .ellipse(26, -76, 54, 60)
+        .ellipse(-12, -84, 84, 30)
+        .ellipse(-44, -76, 40, 42)
+        .ellipse(40, -96, 30, 44);
+      if (silky) {
+        for (let i = 0; i < 6; i++) sil.circle(4 + i * 8, -50 + Math.abs(i - 3) * 2, 7);
+        for (let i = 0; i < 5; i++) sil.circle(-24 + i * 7, -68 - i, 6);
+        for (let i = 0; i < 4; i++) sil.circle(-60 + i * 3, -64 + i * 8, 7);
+      }
+      sil.draw(g, dark(main, 0.26), 3);
+      g.fillStyle(main, 1);
+      g.fillEllipse(27, -78, 48, 54);
+      g.fillEllipse(-11, -86, 78, 24);
+      g.fillEllipse(-43, -78, 34, 36);
+      g.fillEllipse(41, -98, 24, 38);
+      if (silky) {
+        // 一綹一綹的長毛
+        for (let i = 0; i < 6; i++) {
+          g.fillStyle(i % 2 ? main : dark(main, 0.12), 1);
+          g.fillCircle(5 + i * 8, -52 + Math.abs(i - 3) * 2, 5.5);
+        }
+        for (let i = 0; i < 5; i++) {
+          g.fillStyle(i % 2 ? dark(main, 0.12) : main, 1);
+          g.fillCircle(-23 + i * 7, -70 - i, 4.5);
+        }
+        for (let i = 0; i < 4; i++) {
+          g.fillStyle(i % 2 ? main : dark(main, 0.12), 1);
+          g.fillCircle(-59 + i * 3, -66 + i * 8, 5.5);
+        }
+      }
+      // 背上的亮面、胸口的淺色、肚子下面的暗面
+      g.fillStyle(lite(main, 0.45), 0.55);
+      g.fillEllipse(-8, -93, 70, 7);
+      g.fillStyle(light, 1);
+      g.fillEllipse(38, -68, 22, 40);
+      g.fillStyle(dark(main, 0.3), 0.3);
+      g.fillEllipse(-14, -74, 60, 7);
+      // 肋骨的線條（靈緹很瘦）
+      if (!silky) {
+        g.lineStyle(1.6, dark(main, 0.3), 0.5);
+        for (const dx of [8, 16, 24]) g.lineBetween(dx, -88, dx - 4, -62);
+      }
+    },
+    tail(g, pal) {
+      const main = pal.main;
+      const s = new Shapes().ellipse(-14, 2, 36, 9).ellipse(-30, 6, 16, 8).circle(-38, 4, 4);
+      if (silky) for (let i = 0; i < 5; i++) s.circle(-34 + i * 7, 11 + (i % 2) * 2, 6);
+      s.draw(g, dark(main, 0.18), 3);
+      g.fillStyle(main, 1);
+      g.fillEllipse(-14, 1, 32, 6);
+      g.fillStyle(lightOf(pal), 1);
+      g.fillCircle(-38, 4, 3);
+    },
+  };
+}
+
 /** 每個犬種的特徵（鍵是 src/data/dogs.ts 的 breed） */
 const SPECS: Record<string, BreedSpec> = {
   黑色拉布拉多: {
@@ -1157,17 +1281,6 @@ const SPECS: Record<string, BreedSpec> = {
     coat: 'solid',
     tail: 'plume',
   },
-  蘇俄牧羊犬: {
-    ear: 'rose',
-    face: 'plain',
-    muzzle: 'long',
-    skull: 0.78,
-    leg: 46,
-    bulk: 0.9,
-    skirt: true,
-    coat: 'belly',
-    tail: 'flag',
-  },
   聖伯納犬: {
     ear: 'drop',
     face: 'blaze',
@@ -1177,16 +1290,6 @@ const SPECS: Record<string, BreedSpec> = {
     bulk: 1.3,
     coat: 'chest',
     tail: 'flag',
-  },
-  靈緹: {
-    ear: 'rose',
-    face: 'plain',
-    muzzle: 'long',
-    skull: 0.8,
-    leg: 46,
-    bulk: 0.8,
-    coat: 'belly',
-    tail: 'whip',
   },
   紐芬蘭犬: {
     ear: 'drop',
@@ -1279,6 +1382,8 @@ export const BREED_ART: Readonly<Record<string, BreedArt>> = {
   秋田犬: shiba,
   哈士奇: husky,
   博美: pom,
+  靈緹: sighthound(false),
+  蘇俄牧羊犬: sighthound(true),
   ...Object.fromEntries(Object.entries(SPECS).map(([k, v]) => [k, specArt(v)])),
 };
 
