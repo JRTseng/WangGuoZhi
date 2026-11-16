@@ -83,30 +83,35 @@ test.describe('手機橫放', () => {
   });
 });
 
-test('固定橫向：直拿手機時蓋一層「請把手機橫放」，遊戲維持橫式、狀態保留', async ({ page }) => {
+test('固定橫向：直拿手機時整個畫面自動轉成橫的，不用提示也不用關直向鎖定，照樣點得到', async ({
+  page,
+}) => {
   await openLobby(page);
   expect((await wgz(page)).orientation).toBe('landscape');
-  const rotate = page.locator('#rotate');
-  await expect(rotate).toBeHidden();
-  await tap(page, (await wgz(page)).lobby!.buttons.team);
-  await waitScene(page, 'TeamScene');
+  const html = page.locator('html');
+  await expect(html).not.toHaveClass(/wgz-rotated/);
 
-  // 直拿：提示蓋住整個畫面；遊戲還是橫式尺寸，不重開畫面
+  // 直拿：畫面轉 90 度佔滿整個螢幕（手機頂端是遊戲的左邊），遊戲還是橫式尺寸
   await page.setViewportSize({ width: 390, height: 844 });
-  await expect(rotate).toBeVisible();
-  await expect(rotate).toContainText('請把手機橫放');
-  const cover = await rotate.boundingBox();
-  expect(cover!.width).toBeCloseTo(390, 0);
-  expect(cover!.height).toBeCloseTo(844, 0);
+  await expect(html).toHaveClass(/wgz-rotated/);
+  await page.waitForTimeout(800);
+  await expect(page.locator('#rotate')).toHaveCount(0);
+  const turned = await page.locator('canvas').boundingBox();
+  expect(turned!.width).toBeCloseTo(H, 0);
+  expect(turned!.height).toBeCloseTo(W, 0);
   let s = await wgz(page);
-  expect(s.scene).toBe('TeamScene');
+  expect(s.scene).toBe('LobbyScene');
   expect(s.orientation).toBe('landscape');
   expect(s.size).toEqual({ width: W, height: H });
-  await page.screenshot({ path: 'artifacts/screenshots/landscape/rotate-hint.png' });
+  // 轉過來以後按鈕照樣點得到：遊戲裡的 (x, y) 在螢幕上的 (390 - y, x)
+  const team = s.lobby!.buttons.team;
+  await page.touchscreen.tap(H - (team.y + team.height / 2), team.x + team.width / 2);
+  await waitScene(page, 'TeamScene');
+  await page.screenshot({ path: 'artifacts/screenshots/landscape/rotated-portrait.png' });
 
-  // 橫放回來：提示消失，畫布放大回填滿畫面
+  // 橫放回來：不再轉，畫布填滿畫面
   await page.setViewportSize({ width: W, height: H });
-  await expect(rotate).toBeHidden();
+  await expect(html).not.toHaveClass(/wgz-rotated/);
   await page.waitForTimeout(800);
   s = await wgz(page);
   expect(s.scene).toBe('TeamScene');
