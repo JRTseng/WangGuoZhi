@@ -16,7 +16,7 @@ import { initialProgress } from './leveling';
 /** 稀有度由低到高 */
 export const RARITIES: readonly DogRarity[] = ['N', 'R', 'SR', 'SSR'];
 /** 各稀有度的機率（百分比，加起來 100） */
-export const GACHA_RATES: Readonly<Record<DogRarity, number>> = { N: 55, R: 30, SR: 12, SSR: 3 };
+export const GACHA_RATES: Readonly<Record<DogRarity, number>> = { N: 50, R: 28, SR: 12, SSR: 10 };
 /** 一次最多抽幾隻 */
 export const GACHA_MAX_PULLS = 10;
 /** 第幾抽一定出 SSR（連續這麼多抽裡至少一隻） */

@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { COLORS } from './config';
 import { musicForScene } from './logic/music';
+import { shouldRotate, unrotatePoint } from './logic/orientation';
 import { renderScale } from './logic/resolution';
 import { limits, limitsFromSearch } from './logic/stamina';
 import { BattleScene } from './scenes/BattleScene';
@@ -23,7 +24,7 @@ import { canvasSizeFor, fitCamera, pickRenderScale } from './scenes/ui';
 import { getState } from './state/store';
 
 // 整個遊戲固定橫向（Jimmy 2026-11-14）：不管手機怎麼拿，遊戲尺寸都是橫式 844 x 390。
-// 直拿的時候由 index.html 的 #rotate 蓋一層「請把手機橫放」。
+// 手機直拿的時候把整個畫面轉 90 度（Jimmy 2026-11-17：不要提示放橫，開著直向鎖定也能玩）。
 //
 // 畫布照手機的實體像素開（T008）：版面仍是 844 x 390，鏡頭放大同樣倍數，字和線條才不會糊。
 renderScale.value = pickRenderScale(getState().settings.quality);
@@ -106,8 +107,86 @@ game.events.once(Phaser.Core.Events.READY, () => {
  * 所以每次事件後再隔幾個時間點重量一次。
  */
 function applyViewport(): void {
+  syncRotation();
   game.scale.refresh();
 }
+
+// ---- 直拿時把畫面轉 90 度 ----
+// index.html 用 html.wgz-rotated 把 #frame 轉過來；Phaser 量大小與算手指位置都是用
+// getBoundingClientRect（轉過以後寬高會對調），所以這兩件事要自己來。
+let rotated = false;
+const touchDevice =
+  navigator.maxTouchPoints > 0 || window.matchMedia?.('(pointer: coarse)').matches === true;
+
+function syncRotation(): void {
+  rotated = shouldRotate(window.innerWidth, window.innerHeight, touchDevice);
+  document.documentElement.classList.toggle('wgz-rotated', rotated);
+}
+
+interface ScaleInternals {
+  parent: HTMLElement | null;
+  parentSize: Phaser.Structs.Size;
+  canvas: HTMLCanvasElement;
+  baseSize: Phaser.Structs.Size;
+  getParentBounds: () => boolean;
+  updateCenter: () => void;
+  transformX: (pageX: number) => number;
+  transformY: (pageY: number) => number;
+}
+interface InputInternals {
+  transformPointer: (p: Phaser.Input.Pointer, pageX: number, pageY: number, move: boolean) => void;
+}
+{
+  const scale = game.scale as unknown as ScaleInternals;
+  const input = game.input as unknown as InputInternals;
+  // 容器大小：用版面的寬高（不受旋轉影響）
+  const originalBounds = scale.getParentBounds.bind(scale);
+  let lastRotated = false;
+  scale.getParentBounds = () => {
+    const parent = scale.parent;
+    if (!parent || (!rotated && !lastRotated)) return originalBounds();
+    const flipped = lastRotated !== rotated;
+    lastRotated = rotated;
+    if (!rotated) return originalBounds() || flipped;
+    const w = parent.clientWidth;
+    const h = parent.clientHeight;
+    if (scale.parentSize.width === w && scale.parentSize.height === h) return flipped;
+    scale.parentSize.setSize(w, h);
+    return true;
+  };
+  // 置中：Phaser 用轉過以後的外框算，寬高會對調；轉的時候改用版面的寬高
+  const originalCenter = scale.updateCenter.bind(scale);
+  scale.updateCenter = () => {
+    if (!rotated) return originalCenter();
+    const c = scale.canvas;
+    c.style.marginLeft = `${Math.floor((scale.parentSize.width - c.offsetWidth) / 2)}px`;
+    c.style.marginTop = `${Math.floor((scale.parentSize.height - c.offsetHeight) / 2)}px`;
+  };
+  // 手指位置：Phaser 是 x、y 分開算的，轉過以後遊戲的 x 要看螢幕的 y，所以先把整個點記下來
+  const page = { x: 0, y: 0 };
+  const originalPointer = input.transformPointer.bind(input);
+  input.transformPointer = (pointer, pageX, pageY, move) => {
+    page.x = pageX;
+    page.y = pageY;
+    originalPointer(pointer, pageX, pageY, move);
+  };
+  const toGame = (): { x: number; y: number } => {
+    const local = unrotatePoint(
+      page.x - window.scrollX,
+      page.y - window.scrollY,
+      window.innerWidth,
+    );
+    const c = scale.canvas;
+    const k = scale.baseSize.width / Math.max(1, c.offsetWidth);
+    return { x: (local.x - c.offsetLeft) * k, y: (local.y - c.offsetTop) * k };
+  };
+  const originalX = scale.transformX.bind(scale);
+  const originalY = scale.transformY.bind(scale);
+  scale.transformX = (pageX) => (rotated ? toGame().x : originalX(pageX));
+  scale.transformY = (pageY) => (rotated ? toGame().y : originalY(pageY));
+}
+syncRotation();
+game.events.once(Phaser.Core.Events.READY, () => onResize());
 
 let timers: number[] = [];
 function onResize(): void {

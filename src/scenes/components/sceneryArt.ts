@@ -25,6 +25,7 @@ import {
   poly,
   rock,
   roof,
+  roundTree,
   seeded,
   sky,
   smoke,
@@ -356,8 +357,55 @@ function lanternFair(p: Paint): void {
     m.fillStyle(0xffd56b, 0.2);
     m.fillEllipse(cx, hy + 12, 70, 10);
   }
-  // 兩串燈籠
   const colors = [0xe0452b, 0xf0823a, 0xe0452b, 0xf2b84b];
+  // 攤位上的貨：一顆顆的包子、糖葫蘆與小燈
+  for (const tx of [0.33, 0.67]) {
+    const cx = tx * w;
+    for (let i = 0; i < 5; i++) {
+      m.fillStyle(i % 2 ? 0xfff1d6 : 0xf2b84b, 1);
+      m.fillCircle(cx - 18 + i * 9, hy - 6, 3);
+      m.fillStyle(0xffffff, 0.5);
+      m.fillCircle(cx - 17 + i * 9, hy - 7, 1);
+    }
+    m.fillStyle(0x3b2618, 1);
+    m.fillRect(cx - 26, hy - 4, 52, 2);
+    lantern(m, cx - 30, hy - 22, 0.42, 0xf2b84b);
+    lantern(m, cx + 30, hy - 22, 0.42, 0xe0452b);
+  }
+  // 兩側掛滿小燈的老樹，樹下立著腳印旗
+  for (const [tx, s] of [
+    [0.03, 1.25],
+    [0.97, 1.2],
+  ]) {
+    const x = tx * w;
+    const y = hy + 26;
+    roundTree(m, x, y, s, 0x2a1820, 0x3a2148, 0x57316a, 0x7a4a8c);
+    const lr = seeded(46 + Math.round(tx * 10));
+    for (let i = 0; i < 6; i++) {
+      lantern(
+        m,
+        x + (lr() - 0.5) * 60 * s,
+        y - (48 + lr() * 44) * s,
+        0.32,
+        colors[i % colors.length],
+      );
+    }
+  }
+  pawBanner(m, w * 0.24, hy + 8, 0.7, 0xc0392b);
+  pawBanner(m, w * 0.76, hy + 8, 0.7, 0xd9a441);
+  // 一串小三角旗
+  const bunting = sag(P(-10, hy * 0.78), P(w + 10, hy * 0.8), 10, 44);
+  line(m, bunting, 1, 0x1a0f18);
+  for (let i = 1; i < 44; i += 2) {
+    const a = bunting[i];
+    poly(
+      m,
+      [P(a.x - 4, a.y), P(a.x + 4, a.y), P(a.x, a.y + 7)],
+      colors[(i >> 1) % colors.length],
+      0.95,
+    );
+  }
+  // 兩串燈籠
   for (const [y0, y1, drop, n] of [
     [hy * 0.36, hy * 0.42, 22, 9],
     [hy * 0.6, hy * 0.54, 16, 7],
@@ -615,7 +663,7 @@ function mistMarsh(p: Paint): void {
 
 /** 第七章 赤焰嶺：火山、岩漿、裂開的地面與飄上來的火星 */
 function flameRidge(p: Paint): void {
-  const { w, hy } = p;
+  const { w, h, hy } = p;
   const g = layer(p);
   sky(p, g, 0x180b12, 0xc4502c, 0x5e1f24);
   stars(p, g, 81, 14);
@@ -723,6 +771,95 @@ function flameRidge(p: Paint): void {
     poly(r, [P(x - 20 * s, hy + 14), P(x + 20 * s, hy + 14), P(x + 4 * s, hy - 54 * s)], 0x1e0e10);
     poly(r, [P(x - 20 * s, hy + 14), P(x - 2 * s, hy + 14), P(x + 4 * s, hy - 54 * s)], 0x3a1c1c);
   }
+  // 尖石朝岩漿那一面的紅光
+  for (const [tx, s] of [
+    [0.03, 1.2],
+    [0.97, 1.3],
+  ]) {
+    const x = tx * w;
+    const d = tx < 0.5 ? 1 : -1;
+    line(
+      r,
+      [P(x + 4 * s, hy - 54 * s), P(x + d * 12 * s, hy - 10 * s), P(x + d * 20 * s, hy + 14)],
+      1.5,
+      0xff7b3a,
+      0.55,
+    );
+  }
+  // 岩漿池：一圈暗紅的岸、亮橘的池面與幾顆冒起來的泡
+  const pool = (px: number, py: number, s: number) => {
+    r.fillStyle(0xff7b3a, 0.12);
+    r.fillEllipse(px, py, 150 * s, 40 * s);
+    r.fillStyle(0x1e0e10, 1);
+    r.fillEllipse(px, py, 96 * s, 24 * s);
+    r.fillStyle(0xc0341f, 1);
+    r.fillEllipse(px, py + 1 * s, 86 * s, 19 * s);
+    r.fillStyle(0xf0823a, 1);
+    r.fillEllipse(px + 2 * s, py + 1 * s, 70 * s, 13 * s);
+    r.fillStyle(0xffd56b, 1);
+    r.fillEllipse(px + 8 * s, py, 34 * s, 5 * s);
+    r.fillStyle(0xfff1a8, 1);
+    r.fillCircle(px - 18 * s, py + 1 * s, 2 * s);
+    r.fillCircle(px + 24 * s, py + 3 * s, 1.5 * s);
+  };
+  pool(w * 0.3, hy + (h - hy) * 0.5, 1);
+  pool(w * 0.74, hy + (h - hy) * 0.22, 0.6);
+  // 燒焦的枯樹，枝頭還有火星
+  const tr = seeded(87);
+  for (const [tx, fy, s] of [
+    [0.17, 0.12, 0.8],
+    [0.44, 0.06, 0.6],
+    [0.88, 0.3, 1.05],
+    [0.6, 0.62, 1.2],
+  ]) {
+    const x = tx * w;
+    const y = hy + (h - hy) * fy;
+    deadTree(r, x, y, s, 0x160a0c, tr);
+    r.fillStyle(0xff7b3a, 0.18);
+    r.fillCircle(x, y - 50 * s, 16 * s);
+    r.fillStyle(0xffb347, 1);
+    r.fillCircle(x + (tr() - 0.5) * 20 * s, y - (40 + tr() * 16) * s, 1.4);
+    r.fillCircle(x + (tr() - 0.5) * 24 * s, y - (30 + tr() * 20) * s, 1.1);
+  }
+  // 山口的石門：兩根石柱、一根橫樑，掛著被燒破的腳印旗
+  const gx = w * 0.52;
+  const gy = hy + 6;
+  r.fillStyle(0x160a0c, 0.35);
+  r.fillEllipse(gx - 10, gy + 2, 90, 10);
+  for (const d of [-1, 1]) {
+    r.fillStyle(0x2a1416, 1);
+    r.fillRect(gx + d * 30 - 5, gy - 50, 10, 52);
+    r.fillStyle(0x4a2622, 1);
+    r.fillRect(gx + d * 30 + 2, gy - 50, 3, 52);
+    r.fillStyle(0x1a0c0e, 1);
+    r.fillRect(gx + d * 30 - 7, gy - 4, 14, 6);
+  }
+  r.fillStyle(0x2a1416, 1);
+  r.fillRect(gx - 42, gy - 58, 84, 8);
+  r.fillRect(gx - 36, gy - 46, 72, 4);
+  r.fillStyle(0xff7b3a, 0.6);
+  r.fillRect(gx - 42, gy - 51, 84, 1);
+  r.fillStyle(0x8a2a28, 1);
+  poly(
+    r,
+    [
+      P(gx - 8, gy - 42),
+      P(gx + 8, gy - 42),
+      P(gx + 8, gy - 22),
+      P(gx + 2, gy - 26),
+      P(gx - 3, gy - 19),
+      P(gx - 8, gy - 24),
+    ],
+    0x8a2a28,
+  );
+  r.fillStyle(0xf2c98a, 1);
+  r.fillCircle(gx, gy - 31, 2.2);
+  for (const [dx, dy] of [
+    [-3, -35],
+    [0, -36.5],
+    [3, -35],
+  ])
+    r.fillCircle(gx + dx, gy + dy, 1);
   drifting(p, 'rise', [0xff7b54, 0xffb347, 0xffd56b]);
 }
 
@@ -919,6 +1056,23 @@ function cloudWalk(p: Paint): void {
   ]) {
     pillar(fx * w, hy * ft, half, 0x6b819f, true);
   }
+  // 最高的石峰上一座小亭，另一座石峰掛著一道細細的瀑布
+  {
+    const px = w * 0.9;
+    const py = hy * 0.1 + 4;
+    g.fillStyle(0x8a3a34, 1);
+    g.fillRect(px - 20, py - 12, 3, 12);
+    g.fillRect(px - 5, py - 12, 3, 12);
+    g.fillStyle(0xf6ead2, 1);
+    g.fillRect(px - 17, py - 10, 12, 10);
+    roof(g, px - 11, py - 12, 34, 10, 0x3f6b8a, 0xd9c49a);
+    const fx = w * 0.27 + 6;
+    const ft = hy * 0.4 + 8;
+    g.fillStyle(0xffffff, 0.85);
+    g.fillRect(fx, ft, 3, hy - ft);
+    g.fillStyle(0xdfeaff, 0.7);
+    g.fillRect(fx + 3, ft + 6, 1.5, hy - ft);
+  }
   // 雲海
   const rnd = seeded(101);
   const seaTop = hy - Math.max(26, hy * 0.2);
@@ -981,6 +1135,51 @@ function cloudWalk(p: Paint): void {
       m.fillEllipse(bx + dir * 6 * s, by - 6 * s, len * 1.1 * s, 7 * s);
     }
   };
+  // 棧道上的五色小旗，一格一格掛在繩欄上
+  const prayer = [0xd9542b, 0xf2c14b, 0x4f9a6a, 0x4f86c9, 0xf6f2e8];
+  for (let i = 0; i < posts; i++) {
+    const a = (i / posts) * w;
+    const b = ((i + 1) / posts) * w;
+    const rope = sag(P(a, hy - 23), P(b, hy - 23), 7, 6);
+    line(m, rope, 0.8, 0x6b4f30);
+    for (let k = 1; k < 6; k++) {
+      const pt = rope[k];
+      m.fillStyle(prayer[(i + k) % 5], 1);
+      m.fillRect(pt.x - 2.5, pt.y, 5, 6);
+    }
+  }
+  // 路邊的石燈與涼亭
+  const stoneLamp = (x: number, y: number, s: number) => {
+    m.fillStyle(0x1a1a2a, 0.18);
+    m.fillEllipse(x - 8 * s, y + 1 * s, 30 * s, 6 * s);
+    m.fillStyle(0x8f9db8, 1);
+    m.fillRect(x - 6 * s, y - 4 * s, 12 * s, 4 * s);
+    m.fillRect(x - 2.5 * s, y - 20 * s, 5 * s, 16 * s);
+    m.fillRect(x - 7 * s, y - 32 * s, 14 * s, 12 * s);
+    m.fillStyle(0xc5cedf, 1);
+    m.fillRect(x + 1 * s, y - 20 * s, 1.5 * s, 16 * s);
+    m.fillStyle(0xffe08a, 1);
+    m.fillRect(x - 3.5 * s, y - 29 * s, 7 * s, 6 * s);
+    poly(m, [P(x - 11 * s, y - 32 * s), P(x + 11 * s, y - 32 * s), P(x, y - 41 * s)], 0x6b7a96);
+  };
+  stoneLamp(w * 0.3, hy + (p.h - hy) * 0.3, 0.9);
+  stoneLamp(w * 0.7, hy + (p.h - hy) * 0.3, 0.9);
+  {
+    const px = w * 0.86;
+    const py = hy + 14;
+    m.fillStyle(0x1a1a2a, 0.2);
+    m.fillEllipse(px - 14, py + 2, 96, 12);
+    m.fillStyle(0x9aa7c0, 1);
+    m.fillRect(px - 34, py - 4, 68, 6);
+    m.fillStyle(0x8a3a34, 1);
+    for (const o of [-28, -10, 8, 26]) m.fillRect(px + o - 2, py - 42, 4, 38);
+    m.fillStyle(0x6f2c2a, 1);
+    m.fillRect(px - 30, py - 16, 60, 2);
+    m.fillRect(px - 30, py - 42, 60, 4);
+    roof(m, px, py - 42, 86, 22, 0x3f6b8a, 0xd9c49a);
+    m.fillStyle(0xd9c49a, 1);
+    m.fillCircle(px, py - 66, 2.5);
+  }
   leanPine(w * 0.04, hy + 20, 1.15, 1);
   leanPine(w * 0.97, hy + 16, 0.95, -1);
 }
@@ -1053,6 +1252,61 @@ function capital(p: Paint): void {
   for (let i = 0; i < 3; i++) {
     m.fillStyle(i % 2 ? 0xa59a90 : 0xb9aea4, 1);
     m.fillRect(cx - 34 - i * 6, hy + 2 + i * 5, 68 + i * 12, 5);
+  }
+  // 宮牆前一排修剪過的樹
+  for (const fx of [0.24, 0.31, 0.69, 0.76]) {
+    roundTree(m, fx * w, hy + 4, 0.5, 0x2a1820, 0x1f3a34, 0x2f5a4a, 0x4a7f62);
+  }
+  // 從大殿拉到角樓的兩串小燈
+  for (const d of [-1, 1]) {
+    const rope = sag(P(cx + d * 96, hy - 70), P(cx + d * (w * 0.38 - 30), hy - 60), 12, 20);
+    line(m, rope, 1, 0x1a0f18);
+    for (let i = 2; i < 20; i += 3)
+      lantern(m, rope[i].x, rope[i].y + 6, 0.36, i % 2 ? 0xf2b84b : 0xe0452b);
+  }
+  // 石階兩旁的石獅位置改成坐著的石狗：台座、身體、頭與豎起的耳朵
+  const guardian = (x: number, y: number, s: number, d: number) => {
+    const stone = 0xb9aea4;
+    const shade = 0x7d736c;
+    m.fillStyle(0x1a0f18, 0.3);
+    m.fillEllipse(x - 8 * s, y + 2 * s, 44 * s, 8 * s);
+    m.fillStyle(shade, 1);
+    m.fillRect(x - 13 * s, y - 12 * s, 26 * s, 12 * s);
+    m.fillStyle(stone, 1);
+    m.fillRect(x - 13 * s, y - 12 * s, 26 * s, 3 * s);
+    m.fillRect(x - 15 * s, y - 2 * s, 30 * s, 3 * s);
+    // 身體
+    m.fillStyle(shade, 1);
+    m.fillEllipse(x - d * 3 * s, y - 20 * s, 18 * s, 20 * s);
+    m.fillStyle(stone, 1);
+    m.fillEllipse(x - d * 1 * s, y - 21 * s, 14 * s, 18 * s);
+    m.fillRect(x + d * 2 * s, y - 20 * s, 4 * s, 9 * s);
+    // 頭與耳朵
+    m.fillStyle(shade, 1);
+    m.fillCircle(x + d * 1 * s, y - 34 * s, 7.5 * s);
+    m.fillStyle(stone, 1);
+    m.fillCircle(x + d * 2 * s, y - 34.5 * s, 6.5 * s);
+    m.fillEllipse(x + d * 8 * s, y - 32 * s, 7 * s, 5 * s);
+    poly(m, [P(x - 3 * s, y - 39 * s), P(x - 1 * s, y - 47 * s), P(x + 2 * s, y - 40 * s)], stone);
+    poly(m, [P(x + 2 * s, y - 40 * s), P(x + 5 * s, y - 47 * s), P(x + 7 * s, y - 39 * s)], stone);
+    m.fillStyle(0x3a2c26, 1);
+    m.fillCircle(x + d * 4 * s, y - 35.5 * s, 1 * s);
+    m.fillCircle(x + d * 11 * s, y - 32.5 * s, 1 * s);
+    // 脖子上的金鈴
+    m.fillStyle(0xd9a441, 1);
+    m.fillRect(x - 4 * s, y - 28.5 * s, 9 * s, 2 * s);
+    m.fillCircle(x + d * 2 * s, y - 26 * s, 1.6 * s);
+  };
+  guardian(cx - 62, hy + 18, 0.95, 1);
+  guardian(cx + 62, hy + 18, 0.95, -1);
+  // 廣場兩側的腳印長旗
+  for (const [fx, fy, s] of [
+    [0.06, 0.2, 0.95],
+    [0.94, 0.2, 0.95],
+    [0.4, 0.04, 0.6],
+    [0.6, 0.04, 0.6],
+  ]) {
+    pawBanner(m, fx * w, hy + (h - hy) * fy, s, 0xc0392b);
   }
   // 中間一條紅毯
   const carpet = layer(p);
