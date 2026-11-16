@@ -59,9 +59,9 @@ export class DogSprite extends Phaser.GameObjects.Container {
     this.rig = scene.add.container(0, 0);
 
     // 尾巴（以根部為原點旋轉）
-    this.tail = scene.add.container(-52, -62);
-    const tg = scene.add.graphics();
     const art = breedArtOf(look.breed);
+    this.tail = scene.add.container(art?.tailAt?.x ?? -52, art?.tailAt?.y ?? -62);
+    const tg = scene.add.graphics();
     const pal = { main: color, under: accent };
     if (art) {
       art.tail(tg, pal);
