@@ -4,6 +4,7 @@ import { BACKGROUNDS } from '../data/backgrounds';
 import { DOGS, findDog } from '../data/dogs';
 import { claimableCount } from '../logic/quests';
 import { markSigninShown, signinPopup, signinPopupFromSearch, signinReady } from '../logic/signin';
+import { towerOpen } from '../logic/tower';
 import { bodyScale } from '../logic/dogSize';
 import { REGIONS, findStage } from '../data/regions';
 import { RESOURCE_LABELS, type Resources } from '../data/resources';
@@ -406,8 +407,15 @@ export class LobbyScene extends Phaser.Scene {
     new LobbyCard(
       this,
       L.miniCards.event,
-      { title: '活動', icon: 'event', color: 0xc7832b, tag: COMING_SOON, decorate: faint('event') },
-      () => this.showToast(`活動${COMING_SOON}`),
+      // 活動卡先給登天塔用（爬塔，每週重置）
+      {
+        title: '爬塔',
+        icon: 'event',
+        color: 0xc7832b,
+        ...(towerOpen(st) ? {} : { tag: '第三章後開放' }),
+        decorate: faint('event'),
+      },
+      () => this.scene.start('TowerScene'),
     );
     new LobbyCard(
       this,

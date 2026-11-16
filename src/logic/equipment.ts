@@ -1,3 +1,4 @@
+import { sumPerks, type Perks } from './levelSkills';
 import type { DogRarity } from '../data/dogs';
 import {
   ALL_GEARS,
@@ -50,6 +51,15 @@ export function gearBonus(
     defense += g.defense;
   }
   return { attack, defense };
+}
+
+/** 身上裝備的特殊功能（爬塔限定裝備）；沒有回傳 undefined */
+export function gearPerks(
+  state: { equipped?: GameState['equipped'] },
+  dogId: string,
+): Perks | undefined {
+  const list = gearOf(state, dogId).flatMap((g) => (g.perks ? [g.perks] : []));
+  return list.length ? sumPerks(list) : undefined;
 }
 
 /** 身上的專屬裝備讓攻擊、防禦各多多少比例（沒穿是 0） */

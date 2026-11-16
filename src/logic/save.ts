@@ -1,3 +1,4 @@
+import { towerFloorOf } from '../data/tower';
 import { BACKGROUNDS } from '../data/backgrounds';
 import { DOGS, findDog } from '../data/dogs';
 import { findStage, type ThemeId } from '../data/regions';
@@ -29,6 +30,7 @@ import { sanitizeFrisbee } from './frisbee';
 import { sanitizeLord } from './lord';
 import { sanitizeQuests } from './quests';
 import { sanitizeSignin } from './signin';
+import { sanitizeTower } from './tower';
 import { findSnack } from './snacks';
 import { isTrainingSort } from './trainingSort';
 import { sanitizeWounds } from './wounds';
@@ -304,7 +306,7 @@ export function sanitizeState(raw: unknown, now: number): GameState {
       }
     : base.auto;
 
-  const cleared = stringList(raw.cleared, isStage);
+  const cleared = stringList(raw.cleared, (id) => isStage(id) && !towerFloorOf(id));
 
   // 寄宿位（T021）：只留擁有、不在隊伍裡、不重複的狗，超過位子數的丟掉；時間不能比現在晚
   const boarding: BoardingSlot[] = [];
@@ -438,6 +440,8 @@ export function sanitizeState(raw: unknown, now: number): GameState {
     frisbee: sanitizeFrisbee(raw.frisbee),
     // 七日簽到（T026）
     signin: sanitizeSignin(raw.signin),
+    // 登天塔
+    tower: sanitizeTower(raw.tower),
   };
 }
 

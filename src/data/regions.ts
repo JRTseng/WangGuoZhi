@@ -439,8 +439,16 @@ export function chapterName(chapter: number): string {
   return `第${'一二三四五六七八九十'[chapter - 1] ?? chapter}章`;
 }
 
+/**
+ * 主線以外的關卡（爬塔）：資料檔自己登記進來，findStage／findRegionOfStage 才找得到。
+ * region 是這一關借用的章節（場景、掉落的章節數用它）。
+ */
+export const EXTRA_STAGES = new Map<string, { stage: StageData; region: RegionData }>();
+
 /** 依 id 找關卡，找不到回傳 undefined */
 export function findStage(stageId: string): StageData | undefined {
+  const extra = EXTRA_STAGES.get(stageId);
+  if (extra) return extra.stage;
   for (const region of REGIONS) {
     const s = region.stages.find((x) => x.id === stageId);
     if (s) return s;
@@ -450,5 +458,7 @@ export function findStage(stageId: string): StageData | undefined {
 
 /** 依關卡 id 找所在章節 */
 export function findRegionOfStage(stageId: string): RegionData | undefined {
+  const extra = EXTRA_STAGES.get(stageId);
+  if (extra) return extra.region;
   return REGIONS.find((r) => r.stages.some((s) => s.id === stageId));
 }

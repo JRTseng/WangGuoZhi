@@ -2,6 +2,7 @@ import type Phaser from 'phaser';
 import { battleSeedFromSearch } from '../../logic/battle';
 import { beginExpedition } from '../../logic/expedition';
 import { nextStagePlan, type NextStagePlan } from '../../logic/nextStage';
+import { towerFloorOf } from '../../data/tower';
 import { getState, setState, tick, timeOptions } from '../../state/store';
 
 /** 剛打完的那一關與隊伍；之後要接著打下一關時用 */
@@ -40,6 +41,16 @@ export function startNext(scene: Phaser.Scene, from: NextFrom): boolean {
     instant: b.state.settings.skipBattle,
   });
   return true;
+}
+
+/** 回這一關所在的地圖：主線回出征地圖（停在那一章），塔的關卡回登天塔 */
+export function openMap(scene: Phaser.Scene, stageId: string | undefined, chapter?: number): void {
+  if (towerFloorOf(stageId ?? '')) scene.scene.start('TowerScene');
+  else
+    scene.scene.start(
+      'CampaignScene',
+      chapter !== undefined && chapter >= 0 ? { chapter } : undefined,
+    );
 }
 
 /** 結算「下一關」旁邊的「自動」勾選框：讀設定、勾了就存 */

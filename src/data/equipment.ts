@@ -1,3 +1,4 @@
+import type { Perks } from '../logic/levelSkills';
 import type { DogRarity } from './dogs';
 
 /**
@@ -59,6 +60,10 @@ export interface GearData {
   accent: number;
   /** 專屬裝備：只有這隻狗能穿（狗狗 id）；拿到這隻狗就送，不會從關卡掉 */
   exclusive?: string;
+  /** 爬塔限定裝備：第幾層第一次通關送的；不會從關卡掉 */
+  tower?: number;
+  /** 特殊功能（爬塔限定裝備才有）：穿上就多這些被動效果，和成長技能同一套 */
+  perks?: Perks;
   /** 專屬裝備的額外加成：穿上後攻擊、防禦各多這個比例（以沒算裝備的攻防為準） */
   pct?: number;
 }
@@ -645,8 +650,95 @@ export const EXCLUSIVE_GEARS: readonly GearData[] = [
   },
 ];
 
-/** 全部的裝備：一般的＋專屬的 */
-export const ALL_GEARS: readonly GearData[] = [...GEARS, ...EXCLUSIVE_GEARS];
+/**
+ * 爬塔限定裝備（Jimmy 2026-11-17：「通關可以有限定功能裝備，只有爬塔才會提供的」）：
+ * 每 20 層第一次通關送一件，五個部位各一件；除了攻防還帶一個特殊功能（暫定）。
+ */
+export const TOWER_GEARS: readonly GearData[] = [
+  {
+    id: 'tw-20',
+    name: '塔高望遠帽',
+    slot: 'head',
+    rarity: 'SSR',
+    attack: 6,
+    defense: 6,
+    pun: '登高望遠',
+    note: '站得高看得遠，開打前就先想好了。',
+    style: 'hat',
+    color: 0x3b6ea5,
+    accent: 0xf4c430,
+    tower: 20,
+    perks: { startEn: 30 },
+  },
+  {
+    id: 'tw-40',
+    name: '塔實做事手套',
+    slot: 'gloves',
+    rarity: 'SSR',
+    attack: 12,
+    defense: 0,
+    pun: '踏實做事',
+    note: '一拳一拳慢慢來，偶爾特別準。',
+    style: 'mitt',
+    color: 0x8a5a33,
+    accent: 0xf2c14b,
+    tower: 40,
+    perks: { crit: 0.1 },
+  },
+  {
+    id: 'tw-60',
+    name: '腳塔實地鞋',
+    slot: 'shoes',
+    rarity: 'SSR',
+    attack: 6,
+    defense: 6,
+    pun: '腳踏實地',
+    note: '每一步都踩得穩，要閃也閃得開。',
+    style: 'sneaker',
+    color: 0x4f9a6a,
+    accent: 0xfafafa,
+    tower: 60,
+    perks: { dodge: 0.1 },
+  },
+  {
+    id: 'tw-80',
+    name: '塔破鐵褲',
+    slot: 'pants',
+    rarity: 'SSR',
+    attack: 0,
+    defense: 12,
+    pun: '踏破鐵鞋',
+    note: '爬了八十層都沒磨破，結實。',
+    style: 'trousers',
+    color: 0x6b7385,
+    accent: 0xc0392b,
+    tower: 80,
+    perks: { guard: 0.1 },
+  },
+  {
+    id: 'tw-100',
+    name: '登塔造極袍',
+    slot: 'clothes',
+    rarity: 'SSR',
+    attack: 6,
+    defense: 6,
+    pun: '登峰造極',
+    note: '塔頂的風很大，披上它就不怕。',
+    style: 'robe',
+    color: 0x7a3b8a,
+    accent: 0xffd56b,
+    tower: 100,
+    perks: { atk: 0.1, hp: 0.1 },
+  },
+];
+
+/** 全部的裝備：一般的＋專屬的＋爬塔限定的 */
+export const ALL_GEARS: readonly GearData[] = [...GEARS, ...EXCLUSIVE_GEARS, ...TOWER_GEARS];
+
+/** 第幾層送的爬塔限定裝備；那一層沒有回傳 undefined */
+export function towerGearOf(floor: number): GearData | undefined {
+  return TOWER_GEARS.find((g) => g.tower === floor);
+}
 
 export function findGear(id: string): GearData | undefined {
   return ALL_GEARS.find((g) => g.id === id);
