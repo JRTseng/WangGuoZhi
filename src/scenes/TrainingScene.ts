@@ -306,7 +306,10 @@ export class TrainingScene extends Phaser.Scene {
       const hr = 26;
       const top = landscape ? 9 : 10;
       const gapY = landscape ? 23 : 24;
-      drawDogHead(g, 16 + hr, top + gapY + 12, hr, d.color, d.accent, headLook(st, d.id));
+      drawDogHead(g, 16 + hr, top + gapY + 12, hr, d.color, d.accent, {
+        ...headLook(st, d.id),
+        breed: d.breed,
+      });
       const lb = trainingLineButton(l, i);
       g.fillStyle(LINE_BUTTON_COLOR, 1);
       g.fillRoundedRect(lb.x - r.x, lb.y - r.y, lb.width, lb.height, 13);
@@ -504,7 +507,10 @@ export class TrainingScene extends Phaser.Scene {
     const add = (o: Phaser.GameObjects.GameObject) => (layer.add(o), o);
     const g = this.add.graphics();
     add(g);
-    drawDogHead(g, box.x + 44, box.y + 40, 24, d.color, d.accent, headLook(st, d.id));
+    drawDogHead(g, box.x + 44, box.y + 40, 24, d.color, d.accent, {
+      ...headLook(st, d.id),
+      breed: d.breed,
+    });
     add(addText(this, box.x + 80, box.y + 16, `餵「${d.name}」吃零食`, 19, COLORS.ink, true));
     add(
       addText(

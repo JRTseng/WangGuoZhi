@@ -34,3 +34,14 @@ test('T025 像素光影：戰鬥畫面的場景與頭像也是像素畫風', asy
   await page.waitForFunction(() => (window.__WGZ__?.battle?.index ?? 0) >= 2);
   await page.screenshot({ path: `${SHOTS}/pixel-battle.png` });
 });
+
+test('T025 犬種：主頁的狗照犬種畫（哈士奇）', async ({ page }) => {
+  await openLobby(page, '?fast=1');
+  await patchSave(page, {
+    owned: ['daer', 'heixuan', 'changxu', 'xiaosuan', 'abai', 'shuangyan'],
+    lobbyDogId: 'shuangyan',
+  });
+  expect((await wgz(page)).lobby!.dogId).toBe('shuangyan');
+  await page.waitForTimeout(600);
+  await page.screenshot({ path: `${SHOTS}/breed-husky.png` });
+});

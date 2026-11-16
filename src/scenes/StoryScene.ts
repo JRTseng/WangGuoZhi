@@ -220,6 +220,7 @@ export class StoryScene extends Phaser.Scene {
         color: dog.color,
         accent: dog.accent,
         pixel: PIXEL_SIZE / size,
+        breed: dog.breed,
       });
       this.speaker.setScale(size).setDepth(5);
       this.speaker.play('wag');

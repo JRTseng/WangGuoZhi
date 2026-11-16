@@ -184,6 +184,7 @@ export class LobbyScene extends Phaser.Scene {
       gear: gearOf(getState(), d.id),
       hurt: (this.dogHurt = woundLevel(getState(), d.id, Date.now())),
       pixel: PIXEL_SIZE / scale,
+      breed: d.breed,
     });
     this.dog.setScale(scale);
     this.lightDog();
@@ -238,7 +239,10 @@ export class LobbyScene extends Phaser.Scene {
     const d = findDog(st.lobbyDogId) ?? DOGS[0];
     g.fillStyle(0xfff6e8, 1);
     g.fillCircle(cx, cy, R);
-    drawDogHead(g, cx, cy + 4, R * 0.62, d.color, d.accent, headLook(st, d.id));
+    drawDogHead(g, cx, cy + 4, R * 0.62, d.color, d.accent, {
+      ...headLook(st, d.id),
+      breed: d.breed,
+    });
     g.lineStyle(4, LOBBY.gold, 1);
     g.strokeCircle(cx, cy, R);
     g.lineStyle(1.5, 0x8a5a1a, 1);
@@ -345,7 +349,9 @@ export class LobbyScene extends Phaser.Scene {
           // 右側淡淡的隊長頭像
           g.fillStyle(0xffffff, 0.12);
           g.fillCircle(w - h * 0.34, h * 0.36, h * 0.3);
-          drawDogHead(g, w - h * 0.34, h * 0.39, h * 0.19, leader.color, leader.accent);
+          drawDogHead(g, w - h * 0.34, h * 0.39, h * 0.19, leader.color, leader.accent, {
+            breed: leader.breed,
+          });
         },
       },
       () => this.scene.start('CampaignScene'),

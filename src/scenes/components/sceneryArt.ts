@@ -38,6 +38,17 @@ import {
   type G,
   type Paint,
 } from './sceneryKit';
+import {
+  dirtPath,
+  grassField,
+  hayBale,
+  lushTree,
+  pawBanner,
+  treeLine,
+  watchtower,
+  woodFence,
+  type LeafPalette,
+} from './sceneryRich';
 
 /**
  * 每個場景的畫法（T016）：十章各一張，加上秋祭燈會與主城。
@@ -47,62 +58,68 @@ import {
 
 export type SceneryTheme = RegionScene | 'city';
 
-/** 第一章 落葉坡：秋天午後，楓樹、木柵欄、滿地落葉 */
+/** 秋天的三種葉子：紅、橘、金 */
+const AUTUMN: readonly LeafPalette[] = [
+  { trunk: 0x6f4426, dark: 0x9c2f1a, mid: 0xd4502a, light: 0xf08048, glint: 0xffc08a },
+  { trunk: 0x6f4426, dark: 0xb05a18, mid: 0xe48a2a, light: 0xf8b455, glint: 0xffe0a0 },
+  { trunk: 0x6f4426, dark: 0xb8861c, mid: 0xefc04a, light: 0xfbe07e, glint: 0xfff6c8 },
+];
+
+/**
+ * 第一章 落葉坡：秋天午後的邊境小村口。層層的楓樹林、彎進村口的泥土路、
+ * 木柵欄與瞭望台、掛著腳印旗的旗竿、幾捆稻草，滿地落葉。（T025 精緻版）
+ */
 function slope(p: Paint): void {
-  const { w, hy } = p;
+  const { w, h, hy } = p;
+  const gh = h - hy;
   const g = layer(p);
-  sky(p, g, 0x86c5ec, 0xfde3bd, 0xc9e4f0);
+  sky(p, g, 0x6fb4e6, 0xffe4ba, 0xbfe0f0);
   glowDisc(g, w * 0.8, hy * 0.26, 22, 0xfff3c4, 0xffe9a8);
-  mountains(p, g, 11, 'hills', hy, hy * 0.5, 0xe6c39a, 3);
-  mountains(p, g, 12, 'hills', hy, hy * 0.34, 0xd9a066, 4);
+  // 三層遠山，越近顏色越深；山腳一排遠遠的樹林
+  mountains(p, g, 11, 'hills', hy, hy * 0.56, 0xead0ae, 3);
+  mountains(p, g, 12, 'hills', hy, hy * 0.4, 0xdcaa74, 4);
+  mountains(p, g, 19, 'hills', hy, hy * 0.24, 0xcc8648, 5);
+  treeLine(p, g, 20, hy - 1, 8, AUTUMN, 0.38, 0xead0ae);
   clouds(p, 13, 3);
+
   const m = layer(p);
-  mountains(p, m, 14, 'hills', hy + 2, hy * 0.17, 0xc77a3c, 6);
-  // 山坡上遠遠的小樹
-  const rnd = seeded(15);
-  for (let i = 0; i < 16; i++) {
-    const x = rnd() * w;
-    const y = hy - 6 - rnd() * hy * 0.1;
-    m.fillStyle([0xd9542b, 0xe8892c, 0xf2c14e][i % 3], 1);
-    m.fillCircle(x, y, 3 + rnd() * 3);
-  }
-  ground(p, m, 0xebc07a, 0xd39a52);
-  // 小路的痕跡與落葉堆
-  for (const s of onGround(p, 16, 26)) {
-    m.fillStyle([0xd9542b, 0xe8892c, 0xf2c14e, 0xc8612d][Math.floor(s.k * 4)], 0.9);
+  ground(p, m, 0xeac27a, 0xc88c46);
+  grassField(p, m, 31, 0xd8a658, 0xb07a34, 0xffe6a8);
+  // 村口後面的樹林，中間留一個缺口給路
+  const cx = w * 0.5;
+  treeLine(p, m, 21, hy + 5, 14, AUTUMN, 0.14, 0xead0ae, [cx - 34, cx + 34]);
+  dirtPath(p, m, 32, cx, w * 0.44, 0xe8d2a2);
+  // 落葉堆
+  for (const s of onGround(p, 16, 30)) {
+    m.fillStyle([0xd9542b, 0xe8892c, 0xf2c14e, 0xc8612d][Math.floor(s.k * 4)], 0.92);
     m.fillEllipse(s.x, s.y, 12 * s.s, 5 * s.s);
     m.fillEllipse(s.x + 7 * s.s, s.y + 2 * s.s, 9 * s.s, 4 * s.s);
+    m.fillStyle(0xffe6a8, 0.5);
+    m.fillRect(s.x - 2 * s.s, s.y - 1.5 * s.s, 4 * s.s, 1.5);
   }
-  for (const s of onGround(p, 17, 16)) tuft(m, s.x, s.y, s.s, 0xb9843a);
-  for (const s of onGround(p, 18, 5, 0.3)) rock(m, s.x, s.y, s.s, 0xb39b80);
-  // 木柵欄
-  const fx0 = w * 0.36;
-  const fx1 = w * 0.64;
-  m.fillStyle(0x8a5a33, 1);
-  m.fillRect(fx0, hy - 12, fx1 - fx0, 3);
-  m.fillRect(fx0, hy - 5, fx1 - fx0, 3);
-  for (let x = fx0; x <= fx1 + 1; x += (fx1 - fx0) / 8) {
-    m.fillStyle(0x7a4a2a, 1);
-    m.fillRect(x - 2.5, hy - 18, 5, 22);
-    m.fillStyle(0xa87446, 1);
-    m.fillRect(x - 2.5, hy - 18, 2, 22);
-  }
-  const reds: [number, number, number][] = [
-    [0xb5391f, 0xd9542b, 0xee7a45],
-    [0xc96a1f, 0xe8892c, 0xf6ad55],
-    [0xcf9a24, 0xf2c14e, 0xfbe08a],
+  for (const s of onGround(p, 17, 14)) tuft(m, s.x, s.y, s.s, 0xa9742e);
+  for (const s of onGround(p, 18, 6, 0.3)) rock(m, s.x, s.y, s.s, 0xb39b80);
+  // 村口：兩段柵欄、瞭望台、腳印旗、稻草
+  const fy = hy + 12;
+  woodFence(m, w * 0.27, cx - 40, fy, 0.9);
+  woodFence(m, cx + 40, w * 0.73, fy, 0.9);
+  watchtower(m, w * 0.635, hy + 14, 0.95, 0x9a3a2e);
+  pawBanner(m, cx - 44, fy + 2, 0.9, 0xc8412b);
+  pawBanner(m, cx + 30, fy + 2, 0.9, 0xc8412b);
+  hayBale(m, w * 0.33, hy + gh * 0.2, 0.9);
+  hayBale(m, w * 0.36, hy + gh * 0.26, 1.05);
+  hayBale(m, w * 0.69, hy + gh * 0.24, 1);
+  // 兩旁的大楓樹，越靠近鏡頭越大
+  const trees: [number, number, number][] = [
+    [0.19, 0.8, 0],
+    [0.8, 0.85, 1],
+    [0.1, 1.0, 2],
+    [0.9, 1.05, 0],
+    [0.02, 1.3, 1],
+    [0.985, 1.35, 2],
   ];
-  const trees = [
-    [0.04, 1.15],
-    [0.14, 0.85],
-    [0.25, 1.0],
-    [0.72, 0.9],
-    [0.84, 1.2],
-    [0.96, 0.95],
-  ];
-  trees.forEach(([tx, s], i) => {
-    const c = reds[i % 3];
-    roundTree(m, tx * w, hy + 8 + (s - 0.85) * 14, s, 0x7a4a2a, c[0], c[1], c[2]);
+  trees.forEach(([tx, s, c], i) => {
+    lushTree(m, tx * w, hy + 6 + (s - 0.8) * gh * 0.36, s, AUTUMN[c], 40 + i);
   });
   drifting(p, 'leaf', [0xd94f2b, 0xe8892c, 0xf2c14e]);
 }

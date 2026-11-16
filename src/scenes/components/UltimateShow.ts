@@ -36,6 +36,8 @@ export interface UltimateShowOptions {
     pose: UltPoseSpec;
     /** 身上穿的裝備：字卡上的狗照樣畫出來 */
     gear?: readonly GearData[];
+    /** 犬種：照犬種畫 */
+    breed?: string;
   };
   /** 這一下實際打到（或補到）的對象 */
   target: ShowPoint;
@@ -196,6 +198,7 @@ export function playUltimate(
     fierce: o.caster.fierce,
     gear: o.caster.gear,
     pixel: PIXEL_SIZE / size0,
+    breed: o.caster.breed,
   });
   // 敵方面向左邊
   dog.setScale(dir * size0 * 0.5, size0 * 0.5);

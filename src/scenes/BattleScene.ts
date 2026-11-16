@@ -82,6 +82,8 @@ interface UnitView {
   fierce: boolean;
   /** 身上的裝備（我方才有） */
   gear?: readonly GearData[];
+  /** 犬種（我方才有）：照犬種畫臉 */
+  breed?: string;
   maxHp: number;
   hp: number;
   /** 站第幾排（0 前、1 中、2 後） */
@@ -293,6 +295,7 @@ export class BattleScene extends Phaser.Scene {
         color: d?.color ?? 0xd9894a,
         accent: d?.accent ?? 0xfff3e0,
         fierce: false,
+        breed: d?.breed,
         // 身上的裝備：頭飾畫在場上的頭像，大絕招時整套畫出來
         gear: gearOf(getState(), u.id),
       });
@@ -320,7 +323,13 @@ export class BattleScene extends Phaser.Scene {
     index: number,
     name: string,
     slot: BattleSlot,
-    look: { color: number; accent: number; fierce: boolean; gear?: readonly GearData[] },
+    look: {
+      color: number;
+      accent: number;
+      fierce: boolean;
+      gear?: readonly GearData[];
+      breed?: string;
+    },
   ): UnitView {
     const data = (side === 'team' ? this.sim.team : this.sim.enemies)[index];
     const box = this.add.container(slot.x, slot.y);
@@ -398,6 +407,7 @@ export class BattleScene extends Phaser.Scene {
       fierce: u.fierce,
       dark: down,
       gear: u.gear,
+      breed: u.breed,
     });
     u.box.setAlpha(down ? 0.7 : 1);
 
@@ -585,6 +595,7 @@ export class BattleScene extends Phaser.Scene {
           (ult.side === 'team' ? this.sim.team : this.sim.enemies)[ult.index].role,
         ),
         gear: caster.gear,
+        breed: caster.breed,
       },
       target: (e.hits[0] ? this.units[e.hits[0].side][e.hits[0].target] : caster).slot,
       allies: alive(this.units[ult.side]),
