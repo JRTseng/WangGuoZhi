@@ -176,6 +176,14 @@ export interface FrisbeeState {
   best: number;
 }
 
+/** 七日簽到（T026，規則見 src/logic/signin.ts） */
+export interface SigninState {
+  /** 上次簽到是哪一天（以 05:00 為界的日期字串）；和今天一樣就是今天簽過了 */
+  day: string;
+  /** 累計簽到幾天；除以 7 的餘數就是這一輪輪到第幾格 */
+  count: number;
+}
+
 export type Quality = 'low' | 'medium' | 'high';
 
 /** 帳號設定（語音／推播目前只記住開關，還沒有實際功能；音樂與音效見 T016） */
@@ -266,6 +274,8 @@ export interface GameState {
   quests: QuestState;
   /** 訓練場每日小遊戲（T022）：今天玩過沒、最佳紀錄 */
   frisbee: FrisbeeState;
+  /** 七日簽到（T026）：上次簽到的日期與累計天數 */
+  signin: SigninState;
 }
 
 /** 體力上限；新遊戲從滿體力開始 */
@@ -318,5 +328,6 @@ export function createInitialState(now: number = Date.now()): GameState {
     quests: { claimed: [], wins: 0, daily: { counts: {}, claimed: [] } },
     lord: { level: 1, exp: 0 },
     frisbee: { day: '', best: 0 },
+    signin: { day: '', count: 0 },
   };
 }
