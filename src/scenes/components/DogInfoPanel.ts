@@ -70,7 +70,11 @@ export class DogInfoPanel {
     const hr = 40;
     const hx = box.x + 24 + hr;
     const hy = box.y + 34 + hr;
-    drawDogHead(head, hx, hy, hr, dog.color, dog.accent, { dark: !o.owned, ...o.look });
+    drawDogHead(head, hx, hy, hr, dog.color, dog.accent, {
+      dark: !o.owned,
+      ...o.look,
+      breed: dog.breed,
+    });
     layer.add(head);
     // 頭像下面：稀有度・體型・星數（T007）
     if (dog.rarity) {

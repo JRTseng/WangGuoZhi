@@ -249,7 +249,9 @@ export class BoardingScene extends Phaser.Scene {
     g.fillRoundedRect(r.x, r.y, r.width, r.height, 14);
     g.strokeRoundedRect(r.x, r.y, r.width, r.height, 14);
     const hr = this.landscape ? 19 : 22;
-    drawDogHead(g, r.x + 12 + hr, r.y + r.height / 2 + 2, hr, d.color, d.accent);
+    drawDogHead(g, r.x + 12 + hr, r.y + r.height / 2 + 2, hr, d.color, d.accent, {
+      breed: d.breed,
+    });
     const b = boardingButton(this.layout, r);
     g.fillStyle(buttonColor, 1);
     g.fillRoundedRect(b.x, b.y, b.width, b.height, 10);

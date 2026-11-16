@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { COLORS, FONT_FAMILY } from '../../config';
 import type { GearData } from '../../data/equipment';
 import type { UltPose } from '../../logic/ultPose';
+import { breedArtOf } from './breedArt';
 import { drawDogHead, drawEyes } from './dogArt';
 import { drawBandage, drawBodyGear } from './gearArt';
 import { pixelize } from './pixelStage';
@@ -20,6 +21,8 @@ export interface DogLook {
   gear?: readonly GearData[];
   /** 受傷外觀（T014）：1 貼 OK 繃；2 再加頭套 */
   hurt?: 0 | 1 | 2;
+  /** 犬種（T025）：有照犬種畫好的就用那個犬種的體型、花紋與尾巴 */
+  breed?: string;
   /**
    * 像素畫風（T025）：一格像素等於狗自己座標的幾點（畫面上想要的像素大小除以狗的縮放）。
    * 站在像素場景裡的狗要給，才會和背景同一種質感；不給就是平滑的線條（卡片、倉庫用）。
@@ -58,29 +61,39 @@ export class DogSprite extends Phaser.GameObjects.Container {
     // 尾巴（以根部為原點旋轉）
     this.tail = scene.add.container(-52, -62);
     const tg = scene.add.graphics();
-    tg.fillStyle(color, 1);
-    tg.lineStyle(3, line, 1);
-    tg.fillEllipse(-10, -16, 18, 40);
-    tg.strokeEllipse(-10, -16, 18, 40);
+    const art = breedArtOf(look.breed);
+    const pal = { main: color, under: accent };
+    if (art) {
+      art.tail(tg, pal);
+    } else {
+      tg.fillStyle(color, 1);
+      tg.lineStyle(3, line, 1);
+      tg.fillEllipse(-10, -16, 18, 40);
+      tg.strokeEllipse(-10, -16, 18, 40);
+    }
     this.tail.add(tg);
     this.tail.setAngle(-20);
 
     const body = scene.add.graphics();
-    body.fillStyle(color, 1);
-    body.lineStyle(3, line, 1);
-    // 後腳、前腳
-    for (const lx of [-40, -22, 22, 40]) {
-      body.fillRoundedRect(lx - 8, -36, 16, 36, 6);
-      body.strokeRoundedRect(lx - 8, -36, 16, 36, 6);
-    }
-    body.fillEllipse(0, -56, 120, 58);
-    body.strokeEllipse(0, -56, 120, 58);
-    body.fillStyle(accent, 1);
-    body.fillEllipse(18, -44, 56, 26);
+    if (art) {
+      art.body(body, pal);
+    } else {
+      body.fillStyle(color, 1);
+      body.lineStyle(3, line, 1);
+      // 後腳、前腳
+      for (const lx of [-40, -22, 22, 40]) {
+        body.fillRoundedRect(lx - 8, -36, 16, 36, 6);
+        body.strokeRoundedRect(lx - 8, -36, 16, 36, 6);
+      }
+      body.fillEllipse(0, -56, 120, 58);
+      body.strokeEllipse(0, -56, 120, 58);
+      body.fillStyle(accent, 1);
+      body.fillEllipse(18, -44, 56, 26);
 
-    // 腳掌的毛色（T014 美化）
-    body.fillStyle(accent, 1);
-    for (const lx of [-40, -22, 22, 40]) body.fillRoundedRect(lx - 6.5, -11, 13, 9.5, 4);
+      // 腳掌的毛色（T014 美化）
+      body.fillStyle(accent, 1);
+      for (const lx of [-40, -22, 22, 40]) body.fillRoundedRect(lx - 6.5, -11, 13, 9.5, 4);
+    }
 
     // 裝備（T014）：衣服、褲子、鞋子、手套畫在身體上
     const bodyGear = scene.add.graphics();
@@ -93,13 +106,32 @@ export class DogSprite extends Phaser.GameObjects.Container {
 
     this.head = scene.add.container(46, -96);
     const hg = scene.add.graphics();
-    drawDogHead(hg, 0, 0, 36, color, accent, { fierce: look.fierce, gear, hurt });
+    drawDogHead(hg, 0, 0, 36, color, accent, {
+      fierce: look.fierce,
+      gear,
+      hurt,
+      breed: look.breed,
+    });
     // 頭飾畫在頭上之後，閉眼的眼皮要蓋在最上面
     this.lids = scene.add.graphics();
-    this.lids.fillStyle(color, 1);
-    this.lids.fillCircle(-12.6, -5.4, 6);
-    this.lids.fillCircle(12.6, -5.4, 6);
-    drawEyes(this.lids, 0, 0, 36, true);
+    if (art) {
+      // 眼皮：用那個犬種眼睛周圍的毛色蓋住張開的眼睛，再畫閉起來的弧線
+      const e = art.eye;
+      this.lids.fillStyle(e.lid(pal), 1);
+      this.lids.fillCircle(-e.dx * 36, e.dy * 36, e.r * 36 + 2);
+      this.lids.fillCircle(e.dx * 36, e.dy * 36, e.r * 36 + 2);
+      this.lids.lineStyle(2.6, COLORS.inkHex, 1);
+      for (const side of [-1, 1]) {
+        this.lids.beginPath();
+        this.lids.arc(side * e.dx * 36, e.dy * 36 - 1, 3.8, 0.15 * Math.PI, 0.85 * Math.PI);
+        this.lids.strokePath();
+      }
+    } else {
+      this.lids.fillStyle(color, 1);
+      this.lids.fillCircle(-12.6, -5.4, 6);
+      this.lids.fillCircle(12.6, -5.4, 6);
+      drawEyes(this.lids, 0, 0, 36, true);
+    }
     this.lids.setVisible(false);
     this.head.add([hg, this.lids]);
 
@@ -107,7 +139,7 @@ export class DogSprite extends Phaser.GameObjects.Container {
     const bodyPix: Phaser.GameObjects.RenderTexture[] = [];
     if (look.pixel) {
       const px = look.pixel;
-      this.tail.add(pixelize(scene, tg, { x: -26, y: -44, width: 34, height: 56 }, px));
+      this.tail.add(pixelize(scene, tg, { x: -44, y: -68, width: 92, height: 88 }, px));
       const wide = { x: -96, y: -124, width: 192, height: 134 };
       bodyPix.push(pixelize(scene, body, wide, px), pixelize(scene, bodyGear, wide, px));
       const around = { x: -76, y: -92, width: 152, height: 164 };

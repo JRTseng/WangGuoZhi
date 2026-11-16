@@ -116,7 +116,7 @@ export class RecruitScene extends Phaser.Scene {
       g.lineStyle(3, RARITY_COLORS[d.rarity!], 1);
       g.fillCircle(x, y - 2, 31);
       g.strokeCircle(x, y - 2, 31);
-      drawDogHead(g, x, y, 21, d.color, d.accent);
+      drawDogHead(g, x, y, 21, d.color, d.accent, { breed: d.breed });
       addText(this, x, y + 32, `${d.rarity} ${d.name}`, 13, '#fff6e8', true).setOrigin(0.5, 0);
     });
 
@@ -261,7 +261,7 @@ export class RecruitScene extends Phaser.Scene {
     g.strokeRoundedRect(x, y, r.width, r.height, 12);
     const hr = big ? 40 : Math.min(22, r.width * 0.3);
     const hy = y + (big ? 62 : 16 + hr * 1.25);
-    drawDogHead(g, 0, hy, hr, d.color, d.accent);
+    drawDogHead(g, 0, hy, hr, d.color, d.accent, { breed: d.breed });
     c.add(g);
 
     let ty = hy + hr + (big ? 14 : 8);
