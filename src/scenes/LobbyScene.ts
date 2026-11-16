@@ -3,7 +3,7 @@ import { COLORS } from '../config';
 import { BACKGROUNDS } from '../data/backgrounds';
 import { DOGS, findDog } from '../data/dogs';
 import { claimableCount } from '../logic/quests';
-import { signinReady } from '../logic/signin';
+import { markSigninShown, signinPopup, signinPopupFromSearch, signinReady } from '../logic/signin';
 import { bodyScale } from '../logic/dogSize';
 import { REGIONS, findStage } from '../data/regions';
 import { RESOURCE_LABELS, type Resources } from '../data/resources';
@@ -144,6 +144,18 @@ export class LobbyScene extends Phaser.Scene {
     if (data?.openSettings) {
       data.openSettings = false;
       this.openSettings();
+      return;
+    }
+
+    // 每天第一次進主頁，今天還沒簽到就自動跳出簽到畫面（Jimmy 2026-11-17）；一天只跳一次
+    const now = Date.now();
+    if (
+      save.load !== 'reset' &&
+      signinPopupFromSearch(window.location.search) &&
+      signinPopup(getState(), now, timeOptions())
+    ) {
+      setState(markSigninShown(getState(), now, timeOptions()));
+      this.scene.start('SigninScene');
     }
   }
 

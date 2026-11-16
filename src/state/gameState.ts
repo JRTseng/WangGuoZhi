@@ -180,8 +180,14 @@ export interface FrisbeeState {
 export interface SigninState {
   /** 上次簽到是哪一天（以 05:00 為界的日期字串）；和今天一樣就是今天簽過了 */
   day: string;
-  /** 累計簽到幾天；除以 7 的餘數就是這一輪輪到第幾格 */
+  /** 累計簽到幾天（只拿來顯示） */
   count: number;
+  /** 這一輪已經連續簽了幾格（0～7）；隔天沒來就斷掉，從第 1 天重來 */
+  streak: number;
+  /** 第 7 天要哪隻 SSR 狗的碎片（狗的 id）；空字串是還沒選 */
+  pick: string;
+  /** 哪一天已經自動跳出過簽到畫面（每天第一次進主頁才跳） */
+  shown: string;
 }
 
 export type Quality = 'low' | 'medium' | 'high';
@@ -328,6 +334,6 @@ export function createInitialState(now: number = Date.now()): GameState {
     quests: { claimed: [], wins: 0, daily: { counts: {}, claimed: [] } },
     lord: { level: 1, exp: 0 },
     frisbee: { day: '', best: 0 },
-    signin: { day: '', count: 0 },
+    signin: { day: '', count: 0, streak: 0, pick: '', shown: '' },
   };
 }

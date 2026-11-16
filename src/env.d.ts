@@ -126,6 +126,17 @@ interface WgzDebugState {
     index: number;
     /** 累計簽到幾天 */
     total: number;
+    /** 這一輪已經連續簽了幾格 */
+    streak: number;
+    /** 上一輪因為漏簽斷掉 */
+    broken: boolean;
+    /** 第 7 天選了哪隻 SSR 狗（空字串是還沒選） */
+    pick: string;
+    /** 選狗的彈出框（開著才有） */
+    picker: {
+      cells: Array<WgzRect & { id: string; name: string; owned: boolean; picked: boolean }>;
+      close: WgzRect;
+    } | null;
     claim: WgzRect;
     cells: Array<
       WgzRect & {
@@ -135,6 +146,7 @@ interface WgzDebugState {
         food: number;
         bones: number;
         snack: { id: string; amount: number } | null;
+        shards: { dogId: string; amount: number } | null;
       }
     >;
   };
