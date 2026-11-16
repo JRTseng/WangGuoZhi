@@ -4,7 +4,8 @@ import { holdUntil, openLobby, patchSave, tap, waitScene, wgz } from './helpers'
 const SHOTS = 'artifacts/screenshots/landscape';
 
 test('成長技能：每 10 級學一個；組隊時長按狗狗圖示看素質與技能', async ({ page }) => {
-  test.setTimeout(90_000);
+  // 本機約 34 秒，CI 慢兩倍多；90 秒（比預設的 120 還短）會卡在邊緣，2026-11-16 因此逾時
+  test.setTimeout(180_000);
   await openLobby(page, '?fast=1');
   // 大耳練到 25 級：學會 Lv.10、Lv.20 兩個
   const dogs = await page.evaluate(

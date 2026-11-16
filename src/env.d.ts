@@ -36,6 +36,8 @@ interface WgzDebugState {
     background: string;
     /** 背景裡有幾個會動的東西（低畫質是 0） */
     backgroundMoving?: number;
+    /** 主頁那隻狗畫多大（T025：版面的大小乘上體型） */
+    dogScale?: number;
     /** 主頁現在的時段（T025）：dawn／day／dusk／night */
     dayTime?: string;
     /** 任務有幾個獎勵可以領（T011）；大於 0 時「任務」亮紅點 */

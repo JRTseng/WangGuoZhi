@@ -45,6 +45,7 @@ import type { ExpeditionRecord, GameState, PendingBattle } from '../state/gameSt
 import { getState, setState } from '../state/store';
 import { Button } from './components/Button';
 import { drawDogHead } from './components/dogArt';
+import { headScale } from '../logic/dogSize';
 import { makeTapArea } from './components/hitArea';
 import { ResultPanel } from './components/ResultPanel';
 import { Scenery } from './components/Scenery';
@@ -84,6 +85,8 @@ interface UnitView {
   gear?: readonly GearData[];
   /** 犬種（我方才有）：照犬種畫臉 */
   breed?: string;
+  /** 頭像照體型放大或縮小多少（T025；敵人是 1） */
+  headK: number;
   maxHp: number;
   hp: number;
   /** 站第幾排（0 前、1 中、2 後） */
@@ -296,6 +299,7 @@ export class BattleScene extends Phaser.Scene {
         accent: d?.accent ?? 0xfff3e0,
         fierce: false,
         breed: d?.breed,
+        headK: headScale(d?.size),
         // 身上的裝備：頭飾畫在場上的頭像，大絕招時整套畫出來
         gear: gearOf(getState(), u.id),
       });
@@ -329,6 +333,7 @@ export class BattleScene extends Phaser.Scene {
       fierce: boolean;
       gear?: readonly GearData[];
       breed?: string;
+      headK?: number;
     },
   ): UnitView {
     const data = (side === 'team' ? this.sim.team : this.sim.enemies)[index];
@@ -350,6 +355,7 @@ export class BattleScene extends Phaser.Scene {
       id: data.id,
       slot,
       ...look,
+      headK: look.headK ?? 1,
       maxHp: data.maxHp,
       hp: data.maxHp,
       row: data.row,
@@ -403,7 +409,9 @@ export class BattleScene extends Phaser.Scene {
   private redrawUnit(u: UnitView): void {
     const down = u.hp <= 0;
     u.head.clear();
-    drawDogHead(u.head, 0, 0, u.slot.r, u.color, u.accent, {
+    // 體型不同的狗頭像大小不同，下緣對齊在同一條線上
+    const hr = u.slot.r * u.headK;
+    drawDogHead(u.head, 0, u.slot.r - hr, hr, u.color, u.accent, {
       fierce: u.fierce,
       dark: down,
       gear: u.gear,

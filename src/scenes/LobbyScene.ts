@@ -3,6 +3,7 @@ import { COLORS } from '../config';
 import { BACKGROUNDS } from '../data/backgrounds';
 import { DOGS, findDog } from '../data/dogs';
 import { claimableCount } from '../logic/quests';
+import { bodyScale } from '../logic/dogSize';
 import { REGIONS, findStage } from '../data/regions';
 import { RESOURCE_LABELS, type Resources } from '../data/resources';
 import { STORIES } from '../data/stories';
@@ -115,6 +116,7 @@ export class LobbyScene extends Phaser.Scene {
         dogId: getState().lobbyDogId,
         dogAction: this.dog.action,
         dogHurt: this.dogHurt,
+        dogScale: this.dog.scaleY,
         background: getState().backgroundId,
         backgroundMoving: this.scenery?.moving ?? 0,
         dayTime: this.scenery?.time ?? 'day',
@@ -177,7 +179,9 @@ export class LobbyScene extends Phaser.Scene {
   private drawDog(): void {
     const d = findDog(getState().lobbyDogId) ?? DOGS[0];
     const level = dogStats(getState(), d).level;
-    const { x, y, scale } = this.layout.dog;
+    const { x, y } = this.layout.dog;
+    // 體型（T025）：小型狗小一點、大型狗大一點
+    const scale = this.layout.dog.scale * bodyScale(d.size);
     this.dog = new DogSprite(this, x, y, {
       color: d.color,
       accent: d.accent,
