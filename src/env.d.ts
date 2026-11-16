@@ -127,6 +127,20 @@ interface WgzDebugState {
     dog: WgzRect;
     cat: WgzRect;
   };
+  /** 陣營積分戰畫面（T030） */
+  war?: {
+    faction: 'dog' | 'cat';
+    points: number;
+    dog: number;
+    cat: number;
+    leader: 'dog' | 'cat';
+    claimed: number[];
+    claimable: number[];
+    hasResult: boolean;
+    claim: WgzRect;
+    result: WgzRect | null;
+    switch: WgzRect;
+  };
   /** 登天塔畫面 */
   tower?: {
     open: boolean;

@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { COLORS } from '../config';
 import { BACKGROUNDS } from '../data/backgrounds';
 import { DOGS, FACTION_NAMES, findDog } from '../data/dogs';
+import { warReady } from '../logic/war';
 import { chooseFaction, factionFromSearch, needFactionPick, playerFaction } from '../logic/faction';
 import { claimableCount } from '../logic/quests';
 import { markSigninShown, signinPopup, signinPopupFromSearch, signinReady } from '../logic/signin';
@@ -84,6 +85,8 @@ export class LobbyScene extends Phaser.Scene {
   private storyCard!: LobbyCard;
   private questItem!: MenuItem;
   private rewardShortcut!: RoundShortcut;
+  /** 陣營徽章上的紅點：積分戰有獎勵可以領 */
+  private factionDot: Phaser.GameObjects.Arc | null = null;
   private expeditionCard!: LobbyCard;
   private toast: Phaser.GameObjects.Text | null = null;
 
@@ -302,7 +305,7 @@ export class LobbyScene extends Phaser.Scene {
     c.on('pointerup', () => this.openSettings());
   }
 
-  /** 陣營徽章（T029）：帳號卡下面，寫著汪國或喵國，點了去選陣營畫面 */
+  /** 陣營徽章（T029）：帳號卡旁邊，寫著汪國或喵國，點了去陣營積分戰（T030） */
   private drawFaction(): void {
     const r = this.layout.faction;
     const f = playerFaction(getState());
@@ -326,7 +329,12 @@ export class LobbyScene extends Phaser.Scene {
       ).setOrigin(0, 0.5),
     ]);
     makeTapArea(c, r.width, r.height);
-    c.on('pointerup', () => this.scene.start('FactionScene'));
+    // 點了去陣營積分戰（T030）；換陣營在那個畫面的右下角
+    c.on('pointerup', () => this.scene.start('WarScene'));
+    this.factionDot = this.add
+      .circle(r.x + r.width - 2, r.y + 3, 6, 0xe0452c)
+      .setStrokeStyle(2, 0xffffff)
+      .setVisible(false);
   }
 
   /** 右上資源列（各帶「＋」）與信箱 */
@@ -689,6 +697,7 @@ export class LobbyScene extends Phaser.Scene {
     // 今天還沒簽到就亮紅點（T026）
     const signin = signinReady(state, now, timeOptions());
     this.rewardShortcut.setDot(signin);
+    this.factionDot?.setVisible(warReady(state, now, timeOptions()));
     if (window.__WGZ__?.lobby && window.__WGZ__.lobby.signinReady !== signin) {
       window.__WGZ__.lobby.signinReady = signin;
     }
