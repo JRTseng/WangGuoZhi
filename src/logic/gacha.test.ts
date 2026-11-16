@@ -86,12 +86,12 @@ describe('rollRarity', () => {
   it('依機率切：亂數越小越稀有', () => {
     const at = (x: number) => rollRarity(() => x, { sinceSSR: 0 });
     expect(at(0)).toBe('SSR');
-    expect(at(0.029)).toBe('SSR');
-    expect(at(0.03)).toBe('SR');
-    expect(at(0.149)).toBe('SR');
-    expect(at(0.15)).toBe('R');
-    expect(at(0.449)).toBe('R');
-    expect(at(0.45)).toBe('N');
+    expect(at(0.099)).toBe('SSR');
+    expect(at(0.1)).toBe('SR');
+    expect(at(0.219)).toBe('SR');
+    expect(at(0.22)).toBe('R');
+    expect(at(0.499)).toBe('R');
+    expect(at(0.5)).toBe('N');
     expect(at(0.999999)).toBe('N');
     expect(at(1)).toBe('N');
   });
@@ -153,8 +153,8 @@ describe('pull', () => {
 
   it('抽到已經有的狗換成碎片，等級與隊伍不動', () => {
     const s0 = fresh();
-    // 0.2 → R；R 有 10 隻，0.2 落在第 3 隻：長鬚（開局就有）
-    const r = pull(s0, 1, () => 0.2);
+    // 0.25 → R；R 有 10 隻，0.25 落在第 3 隻：長鬚（開局就有）
+    const r = pull(s0, 1, () => 0.25);
     expect(gachaPool().filter((d) => d.rarity === 'R')[2].id).toBe('changxu');
     expect(r.items).toEqual([
       { dogId: 'changxu', rarity: 'R', isNew: false, shards: SHARDS_PER_DUPLICATE },
@@ -163,7 +163,7 @@ describe('pull', () => {
     expect(r.state.dogs).toEqual(s0.dogs);
     expect(r.state.shards).toEqual({ changxu: 10 });
     expect(r.state.gacha).toEqual({ pulls: 1, sinceSSR: 1 });
-    expect(pull(r.state, 1, () => 0.2).state.shards).toEqual({ changxu: 20 });
+    expect(pull(r.state, 1, () => 0.25).state.shards).toEqual({ changxu: 20 });
   });
 
   it('十連：剛好 10 隻，同一次裡第二次抽到同一隻算重複', () => {
