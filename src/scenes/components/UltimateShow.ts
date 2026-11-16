@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { PIXEL_SIZE } from '../../logic/atmosphere';
 import type { BattleSide } from '../../logic/battle';
 import type { UltKind } from '../../logic/skillShow';
 import { addText } from '../ui';
@@ -194,6 +195,7 @@ export function playUltimate(
     accent: o.caster.accent,
     fierce: o.caster.fierce,
     gear: o.caster.gear,
+    pixel: PIXEL_SIZE / size0,
   });
   // 敵方面向左邊
   dog.setScale(dir * size0 * 0.5, size0 * 0.5);

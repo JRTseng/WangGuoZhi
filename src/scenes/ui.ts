@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { COLORS, FONT_FAMILY } from '../config';
+import { dayTimeFor, dayTimeFromSearch, type DayTime } from '../logic/atmosphere';
 import type { Rect } from '../logic/layout';
 import { gameSizeFor, orientationFor } from '../logic/orientation';
 import { renderScale, renderScaleFor, renderScaleFromSearch } from '../logic/resolution';
@@ -32,6 +33,16 @@ export function pickRenderScale(quality: Quality): number {
     // 畫面測試固定 1 倍；要測真正的倍數就在網址加 ?res=auto
     automated: navigator.webdriver === true && !/[?&]res=auto(&|$)/.test(search),
   });
+}
+
+/**
+ * 現在是哪個時段（T025）：照手機的時間；網址 ?time=dusk 可以指定。
+ * 畫面測試固定白天，截圖才不會跟著跑測試的時間變。
+ */
+export function currentDayTime(): DayTime {
+  const picked = dayTimeFromSearch(window.location.search);
+  if (picked) return picked;
+  return navigator.webdriver === true ? 'day' : dayTimeFor(new Date().getHours());
 }
 
 /** 畫布要開多大：版面 844 x 390 乘上解析度倍數 */

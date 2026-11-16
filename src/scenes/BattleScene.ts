@@ -25,6 +25,7 @@ import {
   type BattleState,
   ROW_NAMES,
 } from '../logic/battle';
+import { PIXEL_SIZE } from '../logic/atmosphere';
 import { battleLayout, type BattleLayout, type BattleSlot } from '../logic/battleLayout';
 import type { GearData } from '../data/equipment';
 import { gearOf } from '../logic/equipment';
@@ -47,6 +48,7 @@ import { drawDogHead } from './components/dogArt';
 import { makeTapArea } from './components/hitArea';
 import { ResultPanel } from './components/ResultPanel';
 import { Scenery } from './components/Scenery';
+import { pixelize } from './components/pixelStage';
 import { playSfx } from './components/audio';
 import { autoNextOption, nextLabel, planNext, startNext } from './components/nextStage';
 import { playUltimate } from './components/UltimateShow';
@@ -91,6 +93,8 @@ interface UnitView {
   armed: boolean;
   box: Phaser.GameObjects.Container;
   head: Phaser.GameObjects.Graphics;
+  /** 頭像拍成的像素圖（T025）；頭像重畫以後要跟著重拍 */
+  headPix?: Phaser.GameObjects.RenderTexture;
   bar: Phaser.GameObjects.Graphics;
   mark: Phaser.GameObjects.Text;
 }
@@ -372,6 +376,20 @@ export class BattleScene extends Phaser.Scene {
     this.sync();
   }
 
+  /** 頭像拍成像素圖（T025），和像素場景同一種質感；頭像每次重畫完都要呼叫 */
+  private pixelHead(u: UnitView): void {
+    const r = u.slot.r;
+    const first = !u.headPix;
+    u.headPix = pixelize(
+      this,
+      u.head,
+      { x: -r * 2, y: -r * 2.2, width: r * 4, height: r * 3.8 },
+      PIXEL_SIZE,
+      u.headPix,
+    );
+    if (first) u.box.addAt(u.headPix, u.box.getIndex(u.head) + 1);
+  }
+
   /** 依目前血量重畫頭像（倒下變暗）與血條 */
   private redrawUnit(u: UnitView): void {
     const down = u.hp <= 0;
@@ -406,6 +424,7 @@ export class BattleScene extends Phaser.Scene {
       u.head.lineStyle(u.armed ? 5 : 3, u.armed ? 0xff8a5c : EN_COLOR.full, 1);
       u.head.strokeCircle(0, 0, u.slot.r * 1.22);
     }
+    this.pixelHead(u);
     if (!u.canUlt) return;
     // EN 條：集氣中是藍的，滿了變金色；倒下的不顯示集氣
     const ey = by + hpH + 1;

@@ -15,6 +15,7 @@
 ## 背景、音樂與音效（T016）
 全部是本專案原創，而且是遊戲執行時用程式當場產生的，repo 裡沒有任何圖檔或音檔：
 - 場景背景 12 張（十章、秋祭燈會、主城）：用 Phaser 的繪圖功能畫，畫法在 `src/scenes/components/sceneryArt.ts` 與 `sceneryKit.ts`。
+- 像素畫風與光影（T025）：像素化、失焦、柔光、光束、暗角都是程式當場算的（`src/scenes/components/Scenery.ts`、`pixelStage.ts`），沒有使用任何外部圖檔或現成的著色器；只參考「像素加光影」這種畫面方向，場景與角色內容全部是本專案自己畫的。
 - 背景音樂 2 首（主頁〈城裡的午後〉、戰鬥〈陣前鼓〉）：樂譜寫在 `src/logic/music.ts`，用 Web Audio 合成。旋律為本專案自行創作，沒有改編任何既有樂曲。
 - 音效 12 種（點按、攻擊、勝利等）：配方寫在 `src/logic/sfx.ts`，用 Web Audio 合成。
 

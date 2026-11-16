@@ -4,6 +4,7 @@ import type { GearData } from '../../data/equipment';
 import type { UltPose } from '../../logic/ultPose';
 import { drawDogHead, drawEyes } from './dogArt';
 import { drawBandage, drawBodyGear } from './gearArt';
+import { pixelize } from './pixelStage';
 
 /** 主頁狗狗會輪流做的動作 */
 export const DOG_ACTIONS = ['idle', 'wag', 'hop', 'look', 'sit', 'sleep'] as const;
@@ -19,6 +20,11 @@ export interface DogLook {
   gear?: readonly GearData[];
   /** 受傷外觀（T014）：1 貼 OK 繃；2 再加頭套 */
   hurt?: 0 | 1 | 2;
+  /**
+   * 像素畫風（T025）：一格像素等於狗自己座標的幾點（畫面上想要的像素大小除以狗的縮放）。
+   * 站在像素場景裡的狗要給，才會和背景同一種質感；不給就是平滑的線條（卡片、倉庫用）。
+   */
+  pixel?: number;
 }
 
 /**
@@ -30,9 +36,11 @@ export class DogSprite extends Phaser.GameObjects.Container {
   private readonly rig: Phaser.GameObjects.Container;
   private readonly head: Phaser.GameObjects.Container;
   private readonly tail: Phaser.GameObjects.Container;
-  private readonly lids: Phaser.GameObjects.Graphics;
+  private readonly lids: Phaser.GameObjects.Graphics | Phaser.GameObjects.RenderTexture;
   private readonly zzz: Phaser.GameObjects.Text;
   private readonly shadow: Phaser.GameObjects.Ellipse;
+  /** 像素畫風時身上各部位的像素圖（染光線顏色用） */
+  private readonly pixParts: Phaser.GameObjects.RenderTexture[] = [];
   private tweensRunning: Phaser.Tweens.Tween[] = [];
   private cycle: (() => void) | null = null;
   private current: DogAction = 'idle';
@@ -95,6 +103,26 @@ export class DogSprite extends Phaser.GameObjects.Container {
     this.lids.setVisible(false);
     this.head.add([hg, this.lids]);
 
+    // 像素畫風：尾巴、身體、裝備、頭、眼皮各自拍成像素圖，一樣可以分開動
+    const bodyPix: Phaser.GameObjects.RenderTexture[] = [];
+    if (look.pixel) {
+      const px = look.pixel;
+      this.tail.add(pixelize(scene, tg, { x: -26, y: -44, width: 34, height: 56 }, px));
+      const wide = { x: -96, y: -124, width: 192, height: 134 };
+      bodyPix.push(pixelize(scene, body, wide, px), pixelize(scene, bodyGear, wide, px));
+      const around = { x: -76, y: -92, width: 152, height: 164 };
+      const lids = this.lids as Phaser.GameObjects.Graphics;
+      this.head.add(pixelize(scene, hg, around, px));
+      this.lids = pixelize(scene, lids, { x: -24, y: -16, width: 48, height: 24 }, px);
+      this.lids.setVisible(false);
+      this.head.add(this.lids);
+      this.pixParts.push(
+        ...bodyPix,
+        ...(this.tail.list as Phaser.GameObjects.RenderTexture[]).slice(1),
+        ...(this.head.list as Phaser.GameObjects.RenderTexture[]).slice(2),
+      );
+    }
+
     this.zzz = scene.add
       .text(70, -150, 'Z z z', {
         fontFamily: FONT_FAMILY,
@@ -107,7 +135,7 @@ export class DogSprite extends Phaser.GameObjects.Container {
       .setOrigin(0.5)
       .setVisible(false);
 
-    this.rig.add([this.tail, body, bodyGear, this.head, this.zzz]);
+    this.rig.add([this.tail, body, bodyGear, ...bodyPix, this.head, this.zzz]);
 
     // 穿著專屬裝備：身邊有幾顆閃閃的星星（SSR 金色、SR 紫色）
     const special = gear.find((x) => x.exclusive);
@@ -141,6 +169,12 @@ export class DogSprite extends Phaser.GameObjects.Container {
     }
     this.add([this.shadow, this.rig]);
     scene.add.existing(this);
+  }
+
+  /** 讓狗跟著場景的光線染一點顏色（黃昏偏橘、夜晚偏藍）；只有像素畫風的狗有用 */
+  setLight(color: number): this {
+    for (const part of this.pixParts) part.setTint(color);
+    return this;
   }
 
   get action(): DogAction {

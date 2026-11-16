@@ -1,5 +1,4 @@
 import Phaser from 'phaser';
-import { bakeScaleFor, renderScale } from '../../logic/resolution';
 import {
   mixColor,
   ridge,
@@ -162,6 +161,19 @@ export function ground(p: Paint, g: G, top: number, bottom: number): void {
   g.fillRect(0, p.hy, p.w, p.h - p.hy);
   g.fillStyle(mixColor(top, 0x000000, 0.35), 0.18);
   g.fillRect(0, p.hy, p.w, 3);
+  // 像素質感（T025）：撒一些深深淺淺的小碎點，越靠近鏡頭越大，地面才不會是一整片平的顏色
+  const rnd = seeded((top ^ (bottom << 1) ^ p.hy) >>> 0);
+  const gh = p.h - p.hy;
+  const dark = mixColor(bottom, 0x000000, 0.4);
+  const lite = mixColor(top, 0xffffff, 0.45);
+  for (let i = 0; i < 520; i++) {
+    const t = rnd() ** 1.4;
+    const x = rnd() * p.w;
+    const y = p.hy + 3 + t * (gh - 3);
+    const wide = 2 + Math.round(t * 4 * rnd());
+    g.fillStyle(rnd() < 0.55 ? dark : lite, 0.1 + rnd() * 0.2);
+    g.fillRect(x, y, wide, 2);
+  }
 }
 
 /** 地面上撒東西的位置（地平線往下一點到畫面底） */
@@ -812,37 +824,41 @@ export function drifting(p: Paint, kind: Drift, colors: readonly number[]): void
 }
 
 /**
- * 把不會動的畫布烤成圖：相鄰的幾張合成一張，疊放的順序不變。
- * 山稜線這種幾百個點的多邊形，留著畫布的話每一格都要重新切三角形，手機和測試機都吃不消；
- * 烤成圖以後每一格只是貼一張圖。
+ * 把不會動的畫布烤成像素圖（T025）：相鄰的幾張合成一張，疊放的順序不變，
+ * 每張都照「場景像素」的大小畫（版面除以 px），之後整個場景再用最近點放大，看起來就是像素畫。
+ * 山稜線這種幾百個點的多邊形，留著畫布的話每一格都要重新切三角形；烤成圖以後每一格只是貼一張小圖。
+ *
+ * 最後面那一張（天空、遠山）會從容器裡拿出來回傳，給外面做失焦模糊；沒有就回傳 null。
  */
-export function bakeLayers(p: Paint): void {
+export function bakeLayers(p: Paint, px: number): Phaser.GameObjects.RenderTexture | null {
   const out: Phaser.GameObjects.GameObject[] = [];
-  const k = bakeScaleFor(renderScale.value);
+  let far: Phaser.GameObjects.RenderTexture | null = null;
   let sheet: Phaser.GameObjects.RenderTexture | null = null;
-  for (const child of [...p.box.list]) {
+  const list = [...p.box.list];
+  list.forEach((child, i) => {
     if (!p.still.has(child as G)) {
       sheet = null;
       out.push(child);
-      continue;
+      return;
     }
     const g = child as G;
     if (!sheet) {
-      // 照解析度倍數烤（T008），不然高解析度下背景會比前面的東西糊
       sheet = p.scene.make.renderTexture(
-        { x: 0, y: 0, width: Math.ceil(p.w * k), height: Math.ceil(p.h * k) },
+        { x: 0, y: 0, width: Math.ceil(p.w / px), height: Math.ceil(p.h / px) },
         false,
       );
-      sheet.setOrigin(0, 0).setScale(1 / k);
-      out.push(sheet);
+      sheet.setOrigin(0, 0).setScale(px);
+      if (i === 0) far = sheet;
+      else out.push(sheet);
     }
-    g.setScale(g.scaleX * k, g.scaleY * k);
-    sheet.draw(g, g.x * k, g.y * k);
+    g.setScale(g.scaleX / px, g.scaleY / px);
+    sheet.draw(g, g.x / px, g.y / px);
     g.destroy();
-  }
+  });
   p.box.removeAll();
   p.box.add(out);
   p.still.clear();
+  return far;
 }
 
 export { mixColor, scatter, seeded };

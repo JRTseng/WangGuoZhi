@@ -32,10 +32,20 @@ import { DogSprite, HURT_ACTIONS } from './components/DogSprite';
 import { makeTapArea } from './components/hitArea';
 import { drawLobbyIcon, drawPanel, drawPaw } from './components/lobbyIcons';
 import { LOBBY, LobbyCard, MenuItem, RoundShortcut } from './components/LobbyWidgets';
+import { PIXEL_SIZE } from '../logic/atmosphere';
+import { mixColor } from '../logic/sceneryShapes';
 import { Scenery } from './components/Scenery';
 import { SettingsPanel } from './components/SettingsPanel';
 import { StaminaShop } from './components/StaminaShop';
-import { addText, applyRenderScale, openModal, patchDebug, resetDebug, viewOf } from './ui';
+import {
+  addText,
+  applyRenderScale,
+  currentDayTime,
+  openModal,
+  patchDebug,
+  resetDebug,
+  viewOf,
+} from './ui';
 
 /** 主頁狗狗換動作的間隔 */
 const ACTION_MS = 3000;
@@ -107,6 +117,7 @@ export class LobbyScene extends Phaser.Scene {
         dogHurt: this.dogHurt,
         background: getState().backgroundId,
         backgroundMoving: this.scenery?.moving ?? 0,
+        dayTime: this.scenery?.time ?? 'day',
         lord: { ...getState().lord, title: lordTitle(getState().lord.level) },
         buttons: buttons as NonNullable<WgzDebugState['lobby']>['buttons'],
       },
@@ -144,10 +155,23 @@ export class LobbyScene extends Phaser.Scene {
       st.backgroundId,
       st.settings.quality,
       landscape ? 0.6 : 0.5,
+      // 主頁的光線跟著手機的時間：清晨、白天、黃昏、夜晚
+      currentDayTime(),
     );
     this.scenery.setDepth(-10);
+    this.lightDog();
     const lobby = window.__WGZ__?.lobby;
-    if (lobby) patchDebug({ lobby: { ...lobby, backgroundMoving: this.scenery.moving } });
+    if (lobby)
+      patchDebug({
+        lobby: { ...lobby, backgroundMoving: this.scenery.moving, dayTime: this.scenery.time },
+      });
+  }
+
+  /** 狗跟著時段的光線染一點顏色，才像是站在場景裡（染一半就好，太重會看不清楚） */
+  private lightDog(): void {
+    (this.dog as DogSprite | undefined)?.setLight(
+      mixColor(0xffffff, this.scenery?.tint ?? 0xffffff, 0.4),
+    );
   }
 
   private drawDog(): void {
@@ -159,8 +183,10 @@ export class LobbyScene extends Phaser.Scene {
       accent: d.accent,
       gear: gearOf(getState(), d.id),
       hurt: (this.dogHurt = woundLevel(getState(), d.id, Date.now())),
+      pixel: PIXEL_SIZE / scale,
     });
     this.dog.setScale(scale);
+    this.lightDog();
     this.dog.onActionChange = (a) =>
       patchDebug({ lobby: { ...window.__WGZ__!.lobby!, dogAction: a } });
     // 剛出征回來或掛彩：多半在舔傷口、休息（T014，純外觀）
