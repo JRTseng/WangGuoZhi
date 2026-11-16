@@ -1,3 +1,4 @@
+import { playerFaction } from '../logic/faction';
 import Phaser from 'phaser';
 import { countQuest } from '../logic/quests';
 import { COLORS, RARITY_COLORS, rarityHex } from '../config';
@@ -107,7 +108,7 @@ export class RecruitScene extends Phaser.Scene {
     addText(this, cx, y0 + 10, '汪國招賢榜', 22, '#fff6e8', true).setOrigin(0.5, 0);
     addText(this, cx, y0 + 40, '各路狗狗好漢，等你來召募', 13, '#f6d9b8').setOrigin(0.5, 0);
 
-    const featured = featuredDogs(3);
+    const featured = featuredDogs(3, playerFaction(getState()));
     const step = Math.min(110, (b.width - 40) / featured.length);
     featured.forEach((d, i) => {
       const x = cx + (i - (featured.length - 1) / 2) * step;
@@ -132,7 +133,7 @@ export class RecruitScene extends Phaser.Scene {
   /** 保底倒數與收集數量（抽完會變） */
   private refreshTexts(): void {
     const st = getState();
-    const c = collection(st.owned);
+    const c = collection(st.owned, playerFaction(st));
     this.ownedText.setText(`已擁有 ${c.owned}/${c.total}`);
     this.pityText.setText(
       `再 ${pullsToPity(st.gacha)} 抽內必出 SSR・${GACHA_MAX_PULLS} 連必出 SR 以上`,
@@ -279,7 +280,7 @@ export class RecruitScene extends Phaser.Scene {
 
   private publish(): void {
     const st = getState();
-    const c = collection(st.owned);
+    const c = collection(st.owned, playerFaction(st));
     patchDebug({
       recruit: {
         buttons: this.layout.buttons,

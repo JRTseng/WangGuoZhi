@@ -1,6 +1,7 @@
 import { towerFloorOf } from '../data/tower';
 import { BACKGROUNDS } from '../data/backgrounds';
 import { DOGS, findDog } from '../data/dogs';
+import { sanitizeFaction } from './faction';
 import { findStage, type ThemeId } from '../data/regions';
 import type { Resources } from '../data/resources';
 import { findStory } from '../data/stories';
@@ -442,6 +443,8 @@ export function sanitizeState(raw: unknown, now: number): GameState {
     signin: sanitizeSignin(raw.signin),
     // 登天塔
     tower: sanitizeTower(raw.tower),
+    // 陣營（T029）
+    faction: sanitizeFaction(raw.faction),
   };
 }
 

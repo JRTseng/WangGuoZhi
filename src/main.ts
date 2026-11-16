@@ -14,6 +14,7 @@ import { GearScene } from './scenes/GearScene';
 import { LobbyScene } from './scenes/LobbyScene';
 import { QuestScene } from './scenes/QuestScene';
 import { SigninScene } from './scenes/SigninScene';
+import { FactionScene } from './scenes/FactionScene';
 import { TowerScene } from './scenes/TowerScene';
 import { RecruitScene } from './scenes/RecruitScene';
 import { StoryScene } from './scenes/StoryScene';
@@ -79,6 +80,7 @@ const game = new Phaser.Game({
     QuestScene,
     SigninScene,
     TowerScene,
+    FactionScene,
     RecruitScene,
     CampaignScene,
     ExpeditionScene,

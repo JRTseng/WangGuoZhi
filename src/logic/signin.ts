@@ -1,4 +1,4 @@
-import { DOGS, type DogData } from '../data/dogs';
+import { DOGS, factionOf, type DogData, type Faction } from '../data/dogs';
 import { REGIONS } from '../data/regions';
 import type { Resources } from '../data/resources';
 import type { GameState, SigninState } from '../state/gameState';
@@ -53,8 +53,9 @@ export interface SigninReward extends Resources {
 }
 
 /** 第 7 天可以選哪些狗：所有 SSR，從狗的資料表現查（之後加新的 SSR 會自動出現） */
-export function signinPickPool(): DogData[] {
-  return DOGS.filter((d) => d.rarity === 'SSR');
+export function signinPickPool(faction?: Faction): DogData[] {
+  // 給了陣營就只列那個陣營的（T029）；沒給是全部（檢查存檔用）
+  return DOGS.filter((d) => d.rarity === 'SSR' && (!faction || factionOf(d) === faction));
 }
 
 const isPick = (dogId: unknown): dogId is string =>

@@ -1,4 +1,4 @@
-import { DOGS, STARTER_DOG_IDS } from '../data/dogs';
+import { DOGS, STARTER_DOG_IDS, type Faction } from '../data/dogs';
 import type { GearSlot } from '../data/equipment';
 import type { ThemeId } from '../data/regions';
 import { INITIAL_RESOURCES, type Resources } from '../data/resources';
@@ -300,6 +300,8 @@ export interface GameState {
   signin: SigninState;
   /** 登天塔：這週與上週的進度 */
   tower: TowerState;
+  /** 陣營（T029）：汪國 dog／喵國 cat；空字串是還沒選（當汪國） */
+  faction: Faction | '';
 }
 
 /** 體力上限；新遊戲從滿體力開始 */
@@ -354,5 +356,6 @@ export function createInitialState(now: number = Date.now()): GameState {
     frisbee: { day: '', best: 0 },
     signin: { day: '', count: 0, streak: 0, pick: '', shown: '' },
     tower: { week: '', floor: 0, last: 0, best: 0, gear: [] },
+    faction: '',
   };
 }

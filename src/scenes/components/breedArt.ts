@@ -514,11 +514,13 @@ const pom: BreedArt = {
 
 // ---------------------------------------------------------------- 其他犬種：用一張特徵表組出來
 
-type Ear = 'prick' | 'tall' | 'small' | 'bat' | 'butterfly' | 'semi' | 'drop' | 'long' | 'rose';
-type Face = 'plain' | 'under' | 'blaze' | 'tan' | 'darkMuzzle' | 'spots' | 'patches';
+type Ear =
+  'prick' | 'tall' | 'small' | 'bat' | 'butterfly' | 'semi' | 'drop' | 'long' | 'rose' | 'fold';
+type Face =
+  'plain' | 'under' | 'blaze' | 'tan' | 'darkMuzzle' | 'spots' | 'patches' | 'tabby' | 'calico';
 type Muzzle = 'short' | 'mid' | 'long' | 'flat';
-type Coat = 'solid' | 'belly' | 'saddle' | 'spots' | 'chest' | 'tan';
-type Tail = 'curl' | 'sickle' | 'plume' | 'whip' | 'stub' | 'flag' | 'pug';
+type Coat = 'solid' | 'belly' | 'saddle' | 'spots' | 'chest' | 'tan' | 'tabby' | 'calico';
+type Tail = 'curl' | 'sickle' | 'plume' | 'whip' | 'stub' | 'flag' | 'pug' | 'cat' | 'catFluff';
 
 /** 一個犬種的外觀特徵 */
 interface BreedSpec {
@@ -545,6 +547,8 @@ interface BreedSpec {
   skirt?: boolean;
   coat: Coat;
   tail: Tail;
+  /** 貓（喵國）：粉紅小鼻子、鬍鬚、直的瞳孔 */
+  cat?: boolean;
 }
 
 const lum = (c: number) => ((c >> 16) & 255) * 0.3 + ((c >> 8) & 255) * 0.59 + (c & 255) * 0.11;
@@ -552,6 +556,58 @@ const lum = (c: number) => ((c >> 16) & 255) * 0.3 + ((c >> 8) & 255) * 0.59 + (
 const lightOf = (p: BreedPalette) => (lum(p.under) > lum(p.main) ? p.under : lite(p.main, 0.4));
 /** 深色的毛：點綴色比主色深就用點綴色，不然用主色調暗 */
 const darkOf = (p: BreedPalette) => (lum(p.under) < lum(p.main) ? p.under : dark(p.main, 0.5));
+
+/** 三花貓的橘色 */
+const CALICO_ORANGE = 0xe0913f;
+
+/** 貓的眼睛：整顆有顏色的大眼珠，中間一道直的瞳孔 */
+function catEyes(
+  g: G,
+  x: number,
+  y: number,
+  r: number,
+  e: { dx: number; dy: number; r: number },
+  closed: boolean,
+  iris: number | [number, number],
+): void {
+  if (closed) {
+    eyes(g, x, y, r, e, true);
+    return;
+  }
+  for (const side of [-1, 1]) {
+    const ex = x + side * e.dx * r;
+    const ey = y + e.dy * r;
+    const er = Math.max(3, e.r * r * 1.25);
+    g.fillStyle(INK, 1);
+    g.fillEllipse(ex, ey, er * 2.2, er * 2);
+    g.fillStyle(Array.isArray(iris) ? iris[side < 0 ? 0 : 1] : iris, 1);
+    g.fillEllipse(ex, ey, er * 1.8, er * 1.6);
+    g.fillStyle(INK, 1);
+    g.fillEllipse(ex, ey, er * 0.5, er * 1.5);
+    g.fillStyle(0xffffff, 1);
+    g.fillCircle(ex + er * 0.4, ey - er * 0.36, Math.max(1, er * 0.3));
+  }
+}
+
+/** 貓的鼻子（粉紅色小三角）與鬍鬚 */
+function catNose(g: G, x: number, y: number, r: number, whisker: number): void {
+  const w = Math.max(2.5, r * 0.075);
+  g.fillStyle(INK, 1);
+  g.fillTriangle(x - w * 1.3, y - w * 0.7, x + w * 1.3, y - w * 0.7, x, y + w * 1.2);
+  g.fillStyle(0xf29aa6, 1);
+  g.fillTriangle(x - w * 0.85, y - w * 0.4, x + w * 0.85, y - w * 0.4, x, y + w * 0.7);
+  g.lineStyle(Math.max(1, r * 0.028), whisker, 0.9);
+  for (const s of [-1, 1]) {
+    for (const k of [-1, 0, 1]) {
+      g.lineBetween(
+        x + s * r * 0.3,
+        y + r * (0.08 + k * 0.05),
+        x + s * r * 1.02,
+        y + r * (0.04 + k * 0.17),
+      );
+    }
+  }
+}
 
 const MUZZLE: Record<Muzzle, { w: number; h: number; y: number; nose: number; noseY: number }> = {
   short: { w: 0.66, h: 0.5, y: 0.36, nose: 0.09, noseY: 0.22 },
@@ -610,6 +666,10 @@ function specArt(spec: BreedSpec): BreedArt {
       } else if (spec.ear === 'semi') {
         e.tri(px(0.96), y - r * 0.26, px(0.78), y - r * 1.16, px(0.2), y - r * 0.8);
         inner.push([px(0.82), y - r * 0.46, px(0.75), y - r * 0.9, px(0.44), y - r * 0.76]);
+      } else if (spec.ear === 'fold') {
+        // 摺耳：小小的耳朵往前貼著頭
+        e.tri(px(1.0), y - r * 0.5, px(0.66), y - r * 1.0, px(0.26), y - r * 0.82);
+        e.circle(px(0.66), y - r * 0.84, r * 0.2);
       }
     }
     e.draw(g, c, lw);
@@ -737,6 +797,24 @@ function specArt(spec: BreedSpec): BreedArt {
         g.fillStyle(light, 1);
         g.fillEllipse(x, y - r * 0.34, rx * 0.3, r * 1.2);
         g.fillTriangle(x - rx * 0.2, y - r * 0.9, x + rx * 0.2, y - r * 0.9, x, y - r * 0.4);
+      } else if (spec.face === 'tabby') {
+        // 虎斑：額頭三道、兩頰各兩道
+        g.fillStyle(deep, 0.9);
+        for (const k of [-1, 0, 1]) {
+          g.fillEllipse(x + k * rx * 0.22, y - r * 0.72, rx * 0.1, r * (k === 0 ? 0.44 : 0.34));
+        }
+        for (const s of [-1, 1]) {
+          g.fillEllipse(x + s * rx * 0.8, y + r * 0.06, rx * 0.3, r * 0.08);
+          g.fillEllipse(x + s * rx * 0.76, y + r * 0.26, rx * 0.26, r * 0.07);
+        }
+      } else if (spec.face === 'calico') {
+        // 三花：白底，一邊橘、一邊黑
+        g.fillStyle(CALICO_ORANGE, 1);
+        g.fillEllipse(x - rx * 0.5, y - r * 0.42, rx * 0.8, r * 0.9);
+        g.fillStyle(deep, 1);
+        g.fillEllipse(x + rx * 0.52, y - r * 0.5, rx * 0.7, r * 0.74);
+        g.fillStyle(main, 1);
+        g.fillEllipse(x, y - r * 0.2, rx * 0.26, r * 1.2);
       } else if (spec.face === 'tan') {
         // 眉毛上兩個點、臉頰兩塊
         g.fillStyle(pal.under, 1);
@@ -766,7 +844,7 @@ function specArt(spec: BreedSpec): BreedArt {
             ? pal.under
             : spec.face === 'plain'
               ? lite(main, 0.22)
-              : spec.face === 'spots' || spec.face === 'patches'
+              : spec.face === 'spots' || spec.face === 'patches' || spec.face === 'calico'
                 ? main
                 : light;
       g.fillStyle(muzzleColor, 1);
@@ -803,7 +881,9 @@ function specArt(spec: BreedSpec): BreedArt {
           g.fillCircle(x + s * eye.dx * r, y + eye.dy * r, Math.max(3.2, (eye.r + 0.03) * r));
         }
       }
-      if (Array.isArray(spec.iris)) {
+      if (spec.cat) {
+        catEyes(g, x, y, r, eye, !!o.eyesClosed, spec.iris ?? (darkFur ? 0xe8c24a : 0x8fbf5a));
+      } else if (Array.isArray(spec.iris)) {
         eyes(g, x - 1000, y, r, eye, !!o.eyesClosed);
         for (const [s, c] of [
           [-1, spec.iris[0]],
@@ -815,7 +895,7 @@ function specArt(spec: BreedSpec): BreedArt {
         // 深色毛的狗給琥珀色的眼珠，眼神才出得來
         eyes(g, x, y, r, eye, !!o.eyesClosed, spec.iris ?? (darkFur ? 0xb07a3c : undefined));
       }
-      if (lum(muzzleColor) < 95) {
+      if (lum(muzzleColor) < 95 && !spec.cat) {
         // 深色的嘴：鼻子外面墊一圈淺一點的，才不會糊在一起
         g.fillStyle(lite(muzzleColor, 0.18), 1);
         g.fillEllipse(
@@ -825,7 +905,11 @@ function specArt(spec: BreedSpec): BreedArt {
           r * (mz.nose * 1.6 + 0.2),
         );
       }
-      nose(g, x, y + r * mz.noseY, r, mz.nose);
+      if (spec.cat) {
+        catNose(g, x, y + r * mz.noseY, r, lum(muzzleColor) < 120 ? 0xe8e2d8 : 0x6a5a4c);
+      } else {
+        nose(g, x, y + r * mz.noseY, r, mz.nose);
+      }
       const mouthY = y + r * (mz.noseY + (spec.muzzle === 'long' ? 0.24 : 0.19));
       if (!o.fierce) smile(g, x, mouthY, r, !!spec.tongue && !o.eyesClosed);
       hangEars(g, x, y, r, pal, lw);
@@ -909,6 +993,27 @@ function specArt(spec: BreedSpec): BreedArt {
         ];
         for (const [dx, dy, k] of pts) g.fillCircle(bx + dx * bw, by + dy * bh, k);
       }
+      if (spec.coat === 'tabby') {
+        g.fillStyle(deep, 0.85);
+        for (let i = 0; i < 6; i++) {
+          g.fillEllipse(
+            bx - bw * 0.34 + i * bw * 0.125,
+            by - bh * 0.16,
+            6,
+            bh * (0.5 - (i % 2) * 0.1),
+          );
+        }
+        g.fillStyle(light, 1);
+        g.fillEllipse(bx + bw * 0.36, by + 6, 24 * bulk, 30 * bulk);
+        g.fillEllipse(bx + 12, by + bh * 0.32, bw * 0.56, bh * 0.24);
+      } else if (spec.coat === 'calico') {
+        g.fillStyle(CALICO_ORANGE, 1);
+        g.fillEllipse(bx - bw * 0.2, by - bh * 0.16, bw * 0.4, bh * 0.56);
+        g.fillEllipse(bx + bw * 0.3, by - bh * 0.2, bw * 0.2, bh * 0.36);
+        g.fillStyle(deep, 1);
+        g.fillEllipse(bx + bw * 0.08, by - bh * 0.22, bw * 0.26, bh * 0.46);
+        g.fillEllipse(bx - bw * 0.38, by + bh * 0.04, bw * 0.16, bh * 0.3);
+      }
       if (
         spec.coat === 'belly' ||
         spec.coat === 'chest' ||
@@ -980,6 +1085,34 @@ function specArt(spec: BreedSpec): BreedArt {
           s.circle(-2, -6, 9).draw(g, main, 3);
           g.fillStyle(lite(main, 0.3), 0.6);
           g.fillCircle(0, -9, 4);
+          break;
+        case 'cat': {
+          // 貓尾巴：細細長長往上翹，尾端勾一下
+          const tip = spec.face === 'darkMuzzle' || spec.coat === 'tabby' ? darkOf(pal) : main;
+          s.ellipse(-8, -14, 11, 34)
+            .ellipse(-14, -36, 10, 28)
+            .ellipse(-12, -54, 10, 18)
+            .circle(-6, -60, 6)
+            .draw(g, main, 3);
+          g.fillStyle(tip, 1);
+          g.fillEllipse(-12, -54, 10, 18);
+          g.fillCircle(-6, -60, 6);
+          g.fillStyle(lite(main, 0.3), 0.6);
+          g.fillEllipse(-6, -20, 3, 22);
+          break;
+        }
+        case 'catFluff':
+          // 長毛貓的大尾巴：一大把往上蓬
+          s.ellipse(-8, -16, 22, 36)
+            .ellipse(-16, -38, 26, 34)
+            .circle(-12, -56, 11)
+            .draw(g, dark(main, 0.18), 3);
+          g.fillStyle(main, 1);
+          g.fillEllipse(-7, -18, 16, 30);
+          g.fillEllipse(-15, -40, 20, 28);
+          g.fillStyle(lite(main, 0.35), 0.8);
+          g.fillEllipse(-11, -42, 8, 22);
+          g.fillCircle(-11, -56, 7);
           break;
         case 'flag':
           // 往後伸、下面掛著長毛的尾巴
@@ -1755,6 +1888,248 @@ const SPECS: Record<string, BreedSpec> = {
     bulk: 1.3,
     coat: 'solid',
     tail: 'whip',
+  },
+
+  // ---- 喵國（T029）：貓 ----
+  橘貓: {
+    cat: true,
+    ear: 'prick',
+    face: 'tabby',
+    muzzle: 'short',
+    cheeks: 'wide',
+    bulk: 1.16,
+    leg: 30,
+    coat: 'tabby',
+    tail: 'cat',
+  },
+  虎斑貓: {
+    cat: true,
+    ear: 'prick',
+    face: 'tabby',
+    muzzle: 'short',
+    leg: 32,
+    coat: 'tabby',
+    tail: 'cat',
+  },
+  三花貓: {
+    cat: true,
+    ear: 'prick',
+    face: 'calico',
+    muzzle: 'short',
+    leg: 32,
+    coat: 'calico',
+    tail: 'cat',
+    iris: 0xe8c24a,
+  },
+  黑貓: {
+    cat: true,
+    ear: 'prick',
+    face: 'plain',
+    muzzle: 'short',
+    leg: 34,
+    bulk: 0.92,
+    coat: 'solid',
+    tail: 'cat',
+    iris: 0xf2d24a,
+  },
+  賓士貓: {
+    cat: true,
+    ear: 'prick',
+    face: 'blaze',
+    muzzle: 'short',
+    leg: 32,
+    coat: 'chest',
+    tail: 'cat',
+    iris: 0xa8d05a,
+  },
+  白貓: {
+    cat: true,
+    ear: 'prick',
+    face: 'plain',
+    muzzle: 'short',
+    leg: 32,
+    coat: 'solid',
+    tail: 'cat',
+    iris: [0x6aaee0, 0xe8c24a],
+  },
+  暹羅貓: {
+    cat: true,
+    ear: 'tall',
+    face: 'darkMuzzle',
+    muzzle: 'short',
+    skull: 0.92,
+    leg: 36,
+    bulk: 0.86,
+    coat: 'solid',
+    tail: 'cat',
+    iris: 0x5aa8e8,
+  },
+  美國短毛貓: {
+    cat: true,
+    ear: 'prick',
+    face: 'tabby',
+    muzzle: 'short',
+    cheeks: 'wide',
+    leg: 30,
+    bulk: 1.06,
+    coat: 'tabby',
+    tail: 'cat',
+    iris: 0xd9b24a,
+  },
+  英國短毛貓: {
+    cat: true,
+    ear: 'small',
+    face: 'plain',
+    muzzle: 'short',
+    cheeks: 'wide',
+    leg: 28,
+    bulk: 1.14,
+    coat: 'solid',
+    tail: 'cat',
+    iris: 0xe8a23a,
+    eyeR: 0.12,
+  },
+  蘇格蘭摺耳貓: {
+    cat: true,
+    ear: 'fold',
+    face: 'under',
+    muzzle: 'short',
+    cheeks: 'wide',
+    leg: 28,
+    bulk: 1.06,
+    coat: 'belly',
+    tail: 'cat',
+    iris: 0xe8b24a,
+    eyeR: 0.125,
+  },
+  曼赤肯貓: {
+    cat: true,
+    ear: 'prick',
+    face: 'under',
+    muzzle: 'short',
+    leg: 16,
+    len: 1.08,
+    coat: 'belly',
+    tail: 'cat',
+    iris: 0x8fbf5a,
+  },
+  俄羅斯藍貓: {
+    cat: true,
+    ear: 'tall',
+    face: 'plain',
+    muzzle: 'short',
+    skull: 0.94,
+    leg: 36,
+    bulk: 0.9,
+    coat: 'solid',
+    tail: 'cat',
+    iris: 0x58c878,
+  },
+  阿比西尼亞貓: {
+    cat: true,
+    ear: 'tall',
+    face: 'under',
+    muzzle: 'short',
+    skull: 0.92,
+    leg: 38,
+    bulk: 0.86,
+    coat: 'belly',
+    tail: 'cat',
+    iris: 0xd9a23a,
+  },
+  孟加拉貓: {
+    cat: true,
+    ear: 'prick',
+    face: 'tabby',
+    muzzle: 'short',
+    leg: 36,
+    coat: 'spots',
+    tail: 'cat',
+    iris: 0x9ac84a,
+  },
+  波斯貓: {
+    cat: true,
+    ear: 'small',
+    face: 'plain',
+    muzzle: 'flat',
+    cheeks: 'wide',
+    ruff: 0.9,
+    fluff: 1,
+    leg: 24,
+    bulk: 1.1,
+    coat: 'solid',
+    tail: 'catFluff',
+    iris: 0xe8963a,
+    eyeR: 0.12,
+  },
+  布偶貓: {
+    cat: true,
+    ear: 'prick',
+    face: 'darkMuzzle',
+    muzzle: 'short',
+    ruff: 0.7,
+    fluff: 0.7,
+    leg: 30,
+    bulk: 1.1,
+    coat: 'chest',
+    tail: 'catFluff',
+    iris: 0x5a9ee8,
+  },
+  緬因貓: {
+    cat: true,
+    ear: 'tall',
+    face: 'tabby',
+    muzzle: 'mid',
+    cheeks: 'tuft',
+    ruff: 0.8,
+    fluff: 0.8,
+    leg: 36,
+    bulk: 1.26,
+    len: 1.08,
+    coat: 'tabby',
+    tail: 'catFluff',
+    iris: 0xc8b24a,
+  },
+  挪威森林貓: {
+    cat: true,
+    ear: 'tall',
+    face: 'blaze',
+    muzzle: 'short',
+    cheeks: 'tuft',
+    ruff: 0.9,
+    fluff: 0.9,
+    leg: 34,
+    bulk: 1.2,
+    coat: 'chest',
+    tail: 'catFluff',
+    iris: 0x8fc85a,
+  },
+  金吉拉貓: {
+    cat: true,
+    ear: 'small',
+    face: 'plain',
+    muzzle: 'short',
+    cheeks: 'wide',
+    ruff: 0.8,
+    fluff: 0.9,
+    leg: 24,
+    coat: 'solid',
+    tail: 'catFluff',
+    iris: 0x4ac8a0,
+    eyeR: 0.125,
+  },
+  斯芬克斯貓: {
+    cat: true,
+    ear: 'bat',
+    face: 'plain',
+    muzzle: 'short',
+    skull: 0.9,
+    wrinkle: true,
+    leg: 36,
+    bulk: 0.88,
+    coat: 'solid',
+    tail: 'cat',
+    iris: 0x6ab8e0,
   },
 };
 

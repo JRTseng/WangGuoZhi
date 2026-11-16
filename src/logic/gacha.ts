@@ -1,4 +1,11 @@
-import { DOGS, type DogData, type DogRarity } from '../data/dogs';
+import {
+  DOGS,
+  factionOf,
+  rosterOf,
+  type DogData,
+  type DogRarity,
+  type Faction,
+} from '../data/dogs';
 import type { GameState } from '../state/gameState';
 import { initialProgress } from './leveling';
 
@@ -31,8 +38,9 @@ const rank = (r: DogRarity): number => RARITIES.indexOf(r);
  * （原本要先通關拿到才會進池子；Jimmy 2026-11-13 認為抽不到是 bug，改成一開始就在池子裡。
  * 先抽到的話，通關時改送碎片，見 expedition.ts 的 GIFT_DUPLICATE_SHARDS。）
  */
-export function gachaPool(): DogData[] {
-  return DOGS.filter((d) => d.rarity);
+export function gachaPool(faction: Faction = 'dog'): DogData[] {
+  // 兩個陣營召募到的角色不一樣（T029）：汪國抽狗、喵國抽貓
+  return DOGS.filter((d) => d.rarity && factionOf(d) === faction);
 }
 
 export interface RollOptions {
@@ -87,7 +95,8 @@ export interface PullItem {
   shards: number;
 }
 
-type GachaFields = Pick<GameState, 'owned' | 'dogs' | 'shards' | 'gacha'>;
+type GachaFields = Pick<GameState, 'owned' | 'dogs' | 'shards' | 'gacha'> &
+  Partial<Pick<GameState, 'faction'>>;
 
 /**
  * 抽 count 隻（1～10，超出範圍會夾住）。池子是按下去當下決定的。
@@ -99,7 +108,7 @@ export function pull<S extends GachaFields>(
   rng: () => number,
 ): { state: S; items: PullItem[] } {
   const n = Math.min(GACHA_MAX_PULLS, Math.max(1, Math.floor(count) || 1));
-  const pool = gachaPool();
+  const pool = gachaPool(state.faction === 'cat' ? 'cat' : 'dog');
   const owned = [...state.owned];
   const dogs = { ...state.dogs };
   const shards = { ...state.shards };
@@ -134,14 +143,21 @@ export function pullsToPity(gacha: Pick<GameState['gacha'], 'sinceSSR'>): number
 }
 
 /** 已擁有幾隻／全部幾隻（含關卡送的） */
-export function collection(owned: readonly string[]): { owned: number; total: number } {
-  return { owned: DOGS.filter((d) => owned.includes(d.id)).length, total: DOGS.length };
+export function collection(
+  owned: readonly string[],
+  faction: Faction = 'dog',
+): { owned: number; total: number } {
+  // 總數算自己陣營的，加上手上別陣營的（換過陣營的存檔）
+  return {
+    owned: DOGS.filter((d) => owned.includes(d.id)).length,
+    total: rosterOf(faction, owned).length,
+  };
 }
 
 /** 召募畫面看板上主打的狗：最稀有的幾隻 */
-export function featuredDogs(count = 3): DogData[] {
+export function featuredDogs(count = 3, faction: Faction = 'dog'): DogData[] {
   return [...DOGS]
-    .filter((d) => d.rarity && !d.rewardOnly)
+    .filter((d) => d.rarity && !d.rewardOnly && factionOf(d) === faction)
     .sort((a, b) => rank(b.rarity!) - rank(a.rarity!))
     .slice(0, count);
 }

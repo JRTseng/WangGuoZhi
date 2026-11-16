@@ -68,6 +68,8 @@ export async function openLobby(page: Page, query = '') {
   if (!query.includes('limits=')) query += `${query ? '&' : '?'}limits=1`;
   // 每天第一次進主頁會自動跳出簽到（T026）；測試預設關掉，要測它就自己在網址寫 signin=1
   if (!query.includes('signin=')) query += '&signin=0';
+  // 還沒選陣營會先被帶去選陣營畫面（T029）；測試預設關掉，要測它就自己在網址寫 faction=1
+  if (!query.includes('faction=')) query += '&faction=0';
   await page.goto(`/${query}`);
   await waitScene(page, 'LobbyScene');
 }

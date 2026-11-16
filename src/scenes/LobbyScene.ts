@@ -1,7 +1,8 @@
 import Phaser from 'phaser';
 import { COLORS } from '../config';
 import { BACKGROUNDS } from '../data/backgrounds';
-import { DOGS, findDog } from '../data/dogs';
+import { DOGS, FACTION_NAMES, findDog } from '../data/dogs';
+import { chooseFaction, factionFromSearch, needFactionPick, playerFaction } from '../logic/faction';
 import { claimableCount } from '../logic/quests';
 import { markSigninShown, signinPopup, signinPopupFromSearch, signinReady } from '../logic/signin';
 import { towerOpen } from '../logic/tower';
@@ -101,9 +102,16 @@ export class LobbyScene extends Phaser.Scene {
     this.resourceTexts = {};
     resetDebug(this);
 
+    // 網址指定陣營（測試用）
+    const factionQuery = factionFromSearch(window.location.search);
+    if (factionQuery.pick && getState().faction !== factionQuery.pick) {
+      setState(chooseFaction(getState(), factionQuery.pick));
+    }
+
     this.drawBackground();
     this.drawDog();
     this.drawAccount();
+    this.drawFaction();
     this.drawResources();
     this.drawShortcuts();
     this.drawMenu();
@@ -145,6 +153,12 @@ export class LobbyScene extends Phaser.Scene {
     if (data?.openSettings) {
       data.openSettings = false;
       this.openSettings();
+      return;
+    }
+
+    // 還沒選陣營：先去選（T029）。選完回主頁才會輪到簽到
+    if (factionQuery.popup && needFactionPick(getState())) {
+      this.scene.start('FactionScene');
       return;
     }
 
@@ -286,6 +300,33 @@ export class LobbyScene extends Phaser.Scene {
     ]);
     makeTapArea(c, r.width, r.height);
     c.on('pointerup', () => this.openSettings());
+  }
+
+  /** 陣營徽章（T029）：帳號卡下面，寫著汪國或喵國，點了去選陣營畫面 */
+  private drawFaction(): void {
+    const r = this.layout.faction;
+    const f = playerFaction(getState());
+    const c = this.add.container(r.x, r.y);
+    const g = this.add.graphics();
+    const color = f === 'cat' ? 0x5a6fb0 : 0xb5651d;
+    drawPanel(g, 0, 0, r.width, r.height, r.height / 2, LOBBY.panel, 0.9);
+    g.fillStyle(color, 1);
+    g.fillCircle(r.height / 2, r.height / 2, r.height / 2 - 4);
+    drawPaw(g, r.height / 2, r.height / 2 + 1, 3.2, 0xffffff, 0.95);
+    c.add([
+      g,
+      addText(
+        this,
+        r.height + 2,
+        r.height / 2,
+        `${FACTION_NAMES[f]} ›`,
+        14,
+        LOBBY.text,
+        true,
+      ).setOrigin(0, 0.5),
+    ]);
+    makeTapArea(c, r.width, r.height);
+    c.on('pointerup', () => this.scene.start('FactionScene'));
   }
 
   /** 右上資源列（各帶「＋」）與信箱 */

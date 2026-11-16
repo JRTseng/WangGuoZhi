@@ -1,3 +1,4 @@
+import { playerFaction } from '../logic/faction';
 import Phaser from 'phaser';
 import { COLORS } from '../config';
 import { DOGS } from '../data/dogs';
@@ -313,7 +314,7 @@ export class SigninScene extends Phaser.Scene {
   private openPicker(claimAfter: boolean): void {
     if (this.picker) return;
     const { w, h } = viewOf(this);
-    const pool = signinPickPool();
+    const pool = signinPickPool(playerFaction(getState()));
     const P = signinPickLayout(w, h, pool.length);
     const st = getState();
     const close = (): void => {

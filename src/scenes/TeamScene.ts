@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { COLORS } from '../config';
-import { DOGS, type DogData } from '../data/dogs';
+import { rosterOf, type DogData } from '../data/dogs';
+import { playerFaction } from '../logic/faction';
 import { TEAM_SIZE } from '../logic/expedition';
 import { dogStats } from '../logic/leveling';
 import { autoFillTeam, placeDog, setLobbyDog, teamPower, toggleTeamMember } from '../logic/team';
@@ -42,7 +43,7 @@ export class TeamScene extends Phaser.Scene {
       mode: 'team',
       top: BAR + 6,
       bottom: h - (landscape ? 12 : 16),
-      dogs: () => DOGS,
+      dogs: () => rosterOf(playerFaction(getState()), getState().owned),
       selected: () => getState().team,
       title: () => {
         const st = getState();

@@ -54,6 +54,27 @@ export const DEFAULT_SKILL_LINES: Readonly<Record<string, string>> = {
   atu: '……來。',
   nuomi: '黏住你，好運就不跑了～',
   paofu: '呼呼，痛痛飛走～',
+  // 喵國（T029）
+  juzuo: '開飯了，吃飽才有力氣打！',
+  huwen: '左勾、右勾，再一個貓拳！',
+  moling: '請留步，這裡不開放參觀。',
+  xiaoman: '箱子裡的事，你們不懂。',
+  xuetuan: '咦？我打中了嗎？',
+  mengda: '坐下。這裡我說了算。',
+  yeming: '月亮出來了，你看得見我嗎？',
+  baoxing: '眨一下眼，就少看我三步！',
+  ruyi: '抱緊我，軟軟的就不痛了。',
+  lanjue: '各位，喝杯茶再上也不遲。',
+  zhaocai: '招招手，好運排隊來！',
+  sennuo: '北方的風，吹不過我的毛。',
+  lanyan: '我想到了！聽我的準沒錯。',
+  yinsi: '別動，毛順了心就順了。',
+  chiying: '上面的風景，借我跳一下！',
+  huilan: '……看清楚了，就是現在。',
+  zhezhe: '呼嚕呼嚕，靠過來一點。',
+  aban: '大家好好相處，一起上吧！',
+  guangguang: '好冷好冷，動起來就暖了！',
+  tuanzi: '不搬，就是不搬。',
 };
 
 export interface BossSkill {
