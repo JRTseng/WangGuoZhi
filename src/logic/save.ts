@@ -28,6 +28,7 @@ import { DRILL_MAX } from './training';
 import { sanitizeFrisbee } from './frisbee';
 import { sanitizeLord } from './lord';
 import { sanitizeQuests } from './quests';
+import { sanitizeSignin } from './signin';
 import { findSnack } from './snacks';
 import { isTrainingSort } from './trainingSort';
 import { sanitizeWounds } from './wounds';
@@ -435,6 +436,8 @@ export function sanitizeState(raw: unknown, now: number): GameState {
     lord: sanitizeLord(raw.lord, quests.wins),
     // 每日小遊戲（T022）
     frisbee: sanitizeFrisbee(raw.frisbee),
+    // 七日簽到（T026）
+    signin: sanitizeSignin(raw.signin),
   };
 }
 

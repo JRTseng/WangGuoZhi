@@ -40,6 +40,8 @@ interface WgzDebugState {
     dayTime?: string;
     /** 任務有幾個獎勵可以領（T011）；大於 0 時「任務」亮紅點 */
     questReady?: number;
+    /** 今天還能不能簽到（T026）；可以時「獎勵」亮紅點 */
+    signinReady?: boolean;
     /** 城主等級、經驗與稱號 */
     lord?: { level: number; exp: number; title: string };
     buttons: Record<
@@ -111,6 +113,26 @@ interface WgzDebugState {
         bones: number;
         go: string | null;
         button: WgzRect;
+      }
+    >;
+  };
+  /** 七日簽到畫面（T026） */
+  signin?: {
+    /** 今天還能不能領 */
+    ready: boolean;
+    /** 今天要領（或已經領了）的是第幾格，0～6 */
+    index: number;
+    /** 累計簽到幾天 */
+    total: number;
+    claim: WgzRect;
+    cells: Array<
+      WgzRect & {
+        day: number;
+        status: 'claimed' | 'today' | 'later';
+        text: string;
+        food: number;
+        bones: number;
+        snack: { id: string; amount: number } | null;
       }
     >;
   };

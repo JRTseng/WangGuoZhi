@@ -3,6 +3,7 @@ import { COLORS } from '../config';
 import { BACKGROUNDS } from '../data/backgrounds';
 import { DOGS, findDog } from '../data/dogs';
 import { claimableCount } from '../logic/quests';
+import { signinReady } from '../logic/signin';
 import { REGIONS, findStage } from '../data/regions';
 import { RESOURCE_LABELS, type Resources } from '../data/resources';
 import { STORIES } from '../data/stories';
@@ -59,7 +60,7 @@ const COMING_SOON = '即將開放';
  * - 會動的背景（依進度／活動取得，可切換），中間是玩家選的狗狗，會輪流換動作
  * - 左上：頭像、城主等級、總戰力（點了開帳號與設定）
  * - 左側：功能選單（武將／任務／倉庫／背景）
- * - 右上：資源列、信箱，下方一排召募／商城／獎勵
+ * - 右上：資源列、信箱，下方一排召募／商城／獎勵（獎勵是七日簽到）
  * - 右側（直式為下方）：出征大卡（底部是體力條與「自動出征」勾選框）、劇情章節卡、活動與訓練小卡
  */
 export class LobbyScene extends Phaser.Scene {
@@ -79,6 +80,7 @@ export class LobbyScene extends Phaser.Scene {
   private settings: SettingsPanel | null = null;
   private storyCard!: LobbyCard;
   private questItem!: MenuItem;
+  private rewardShortcut!: RoundShortcut;
   private expeditionCard!: LobbyCard;
   private toast: Phaser.GameObjects.Text | null = null;
 
@@ -314,8 +316,9 @@ export class LobbyScene extends Phaser.Scene {
     new RoundShortcut(this, S.shop, '商城', 'shop', 0x3f7fa8, () =>
       this.showToast(`商城${COMING_SOON}`),
     );
-    new RoundShortcut(this, S.reward, '獎勵', 'reward', 0x4f8a3c, () =>
-      this.showToast(`獎勵中心${COMING_SOON}`),
+    // 獎勵：七日簽到（T026），今天還沒簽就亮紅點
+    this.rewardShortcut = new RoundShortcut(this, S.reward, '獎勵', 'reward', 0x4f8a3c, () =>
+      this.scene.start('SigninScene'),
     );
   }
 
@@ -617,6 +620,12 @@ export class LobbyScene extends Phaser.Scene {
     this.questItem.setDot(questReady > 0);
     if (window.__WGZ__?.lobby && window.__WGZ__.lobby.questReady !== questReady) {
       window.__WGZ__.lobby.questReady = questReady;
+    }
+    // 今天還沒簽到就亮紅點（T026）
+    const signin = signinReady(state, now, timeOptions());
+    this.rewardShortcut.setDot(signin);
+    if (window.__WGZ__?.lobby && window.__WGZ__.lobby.signinReady !== signin) {
+      window.__WGZ__.lobby.signinReady = signin;
     }
     this.expeditionCard.setSubtitle(this.nextStageLabel());
 

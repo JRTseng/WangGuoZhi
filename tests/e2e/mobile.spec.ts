@@ -46,6 +46,7 @@ test('各畫面的按鈕都夠大，手指按得到', async ({ page }) => {
     'BoardingScene',
     'GearScene',
     'QuestScene',
+    'SigninScene',
     'RecruitScene',
     'CampaignScene',
     'StoryScene',
