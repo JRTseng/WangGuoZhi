@@ -32,6 +32,7 @@ import {
 } from './leveling';
 import { isStageUnlocked, unlockedBackgrounds } from './progress';
 import { towerCanFight, towerWin } from './tower';
+import { WAR_POINTS, addWarPoints } from './war';
 import { TOWER_FLOORS, towerFloorOf } from '../data/tower';
 import { countQuest } from './quests';
 import { addSnacks, snackDrop, snackLabel } from './snacks';
@@ -351,8 +352,11 @@ function settleBattle(
   };
   // 爬塔：記這週的進度，到了有限定裝備的那一層就送
   const climbed = win && floor ? towerWin(base, floor, ticket.at) : undefined;
-  const next = climbed?.state ?? base;
   if (climbed?.gearId) record.towerGearId = climbed.gearId;
+  // 陣營積分戰（T030）：出征、爬塔都幫自己的陣營賺積分
+  const warPoints = floor ? (win ? WAR_POINTS.tower : 0) : win ? WAR_POINTS.win : WAR_POINTS.lose;
+  if (warPoints > 0) record.warPoints = warPoints;
+  const next = addWarPoints(climbed?.state ?? base, warPoints, ticket.at);
   // 新夥伴有專屬裝備的話一起送（T014）
   return { record, state: newDog ? grantExclusives(next) : next };
 }
@@ -438,6 +442,7 @@ export function resultNotes(
   if (record.dropSnack) {
     notes.push(`獲得零食 ${snackLabel(record.dropSnack.id, record.dropSnack.amount)}（訓練場餵）`);
   }
+  if (record.warPoints) notes.push(`陣營積分 +${record.warPoints}`);
   // 成長技能：這一仗升過 10 級的門檻就學會新的
   for (const g of record.gains) {
     const d = findDog(g.dogId);

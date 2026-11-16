@@ -120,6 +120,7 @@ describe('出征與陣型（T023）', () => {
     expect(resultNotes(st, lose.state, lose.record)).toEqual([
       '只帶回三成物資，關卡還沒通過',
       '狗狗們掛彩了，休息一下就好（不影響能力）',
+      '陣營積分 +2',
     ]);
   });
 

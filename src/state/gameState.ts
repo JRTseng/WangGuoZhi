@@ -39,6 +39,8 @@ export interface DogProgress {
 export interface ExpeditionRecord {
   /** 這一仗送的爬塔限定裝備 id（登天塔） */
   towerGearId?: string;
+  /** 這一仗幫陣營賺了幾分（T030） */
+  warPoints?: number;
   id: string;
   stageId: string;
   dogIds: string[];
@@ -206,6 +208,19 @@ export interface TowerState {
   gear: number[];
 }
 
+/** 陣營積分戰（T030）：這週自己的積分與上週等著領的結果 */
+export interface WarState {
+  /** 積分算在哪一週（那週星期一的遊戲日）；空字串是還沒開始 */
+  week: string;
+  /** 這些積分是幫哪個陣營賺的；週中換陣營就歸零 */
+  faction: Faction | '';
+  points: number;
+  /** 這週領過的個人積分獎勵（WAR_MILESTONES 的索引） */
+  claimed: number[];
+  /** 上週的結果，領了就清掉 */
+  result: { week: string; faction: Faction; points: number } | null;
+}
+
 export type Quality = 'low' | 'medium' | 'high';
 
 /** 帳號設定（語音／推播目前只記住開關，還沒有實際功能；音樂與音效見 T016） */
@@ -302,6 +317,8 @@ export interface GameState {
   tower: TowerState;
   /** 陣營（T029）：汪國 dog／喵國 cat；空字串是還沒選（當汪國） */
   faction: Faction | '';
+  /** 陣營積分戰（T030） */
+  war: WarState;
 }
 
 /** 體力上限；新遊戲從滿體力開始 */
@@ -357,5 +374,6 @@ export function createInitialState(now: number = Date.now()): GameState {
     signin: { day: '', count: 0, streak: 0, pick: '', shown: '' },
     tower: { week: '', floor: 0, last: 0, best: 0, gear: [] },
     faction: '',
+    war: { week: '', faction: '', points: 0, claimed: [], result: null },
   };
 }

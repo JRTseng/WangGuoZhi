@@ -57,7 +57,9 @@ test('選陣營：一開始先選，選喵國手上是五隻貓、召募只抽�
   expect((await saved(page)).faction).toBe('cat');
 });
 
-test('選陣營：主頁的陣營徽章可以進來換；玩過的存檔換陣營，原本的夥伴留著', async ({ page }) => {
+test('選陣營：主頁的陣營徽章進積分戰、再按換陣營；玩過的存檔換陣營，原本的夥伴留著', async ({
+  page,
+}) => {
   await openLobby(page, '?fast=1&faction=dog');
   expect((await saved(page)).faction).toBe('dog');
   // 抽一次，存檔就不算「還沒開始玩」
@@ -67,9 +69,11 @@ test('選陣營：主頁的陣營徽章可以進來換；玩過的存檔換陣�
   await page.waitForFunction(() => (window.__WGZ__?.recruit?.pulls ?? 0) >= 1);
   const before = await saved(page);
 
-  // 網址不再指定陣營，從徽章進選陣營畫面
+  // 網址不再指定陣營，從徽章進積分戰，右下角換陣營
   await openLobby(page, '?fast=1');
   await tap(page, (await wgz(page)).lobby!.buttons.faction);
+  await waitScene(page, 'WarScene');
+  await tap(page, (await wgz(page)).war!.switch);
   await waitScene(page, 'FactionScene');
   const f = (await wgz(page)).faction!;
   expect(f).toMatchObject({ current: 'dog', fresh: false });
