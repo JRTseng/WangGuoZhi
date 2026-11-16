@@ -74,6 +74,26 @@ const TABLE: Readonly<Record<string, readonly [UltPose, number]>> = {
   maisui: ['roll', 8], // 叼來藥草
   shidun: ['guard', -8], // 不讓路
   zhouzhou: ['snooze', 0], // 呼嚕午睡
+  taxue: ['guard', 10], // 雪原壁壘
+  jinsi: ['paw', -4], // 絲絲入扣
+  zhongquan: ['pounce', -8], // 連環重拳
+  yunzhou: ['roll', -8], // 掃雲開路
+  xuebao: ['rear', 8], // 白色城牆
+  jingzhu: ['crouch', -8], // 無聲計
+  yuanbao: ['paw', 5], // 招財進寶
+  mianhua: ['tailwhip', 5], // 棉花抱抱
+  wangyue: ['howl', 5], // 千里歸途
+  xuanfeng: ['spin', 5], // 蛋頭衝鋒
+  maoshi: ['guard', -4], // 獅子坐鎮
+  huzi: ['rear', 5], // 老成持重
+  baitang: ['leap', 5], // 甜頭
+  chouer: ['roll', -5], // 梳毛安神
+  beiguo: ['snooze', 8], // 慢慢聞
+  xiaoding: ['dash', 10], // 小釘子
+  huomiao: ['pounce', 5], // 一點就著
+  atu: ['snooze', -8], // 悶聲扛
+  nuomi: ['leap', -4], // 黏黏好運
+  paofu: ['roll', 5], // 泡芙呼呼
 };
 
 /** 這隻狗（或敵人）放大絕招時的姿勢；表裡沒有的（敵方頭目、精銳）用長嚎或撲擊 */

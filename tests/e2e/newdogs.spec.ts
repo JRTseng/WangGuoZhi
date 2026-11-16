@@ -21,7 +21,7 @@ async function reloadWith(page: Page, patch: Record<string, unknown>) {
   await waitScene(page, 'LobbyScene');
 }
 
-test('T024 新狗：六種定位各 5 隻，新 SSR 可以編隊、出征、放大絕招', async ({ page }) => {
+test('T024 新狗：六種定位各 8～9 隻，新 SSR 可以編隊、出征、放大絕招', async ({ page }) => {
   // &battle=slow：戰鬥放慢，來得及截圖與按略過；&seed=3：固定同一場戰鬥
   await openLobby(page, '?fast=1&battle=slow&seed=3');
   await tap(page, (await wgz(page)).lobby!.buttons.team);
@@ -30,16 +30,18 @@ test('T024 新狗：六種定位各 5 隻，新 SSR 可以編隊、出征、放�
   await waitScene(page, 'LobbyScene');
   await reloadWith(page, { owned: [...STARTERS, ...SQUAD], team: SQUAD, formation: {} });
 
-  // 組隊：每種定位篩出來都是 5 隻
+  // 組隊：每種定位篩出來 8～9 隻
   await tap(page, (await wgz(page)).lobby!.buttons.team);
   await waitScene(page, 'TeamScene');
   const ids = async () => (await wgz(page)).picker!.cells.map((c) => c.id);
   const chip = async (key: string) =>
     (await wgz(page)).picker!.roleChips.find((c) => c.key === key)!;
-  expect(await ids()).toHaveLength(30);
+  expect(await ids()).toHaveLength(50);
   for (const role of ['補給', '突擊', '守護', '謀略', '幸運', '補血']) {
     await tap(page, await chip(role));
-    expect(await ids(), role).toHaveLength(5);
+    const n = (await ids()).length;
+    expect(n, role).toBeGreaterThanOrEqual(8);
+    expect(n, role).toBeLessThanOrEqual(9);
   }
   expect((await ids()).slice(0, 2)).toEqual(['haiyan', 'nuantong']);
   await page.waitForTimeout(200);

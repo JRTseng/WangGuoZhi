@@ -66,11 +66,11 @@ function threeRows(s: BattleState): BattleState {
 }
 
 describe('資料', () => {
-  it('T024 的 11 隻都有專屬特性與預設台詞，戰鬥資料會帶上特性', () => {
+  it('有專屬特性的狗都帶得上特性（11 種打法），每隻狗都有預設台詞，戰鬥資料會帶上特性', () => {
     const state = createInitialState(0);
     for (const d of DOGS) state.dogs[d.id] = initialProgress(d);
     const added = DOGS.filter((d) => d.trait);
-    expect(added).toHaveLength(11);
+    expect(added.length).toBeGreaterThanOrEqual(11);
     expect(new Set(added.map((d) => d.trait)).size).toBe(11);
     for (const d of added) {
       expect(battleDogOf(state, d.id)!.trait, d.name).toBe(d.trait);
