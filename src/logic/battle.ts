@@ -218,6 +218,8 @@ export interface EnemyLook {
   accent: number;
   /** 畫大一點（頭目） */
   big?: boolean;
+  /** 犬種（T025）：照犬種畫臉 */
+  breed?: string;
 }
 
 export interface BattleInput {

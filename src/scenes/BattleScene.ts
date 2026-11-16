@@ -317,6 +317,7 @@ export class BattleScene extends Phaser.Scene {
           color: u.look?.color ?? MOB_LOOK.color,
           accent: u.look?.accent ?? MOB_LOOK.accent,
           fierce: true,
+          breed: u.look?.breed,
         }),
       );
     });

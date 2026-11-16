@@ -29,16 +29,25 @@ interface EnemyKind {
   accent: number;
   canUlt?: boolean;
   trait?: BattleTrait;
+  /** 犬種（T025）：照犬種畫臉 */
+  breed: string;
 }
 
 export const ENEMY_KINDS: Readonly<Record<string, EnemyKind>> = {
-  m: { label: '小卒', role: '野犬', weight: 1, accent: 0xd9d2c7 },
-  a: { label: '先鋒', role: '突擊', weight: 1, accent: 0xe07a5f },
-  g: { label: '盾兵', role: '守護', weight: 1.1, accent: 0x8d99ae },
-  s: { label: '投石手', role: '謀略', weight: 0.9, accent: 0x9bc1bc },
-  l: { label: '搗蛋鬼', role: '幸運', weight: 0.9, accent: 0xf2cc8f },
-  h: { label: '藥師', role: '補血', weight: 0.8, accent: 0xa7c957, trait: 'smallHeal' },
-  e: { label: '精銳', role: '突擊', weight: 1.6, accent: 0xc0392b, canUlt: true },
+  m: { label: '小卒', role: '野犬', weight: 1, accent: 0xd9d2c7, breed: '土狗' },
+  a: { label: '先鋒', role: '突擊', weight: 1, accent: 0xe07a5f, breed: '比特犬' },
+  g: { label: '盾兵', role: '守護', weight: 1.1, accent: 0x8d99ae, breed: '沙皮犬' },
+  s: { label: '投石手', role: '謀略', weight: 0.9, accent: 0x9bc1bc, breed: '惠比特犬' },
+  l: { label: '搗蛋鬼', role: '幸運', weight: 0.9, accent: 0xf2cc8f, breed: '傑克羅素㹴' },
+  h: {
+    label: '藥師',
+    role: '補血',
+    weight: 0.8,
+    accent: 0xa7c957,
+    trait: 'smallHeal',
+    breed: '貴賓犬',
+  },
+  e: { label: '精銳', role: '突擊', weight: 1.6, accent: 0xc0392b, canUlt: true, breed: '獒犬' },
 };
 /** 頭目佔敵方總戰力的比重（旁邊的小兵一隻約 1） */
 export const BOSS_WEIGHT = 4;
@@ -120,7 +129,7 @@ export function parseLineup(lineup: string, gang: GangData, boss?: BossData): Ba
           row: row as RowIndex,
           weight: BOSS_WEIGHT,
           canUlt: true,
-          look: { color: boss.color, accent: boss.accent, big: true },
+          look: { color: boss.color, accent: boss.accent, big: true, breed: boss.breed },
         });
         continue;
       }
@@ -133,7 +142,7 @@ export function parseLineup(lineup: string, gang: GangData, boss?: BossData): Ba
         weight: k.weight,
         ...(k.canUlt ? { canUlt: true } : {}),
         ...(k.trait ? { trait: k.trait } : {}),
-        look: { color: gang.color, accent: k.accent },
+        look: { color: gang.color, accent: k.accent, breed: k.breed },
       });
     }
   });

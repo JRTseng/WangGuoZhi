@@ -190,7 +190,10 @@ export class CampaignScene extends Phaser.Scene {
     if (boss) {
       const hg = this.add.graphics();
       // Boss 沒解鎖也照樣畫出來，讓玩家看到目標
-      drawDogHead(hg, 0, 6, r * 0.62, s.boss!.color, s.boss!.accent, { fierce: true });
+      drawDogHead(hg, 0, 6, r * 0.62, s.boss!.color, s.boss!.accent, {
+        fierce: true,
+        breed: s.boss!.breed,
+      });
       c.add(hg);
       c.add(
         addText(this, 0, -r - 4, 'BOSS', 15, '#ffffff', true)
@@ -248,6 +251,7 @@ export class CampaignScene extends Phaser.Scene {
       const hg = this.add.graphics();
       drawDogHead(hg, box.x + box.width - 64, box.y + 70, 42, s.boss.color, s.boss.accent, {
         fierce: true,
+        breed: s.boss.breed,
       });
       layer.add([hg, addText(this, left, y, 'BOSS 關', 15, '#c0392b', true)]);
       y += 24;
