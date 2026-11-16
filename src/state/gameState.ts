@@ -37,6 +37,8 @@ export interface DogProgress {
 
 /** 一次出征的紀錄（T019 起出征當下就結算，沒有等待時間） */
 export interface ExpeditionRecord {
+  /** 這一仗送的爬塔限定裝備 id（登天塔） */
+  towerGearId?: string;
   id: string;
   stageId: string;
   dogIds: string[];
@@ -190,6 +192,20 @@ export interface SigninState {
   shown: string;
 }
 
+/** 登天塔（規則見 src/logic/tower.ts） */
+export interface TowerState {
+  /** 這份進度是哪一週的（那一週星期一的日期）；換週就重置 */
+  week: string;
+  /** 這週爬到第幾層 */
+  floor: number;
+  /** 上週爬到第幾層（一鍵通關用） */
+  last: number;
+  /** 歷來最高第幾層 */
+  best: number;
+  /** 已經送過限定裝備的層 */
+  gear: number[];
+}
+
 export type Quality = 'low' | 'medium' | 'high';
 
 /** 帳號設定（語音／推播目前只記住開關，還沒有實際功能；音樂與音效見 T016） */
@@ -282,6 +298,8 @@ export interface GameState {
   frisbee: FrisbeeState;
   /** 七日簽到（T026）：上次簽到的日期與累計天數 */
   signin: SigninState;
+  /** 登天塔：這週與上週的進度 */
+  tower: TowerState;
 }
 
 /** 體力上限；新遊戲從滿體力開始 */
@@ -335,5 +353,6 @@ export function createInitialState(now: number = Date.now()): GameState {
     lord: { level: 1, exp: 0 },
     frisbee: { day: '', best: 0 },
     signin: { day: '', count: 0, streak: 0, pick: '', shown: '' },
+    tower: { week: '', floor: 0, last: 0, best: 0, gear: [] },
   };
 }

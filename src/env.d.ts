@@ -118,6 +118,19 @@ interface WgzDebugState {
       }
     >;
   };
+  /** 登天塔畫面 */
+  tower?: {
+    open: boolean;
+    floor: number;
+    last: number;
+    best: number;
+    /** 下一層（登頂了是 0） */
+    next: number;
+    gear: number[];
+    fight: WgzRect | null;
+    sweep: WgzRect | null;
+    sweepTo: number;
+  };
   /** 七日簽到畫面（T026） */
   signin?: {
     /** 今天還能不能領 */

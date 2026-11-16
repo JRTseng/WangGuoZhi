@@ -51,7 +51,7 @@ import { ResultPanel } from './components/ResultPanel';
 import { Scenery } from './components/Scenery';
 import { pixelize } from './components/pixelStage';
 import { playSfx } from './components/audio';
-import { autoNextOption, nextLabel, planNext, startNext } from './components/nextStage';
+import { autoNextOption, nextLabel, openMap, planNext, startNext } from './components/nextStage';
 import { playUltimate } from './components/UltimateShow';
 import { playVoiceCue } from './components/voice';
 import { addText, patchDebug, resetDebug, viewOf } from './ui';
@@ -824,7 +824,7 @@ export class BattleScene extends Phaser.Scene {
           // 回出征地圖，可以馬上再打一場
           const found = REGIONS.findIndex((r) => r.stages.some((x) => x.id === rec.stageId));
           const chapter = this.chapter ?? found;
-          this.scene.start('CampaignScene', chapter >= 0 ? { chapter } : undefined);
+          openMap(this, rec.stageId, chapter);
         }
       },
       resultNotes(this.before, done.state, rec),
@@ -843,9 +843,7 @@ export class BattleScene extends Phaser.Scene {
               });
               // 有新劇情先看劇情，看完接著打下一關
               if (storyId) this.scene.start('StoryScene', { mode: 'play', storyId, next: from });
-              else if (!startNext(this, from)) {
-                this.scene.start('CampaignScene', { chapter: plan.chapter });
-              }
+              else if (!startNext(this, from)) openMap(this, plan.stage.id, plan.chapter);
             },
           }
         : undefined,

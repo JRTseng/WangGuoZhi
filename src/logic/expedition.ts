@@ -16,10 +16,10 @@ import {
   type BattleInput,
   type BattleResult,
 } from './battle';
-import { addGear, dropNote, grantExclusives, rollDrop } from './equipment';
+import { addGear, dropNote, gearPerks, grantExclusives, rollDrop } from './equipment';
 import { exclusiveGearOf, findGear } from '../data/equipment';
 import { battleRoleOf, teamCells } from './formation';
-import { newSkills, perkText, perksOf } from './levelSkills';
+import { newSkills, perkText, perksOf, sumPerks } from './levelSkills';
 import { addLordExp, lordExpOf, lordNotes } from './lord';
 import {
   addExp,
@@ -31,6 +31,8 @@ import {
   type DogExpGain,
 } from './leveling';
 import { isStageUnlocked, unlockedBackgrounds } from './progress';
+import { towerCanFight, towerWin } from './tower';
+import { TOWER_FLOORS, towerFloorOf } from '../data/tower';
 import { countQuest } from './quests';
 import { addSnacks, snackDrop, snackLabel } from './snacks';
 import { runBlock, spendRun, type TimeOptions } from './stamina';
@@ -83,7 +85,9 @@ export function battleDogOf(
   if (!d) return undefined;
   const s = dogStats(state, d);
   const role = battleRoleOf(d.role);
-  const perks = perksOf(role, s.level);
+  const learned = perksOf(role, s.level);
+  const worn = gearPerks(state, d.id);
+  const perks = learned && worn ? sumPerks([learned, worn]) : (learned ?? worn);
   return {
     id: d.id,
     name: d.name,
@@ -158,6 +162,8 @@ export function stageWinChance(
 export function expeditionReward(exp: Pick<ExpeditionRecord, 'stageId'>, win: boolean): Resources {
   const stage = findStage(exp.stageId);
   const full = stage ? { ...stage.reward } : { food: 0, bones: 0 };
+  // 爬塔打輸沒有獎勵（不花體力，不能讓人一直輸著拿）
+  if (!win && towerFloorOf(exp.stageId)) return { food: 0, bones: 0 };
   return win ? full : scaleReward(full, DEFEAT_REWARD_RATE);
 }
 
@@ -174,7 +180,8 @@ export function expeditionGrowth(
   win: boolean,
 ): { dogs: GameState['dogs']; gains: DogExpGain[] } {
   const stage = findStage(exp.stageId);
-  const amount = stage ? expeditionExp(stage, win) : 0;
+  // 爬塔打輸沒有經驗
+  const amount = stage && (win || !towerFloorOf(exp.stageId)) ? expeditionExp(stage, win) : 0;
   const dogs = { ...state.dogs };
   const gains: DogExpGain[] = [];
   exp.dogIds.forEach((id, i) => {
@@ -209,7 +216,10 @@ function runError(
   opts: TimeOptions,
 ): RunError | null {
   if (!findStage(stageId)) return 'stage-not-found';
-  if (!isStageUnlocked(state, stageId)) return 'stage-locked';
+  const unlocked = towerFloorOf(stageId)
+    ? towerCanFight(state, stageId, now, opts)
+    : isStageUnlocked(state, stageId);
+  if (!unlocked) return 'stage-locked';
   if (dogIds.length < TEAM_MIN || dogIds.length > stageTeamMax(stageId)) return 'wrong-team-size';
   if (new Set(dogIds).size !== dogIds.length) return 'duplicate-dog';
   if (!dogIds.every((id) => DOGS.some((d) => d.id === id))) return 'dog-not-found';
@@ -279,7 +289,9 @@ function settleBattle(
   const { win } = expeditionBattle(exp);
   const reward = expeditionReward(exp, win);
   const growth = expeditionGrowth(state, exp, win);
-  const firstClear = win && !state.cleared.includes(exp.stageId);
+  const floor = towerFloorOf(exp.stageId);
+  // 塔的每一層每週都會重打，不算「第一次過關必掉裝備」
+  const firstClear = win && !floor && !state.cleared.includes(exp.stageId);
   const dropGearId = expeditionDrop(exp, win, firstClear);
   // 經驗零食：打贏就有，看章節與是不是頭目關
   const dropSnack =
@@ -308,7 +320,7 @@ function settleBattle(
     ...(newDog ? { newDogId: newDog.id } : {}),
     ...(giftShards ? { giftShards } : {}),
   };
-  const next: GameState = {
+  const base: GameState = {
     ...state,
     pending: null,
     // 受傷外觀：出戰的狗休息一下，打輸的全部掛彩（不影響數值）
@@ -330,11 +342,17 @@ function settleBattle(
       : state.shards,
     nextExpeditionNo: state.nextExpeditionNo + 1,
     cleared:
-      !win || state.cleared.includes(exp.stageId) ? state.cleared : [...state.cleared, exp.stageId],
+      !win || floor || state.cleared.includes(exp.stageId)
+        ? state.cleared
+        : [...state.cleared, exp.stageId],
     history: [...state.history, record].slice(-HISTORY_MAX),
     // 任務（T011）：每日的出征／打贏次數與累計勝場
     quests: countQuest(countQuest(state, 'battle'), 'win', win ? 1 : 0).quests,
   };
+  // 爬塔：記這週的進度，到了有限定裝備的那一層就送
+  const climbed = win && floor ? towerWin(base, floor, ticket.at) : undefined;
+  const next = climbed?.state ?? base;
+  if (climbed?.gearId) record.towerGearId = climbed.gearId;
   // 新夥伴有專屬裝備的話一起送（T014）
   return { record, state: newDog ? grantExclusives(next) : next };
 }
@@ -403,7 +421,15 @@ export function resultNotes(
   record: ExpeditionRecord,
 ): string[] {
   const notes: string[] = [];
-  if (!record.win) {
+  const floor = towerFloorOf(record.stageId);
+  if (!record.win && floor) {
+    notes.push('這一層還沒過，調整隊伍再來（爬塔不花體力）');
+    notes.push('狗狗們掛彩了，休息一下就好（不影響能力）');
+  } else if (record.win && floor) {
+    notes.push(floor >= TOWER_FLOORS ? '登上塔頂了！' : `通過第 ${floor} 層！`);
+    const gift = findGear(record.towerGearId ?? '');
+    if (gift) notes.push(`獲得爬塔限定裝備「${gift.name}」`);
+  } else if (!record.win) {
     notes.push('只帶回三成物資，關卡還沒通過');
     notes.push('狗狗們掛彩了，休息一下就好（不影響能力）');
   } else if (!before.cleared.includes(record.stageId)) notes.push('通過關卡！下一關已開放');

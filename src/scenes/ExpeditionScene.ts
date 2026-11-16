@@ -35,7 +35,7 @@ import { Button } from './components/Button';
 import { DogInfoPanel } from './components/DogInfoPanel';
 import { DogPicker } from './components/DogPicker';
 import { headLook } from './components/headLook';
-import { autoNextOption, nextLabel, planNext, startNext } from './components/nextStage';
+import { autoNextOption, nextLabel, openMap, planNext, startNext } from './components/nextStage';
 import { ResultPanel } from './components/ResultPanel';
 import { StaminaShop, type ShopKind } from './components/StaminaShop';
 import { drawHeader, patchDebug, resetDebug, viewOf } from './ui';
@@ -118,7 +118,7 @@ export class ExpeditionScene extends Phaser.Scene {
     const short = `${stage.name}・可上陣 ${this.max} 隻`;
     // 橫式高度不夠，關卡資訊併進標題列
     this.back = drawHeader(this, landscape ? short : `出征・${stage.name}`, () =>
-      this.scene.start('CampaignScene', { chapter: this.chapter }),
+      openMap(this, stage.id, this.chapter),
     );
     if (!landscape) {
       this.text(w / 2, BAR_HEIGHT + 22, brief, 17, COLORS.ink, true).setOrigin(0.5);
@@ -427,7 +427,7 @@ export class ExpeditionScene extends Phaser.Scene {
       () => {
         patchDebug({ result: null, growth: null, drop: null, nextButton: null, nextAuto: null });
         if (storyId) this.scene.start('StoryScene', { mode: 'play', storyId });
-        else this.scene.start('CampaignScene', { chapter: this.chapter });
+        else openMap(this, stage.id, this.chapter);
       },
       resultNotes(before, r.state, record),
       record.gains,
@@ -444,9 +444,7 @@ export class ExpeditionScene extends Phaser.Scene {
                 nextAuto: null,
               });
               if (storyId) this.scene.start('StoryScene', { mode: 'play', storyId, next: from });
-              else if (!startNext(this, from)) {
-                this.scene.start('CampaignScene', { chapter: plan.chapter });
-              }
+              else if (!startNext(this, from)) openMap(this, plan.stage.id, plan.chapter);
             },
           }
         : undefined,

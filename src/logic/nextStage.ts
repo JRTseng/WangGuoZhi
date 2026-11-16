@@ -2,6 +2,8 @@ import { REGIONS, type StageData } from '../data/regions';
 import type { GameState } from '../state/gameState';
 import { TEAM_MIN, busyDogIds, stageTeamMax } from './expedition';
 import { isStageUnlocked } from './progress';
+import { towerCanFight } from './tower';
+import { towerFloorOf, towerStage } from '../data/tower';
 import { runBlock, type TimeOptions } from './stamina';
 import { dogPower } from './team';
 
@@ -24,6 +26,12 @@ export interface NextStagePlan {
 
 /** 照章節順序的下一關（章末 Boss 的下一關是下一章第一關）；最後一關沒有下一關 */
 export function nextStageOf(stageId: string): { stage: StageData; chapter: number } | undefined {
+  // 爬塔：下一層（chapter 給 -1，回去的時候回塔）
+  const floor = towerFloorOf(stageId);
+  if (floor) {
+    const stage = towerStage(floor + 1);
+    return stage ? { stage, chapter: -1 } : undefined;
+  }
   const all = REGIONS.flatMap((r, chapter) => r.stages.map((stage) => ({ stage, chapter })));
   const i = all.findIndex((x) => x.stage.id === stageId);
   return i >= 0 ? all[i + 1] : undefined;
@@ -44,7 +52,11 @@ export function nextStagePlan(
   o?: TimeOptions,
 ): NextStagePlan | null {
   const next = nextStageOf(stageId);
-  if (!next || !isStageUnlocked(state, next.stage.id)) return null;
+  if (!next) return null;
+  const open = towerFloorOf(next.stage.id)
+    ? towerCanFight(state, next.stage.id, now, o)
+    : isStageUnlocked(state, next.stage.id);
+  if (!open) return null;
   const busy = busyDogIds(state);
   const able = team.filter((id) => state.owned.includes(id) && !busy.has(id));
   const max = stageTeamMax(next.stage.id);
