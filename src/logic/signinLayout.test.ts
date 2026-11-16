@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { signinLayout } from './signinLayout';
+import { signinLayout, signinPickLayout } from './signinLayout';
 
 describe('簽到畫面排版', () => {
   const W = 844;
@@ -27,5 +27,34 @@ describe('簽到畫面排版', () => {
     expect(l.claim.y + l.claim.height).toBeLessThanOrEqual(H);
     expect(l.total.x).toBeLessThan(l.claim.x);
     expect(l.countdown.x).toBeGreaterThan(l.claim.x + l.claim.width);
+  });
+});
+
+describe('選 SSR 狗的彈出框排版', () => {
+  const W = 844;
+  const H = 390;
+
+  it.each([1, 7, 10, 14, 21])('%i 隻狗：都在框內、不重疊、夠大好按', (n) => {
+    const p = signinPickLayout(W, H, n);
+    expect(p.cells).toHaveLength(n);
+    expect(p.size.width).toBeLessThanOrEqual(W - 32);
+    expect(p.size.height).toBeLessThanOrEqual(H - 24);
+    p.cells.forEach((c, i) => {
+      expect(c.x).toBeGreaterThanOrEqual(0);
+      expect(c.x + c.width).toBeLessThanOrEqual(p.size.width);
+      expect(c.y).toBeGreaterThanOrEqual(p.title.y);
+      expect(c.y + c.height).toBeLessThanOrEqual(p.size.height);
+      expect(c.width).toBeGreaterThanOrEqual(44);
+      expect(c.height).toBeGreaterThanOrEqual(44);
+      for (const o of p.cells.slice(0, i)) {
+        const apart =
+          c.x >= o.x + o.width ||
+          o.x >= c.x + c.width ||
+          c.y >= o.y + o.height ||
+          o.y >= c.y + c.height;
+        expect(apart).toBe(true);
+      }
+    });
+    expect(p.close.width).toBeGreaterThanOrEqual(44);
   });
 });
