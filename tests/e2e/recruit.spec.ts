@@ -42,7 +42,7 @@ test('召募：單抽與十連，新狗加入、重複換碎片，到訓練場�
   await seedRandom(page, 20261113);
   await openRecruit(page);
   let r = (await wgz(page)).recruit!;
-  expect(r).toMatchObject({ pulls: 0, toPity: 50, owned: 5, total: 30, results: [] });
+  expect(r).toMatchObject({ pulls: 0, toPity: 50, owned: 5, total: 50, results: [] });
   for (const b of [r.buttons.one, r.buttons.ten]) {
     expect(b.x).toBeGreaterThanOrEqual(0);
     expect(b.x + b.width).toBeLessThanOrEqual(844);

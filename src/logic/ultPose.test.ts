@@ -3,7 +3,7 @@ import { DOGS } from '../data/dogs';
 import { ULT_POSES, ULT_POSE_NAMES, ultPoseOf } from './ultPose';
 
 describe('大絕招的專屬姿勢', () => {
-  it('30 隻狗都有指定姿勢，動作加角度的組合每隻都不一樣', () => {
+  it('50 隻狗都有指定姿勢，動作加角度的組合每隻都不一樣', () => {
     const seen = new Set<string>();
     for (const d of DOGS) {
       const p = ultPoseOf(d.id);

@@ -33,18 +33,19 @@ describe('狗狗資料（T007）', () => {
     }
   });
 
-  it('共 30 隻（T024）：六種定位各 5 隻、每種定位都有 SSR，小中大體型與四種稀有度都有', () => {
-    expect(DOGS).toHaveLength(30);
+  it('共 50 隻：六種定位各 8～9 隻、每種定位都有 SSR，小中大體型與四種稀有度都有', () => {
+    expect(DOGS).toHaveLength(50);
     for (const role of ['補給', '突擊', '守護', '謀略', '幸運', '補血']) {
       const list = DOGS.filter((d) => d.role.endsWith(role));
-      expect(list.length, role).toBe(5);
+      expect(list.length, role).toBeGreaterThanOrEqual(8);
+      expect(list.length, role).toBeLessThanOrEqual(9);
       expect(
         list.some((d) => d.rarity === 'SSR'),
         role,
       ).toBe(true);
     }
     const count = (r: string) => DOGS.filter((d) => d.rarity === r).length;
-    expect(RARITIES.map(count)).toEqual([8, 10, 5, 7]);
+    expect(RARITIES.map(count)).toEqual([14, 16, 10, 10]);
     for (const size of ['小型', '中型', '大型']) {
       expect(DOGS.filter((d) => d.size === size).length, size).toBeGreaterThanOrEqual(3);
     }
@@ -123,11 +124,14 @@ describe('pickDog', () => {
     expect([...seen].sort()).toEqual([
       'fuqiu',
       'haiyan',
+      'jinsi',
       'liuxing',
       'nuantong',
       'songling',
+      'taxue',
       'xiongyue',
       'xueling',
+      'zhongquan',
     ]);
     const noSSR = pool.filter((d) => d.rarity !== 'SSR');
     expect(pickDog(noSSR, 'SSR', () => 0)!.rarity).toBe('SR');
@@ -153,8 +157,11 @@ describe('pull', () => {
 
   it('抽到已經有的狗換成碎片，等級與隊伍不動', () => {
     const s0 = fresh();
-    // 0.25 → R；R 有 10 隻，0.25 落在第 3 隻：長鬚（開局就有）
-    const r = pull(s0, 1, () => 0.25);
+    // 第一個亂數 0.25 → R；第二個 0.15 在 R 的 16 隻裡落在第 3 隻：長鬚（開局就有）
+    const seq = [0.25, 0.15];
+    let n = 0;
+    const rng = () => seq[n++ % 2];
+    const r = pull(s0, 1, rng);
     expect(gachaPool().filter((d) => d.rarity === 'R')[2].id).toBe('changxu');
     expect(r.items).toEqual([
       { dogId: 'changxu', rarity: 'R', isNew: false, shards: SHARDS_PER_DUPLICATE },
@@ -163,7 +170,7 @@ describe('pull', () => {
     expect(r.state.dogs).toEqual(s0.dogs);
     expect(r.state.shards).toEqual({ changxu: 10 });
     expect(r.state.gacha).toEqual({ pulls: 1, sinceSSR: 1 });
-    expect(pull(r.state, 1, () => 0.25).state.shards).toEqual({ changxu: 20 });
+    expect(pull(r.state, 1, rng).state.shards).toEqual({ changxu: 20 });
   });
 
   it('十連：剛好 10 隻，同一次裡第二次抽到同一隻算重複', () => {
