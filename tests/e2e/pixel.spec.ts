@@ -45,3 +45,25 @@ test('T025 犬種：主頁的狗照犬種畫（哈士奇）', async ({ page }) =
   await page.waitForTimeout(600);
   await page.screenshot({ path: `${SHOTS}/breed-husky.png` });
 });
+
+test('T025 體型：小型狗比中型小、大型狗比中型大', async ({ page }) => {
+  await openLobby(page, '?fast=1');
+  await patchSave(page, { owned: ['daer', 'heixuan', 'douding'] });
+  const scales: Record<string, number> = {};
+  // 吉娃娃（小型）、柴犬（中型）、黑色拉布拉多（大型）
+  for (const id of ['douding', 'daer', 'heixuan']) {
+    await page.evaluate((dogId) => {
+      const save = JSON.parse(localStorage.getItem('wgz-save')!);
+      save.state.lobbyDogId = dogId;
+      localStorage.setItem('wgz-save', JSON.stringify(save));
+    }, id);
+    await page.reload();
+    await waitScene(page, 'LobbyScene');
+    expect((await wgz(page)).lobby!.dogId).toBe(id);
+    scales[id] = (await wgz(page)).lobby!.dogScale!;
+    await page.waitForTimeout(400);
+    await page.screenshot({ path: `${SHOTS}/size-${id}.png` });
+  }
+  expect(scales.douding).toBeLessThan(scales.daer);
+  expect(scales.heixuan).toBeGreaterThan(scales.daer);
+});

@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { PIXEL_SIZE } from '../logic/atmosphere';
+import { bodyScale } from '../logic/dogSize';
 import { COLORS, RARITY_COLORS } from '../config';
 import { DOGS, findDog, type DogData } from '../data/dogs';
 import { createRng, mixSeed } from '../logic/battle';
@@ -142,6 +143,9 @@ export class FrisbeeScene extends Phaser.Scene {
   }
 
   /** 把上場的狗放到場地中間（換狗、重玩時重畫） */
+  /** 場上那隻狗的縮放（版面的大小乘上體型） */
+  private spriteScale = 1;
+
   private placeDog(): void {
     this.sprite?.destroy();
     const d = this.dog();
@@ -149,14 +153,16 @@ export class FrisbeeScene extends Phaser.Scene {
     this.dogX = 0.5;
     this.targetX = 0.5;
     this.facing = 1;
+    // 體型只影響看起來的大小，接飛盤的範圍每隻狗都一樣
+    const scale = (this.spriteScale = l.dogScale * bodyScale(d.size));
     this.sprite = new DogSprite(this, fieldX(l, 0.5), l.groundY, {
       color: d.color,
       accent: d.accent,
       gear: gearOf(getState(), d.id),
-      pixel: PIXEL_SIZE / l.dogScale,
+      pixel: PIXEL_SIZE / scale,
       breed: d.breed,
     });
-    this.sprite.setScale(l.dogScale).setDepth(10);
+    this.sprite.setScale(scale).setDepth(10);
     this.sprite.play('wag');
   }
 
@@ -345,7 +351,7 @@ export class FrisbeeScene extends Phaser.Scene {
           ? Math.abs(Math.sin(t / 70)) * 5
           : 0;
     sp.setPosition(fieldX(l, this.dogX), l.groundY - lift);
-    sp.setScale(l.dogScale * this.facing, l.dogScale);
+    sp.setScale(this.spriteScale * this.facing, this.spriteScale);
 
     this.drawDiscs(t);
     if (changed) {
