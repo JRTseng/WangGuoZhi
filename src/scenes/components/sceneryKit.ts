@@ -151,12 +151,48 @@ export function mountains(
   alpha = 1,
 ): Pt[] {
   const top = ridge({ seed, width: p.w, base, height, style, bumps });
-  poly(g, ridgePolygon(top, Math.max(base, p.hy) + 6), color, alpha);
+  const foot = Math.max(base, p.hy) + 6;
+  poly(g, ridgePolygon(top, foot), color, alpha);
+  // 明暗面（T025 精緻版）：光從右上來，往右下降的山坡是亮面，往右上升的是暗面
+  const lite = mixColor(color, 0xffffff, 0.28);
+  const shade = mixColor(color, 0x1a1030, 0.2);
+  for (let i = 0; i + 1 < top.length; i++) {
+    const a = top[i];
+    const b = top[i + 1];
+    const drop = b.y - a.y;
+    if (Math.abs(drop) < 1.5) continue;
+    const depth = Math.min(foot - Math.min(a.y, b.y), Math.abs(drop) * 2.2 + 6);
+    if (drop > 0) {
+      // 亮面：從稜線往下的一片斜面
+      poly(
+        g,
+        [a, b, P(b.x - (b.x - a.x) * 0.45, b.y + depth * 0.5), P(a.x, a.y + depth)],
+        lite,
+        0.5 * alpha,
+      );
+    } else {
+      poly(
+        g,
+        [a, b, P(b.x, b.y + depth), P(a.x + (b.x - a.x) * 0.5, a.y + depth * 0.4)],
+        shade,
+        0.4 * alpha,
+      );
+    }
+  }
+  // 山腳淡一點，和後面的空氣融在一起
+  g.fillStyle(lite, 0.22 * alpha);
+  g.fillRect(0, foot - 12, p.w, 8);
   return top;
 }
 
 /** 地面：上淺下深的漸層，地平線壓一條淡淡的陰影 */
-export function ground(p: Paint, g: G, top: number, bottom: number): void {
+export function ground(
+  p: Paint,
+  g: G,
+  top: number,
+  bottom: number,
+  style: 'grass' | 'bare' | 'plain' = 'grass',
+): void {
   g.fillGradientStyle(top, top, bottom, bottom, 1);
   g.fillRect(0, p.hy, p.w, p.h - p.hy);
   g.fillStyle(mixColor(top, 0x000000, 0.35), 0.18);
@@ -174,6 +210,51 @@ export function ground(p: Paint, g: G, top: number, bottom: number): void {
     g.fillStyle(rnd() < 0.55 ? dark : lite, 0.1 + rnd() * 0.2);
     g.fillRect(x, y, wide, 2);
   }
+  if (style === 'plain') return;
+  // 精緻版（T025）：深淺交錯的橫帶讓地面往遠處延伸，再撒幾塊被光照亮的地方
+  const shade = mixColor(bottom, 0x000000, 0.25);
+  const sun = mixColor(top, 0xffffff, 0.5);
+  for (let i = 0; i < 9; i++) {
+    const t0 = (i / 9) ** 1.6;
+    const t1 = ((i + 0.5) / 9) ** 1.6;
+    g.fillStyle(i % 2 ? shade : sun, 0.09);
+    g.fillRect(0, p.hy + 3 + t0 * gh, p.w, Math.max(2, (t1 - t0) * gh));
+  }
+  for (let i = 0; i < 12; i++) {
+    const t = 0.1 + rnd() * 0.9;
+    g.fillStyle(sun, 0.14);
+    g.fillEllipse(
+      rnd() * p.w,
+      p.hy + t * gh,
+      (50 + rnd() * 90) * (0.4 + t),
+      (8 + rnd() * 10) * (0.4 + t),
+    );
+  }
+  if (style === 'bare') {
+    // 光禿禿的地面（雪、沙、石頭）：只有一些小小的起伏
+    for (let i = 0; i < 60; i++) {
+      const t = rnd() ** 1.2;
+      const x = rnd() * p.w;
+      const y = p.hy + 5 + t * (gh - 5);
+      const k = 0.5 + t * 1.3;
+      g.fillStyle(shade, 0.22);
+      g.fillEllipse(x - 2 * k, y + 1.5 * k, 18 * k, 3 * k);
+      g.fillStyle(sun, 0.5);
+      g.fillEllipse(x, y, 14 * k, 2.4 * k);
+    }
+    return;
+  }
+  // 草尖：越靠近鏡頭越大越疏
+  const blade = mixColor(bottom, 0x1a3a1a, 0.25);
+  for (let i = 0; i < 220; i++) {
+    const t = rnd() ** 1.3;
+    const x = rnd() * p.w;
+    const y = p.hy + 5 + t * (gh - 5);
+    const k = 0.5 + t * 1.2;
+    g.fillStyle(rnd() < 0.5 ? blade : rnd() < 0.5 ? sun : top, 0.8);
+    g.fillTriangle(x - 2 * k, y, x + 2 * k, y, x - 1 * k, y - 6 * k);
+    g.fillTriangle(x + 1 * k, y, x + 4 * k, y, x + 5 * k, y - 5 * k);
+  }
 }
 
 /** 地面上撒東西的位置（地平線往下一點到畫面底） */
@@ -188,6 +269,12 @@ export function tuft(g: G, x: number, y: number, s: number, color: number): void
   g.fillTriangle(x - 5 * s, y, x - 2 * s, y, x - 6 * s, y - 8 * s);
   g.fillTriangle(x - 2 * s, y, x + 2 * s, y, x, y - 11 * s);
   g.fillTriangle(x + 2 * s, y, x + 5 * s, y, x + 6 * s, y - 7 * s);
+  // 右邊受光的草葉亮一點，根部暗一點
+  g.fillStyle(mixColor(color, 0xffffff, 0.3), 1);
+  g.fillTriangle(x, y, x + 2 * s, y, x + 0.6 * s, y - 10 * s);
+  g.fillTriangle(x + 3.5 * s, y, x + 5 * s, y, x + 6 * s, y - 7 * s);
+  g.fillStyle(mixColor(color, 0x000000, 0.35), 0.6);
+  g.fillRect(x - 5 * s, y - 1, 10 * s, 1.5);
 }
 
 /** 一顆石頭（底色加亮面） */
@@ -196,8 +283,17 @@ export function rock(g: G, x: number, y: number, s: number, color: number): void
   g.fillEllipse(x + 2 * s, y + 3 * s, 20 * s, 6 * s);
   g.fillStyle(color, 1);
   g.fillEllipse(x, y, 18 * s, 11 * s);
-  g.fillStyle(mixColor(color, 0xffffff, 0.3), 1);
-  g.fillEllipse(x - 3 * s, y - 2.5 * s, 9 * s, 4.5 * s);
+  // 左下暗面、右上亮面，再加一道裂縫
+  g.fillStyle(mixColor(color, 0x000000, 0.3), 1);
+  g.fillEllipse(x - 3 * s, y + 1.5 * s, 11 * s, 7 * s);
+  g.fillStyle(color, 1);
+  g.fillEllipse(x + 1 * s, y - 0.5 * s, 13 * s, 8 * s);
+  g.fillStyle(mixColor(color, 0xffffff, 0.38), 1);
+  g.fillEllipse(x + 3 * s, y - 2.5 * s, 9 * s, 4.5 * s);
+  g.fillStyle(mixColor(color, 0xffffff, 0.7), 1);
+  g.fillRect(x + 3 * s, y - 4 * s, 3 * s, 1.5);
+  g.fillStyle(mixColor(color, 0x000000, 0.45), 0.8);
+  g.fillRect(x - 1 * s, y - 1 * s, 1.5, 4 * s);
 }
 
 /** 一朵小花 */
@@ -224,13 +320,35 @@ export function roundTree(
   mid: number,
   light: number,
 ): void {
-  g.fillStyle(mixColor(trunk, 0x000000, 0.4), 0.22);
-  g.fillEllipse(x + 4 * s, y + 2 * s, 46 * s, 9 * s);
+  // 影子往左下拉（光從右上來）
+  g.fillStyle(0x2a1a10, 0.22);
+  g.fillEllipse(x - 18 * s, y + 3 * s, 58 * s, 11 * s);
   poly(
     g,
-    [P(x - 5 * s, y), P(x + 5 * s, y), P(x + 3 * s, y - 36 * s), P(x - 3 * s, y - 36 * s)],
+    [
+      P(x - 9 * s, y + 1 * s),
+      P(x - 4 * s, y - 6 * s),
+      P(x - 3 * s, y - 36 * s),
+      P(x + 3 * s, y - 36 * s),
+      P(x + 4 * s, y - 6 * s),
+      P(x + 9 * s, y + 1 * s),
+    ],
     trunk,
   );
+  // 樹幹左邊暗、右邊一道亮
+  poly(
+    g,
+    [
+      P(x - 9 * s, y + 1 * s),
+      P(x - 4 * s, y - 6 * s),
+      P(x - 3 * s, y - 36 * s),
+      P(x - 0.5 * s, y - 36 * s),
+      P(x - 1 * s, y + 1 * s),
+    ],
+    mixColor(trunk, 0x000000, 0.35),
+  );
+  g.fillStyle(mixColor(trunk, 0xffd9a0, 0.35), 1);
+  g.fillRect(x + 1.6 * s, y - 34 * s, 1.5 * s, 28 * s);
   g.lineStyle(3 * s, trunk, 1);
   g.lineBetween(x, y - 24 * s, x - 14 * s, y - 40 * s);
   g.lineBetween(x, y - 28 * s, x + 15 * s, y - 42 * s);
@@ -238,6 +356,19 @@ export function roundTree(
     g.fillStyle(color, 1);
     for (const [dx, dy, r] of list) g.fillCircle(x + dx * s, y + dy * s, r * s);
   };
+  // 最底下一圈更暗的葉子，樹冠才有厚度
+  blobs(
+    [
+      [-3, -50, 25],
+      [-23, -38, 18],
+      [18, -40, 19],
+      [-10, -32, 14],
+      [8, -30, 13],
+      [-31, -34, 9],
+      [30, -38, 9],
+    ],
+    mixColor(dark, 0x000000, 0.3),
+  );
   blobs(
     [
       [0, -54, 25],
@@ -259,13 +390,23 @@ export function roundTree(
   );
   blobs(
     [
-      [-9, -65, 10],
-      [10, -58, 8],
-      [-21, -51, 6],
-      [20, -53, 5],
+      [2, -66, 10],
+      [15, -57, 8],
+      [-14, -52, 6],
+      [24, -51, 5],
     ],
     light,
   );
+  // 反光的小亮點與葉縫的暗點
+  const rnd = seeded(Math.round(x * 7 + y * 13 + s * 100));
+  for (let i = 0; i < 22; i++) {
+    const a = rnd() * Math.PI * 2;
+    const d = rnd() * 22;
+    const lx = x + Math.cos(a) * d * 1.2 * s;
+    const ly = y - 50 * s + Math.sin(a) * d * 0.8 * s;
+    g.fillStyle(i % 2 ? mixColor(light, 0xffffff, 0.5) : mixColor(dark, 0x000000, 0.3), 0.9);
+    g.fillRect(lx + (i % 2 ? 4 * s : -4 * s), ly + (i % 2 ? -4 * s : 4 * s), 2, 2);
+  }
 }
 
 /** 松樹；snow 給顏色就每一層蓋雪 */
@@ -278,18 +419,52 @@ export function pine(
   leaf: number,
   snow?: number,
 ): void {
+  g.fillStyle(0x1a1a2a, 0.2);
+  g.fillEllipse(x - 14 * s, y + 2 * s, 46 * s, 8 * s);
   g.fillStyle(trunk, 1);
   g.fillRect(x - 3 * s, y - 10 * s, 6 * s, 12 * s);
+  g.fillStyle(mixColor(trunk, 0x000000, 0.35), 1);
+  g.fillRect(x - 3 * s, y - 10 * s, 2.5 * s, 12 * s);
   const tiers = [
-    [26, -6, -34],
-    [21, -24, -50],
-    [15, -40, -64],
+    [27, -6, -30],
+    [23, -20, -44],
+    [18, -34, -56],
+    [12, -47, -68],
   ];
   for (const [half, bottom, top] of tiers) {
-    g.fillStyle(leaf, 1);
+    // 每一層：左邊背光、右邊受光，下緣是一齒一齒的針葉
+    g.fillStyle(mixColor(leaf, 0x000000, 0.28), 1);
     g.fillTriangle(x - half * s, y + bottom * s, x + half * s, y + bottom * s, x, y + top * s);
-    g.fillStyle(mixColor(leaf, 0x000000, 0.25), 1);
-    g.fillTriangle(x, y + bottom * s, x + half * s, y + bottom * s, x, y + top * s);
+    g.fillStyle(leaf, 1);
+    g.fillTriangle(
+      x - half * 0.1 * s,
+      y + bottom * s,
+      x + half * s,
+      y + bottom * s,
+      x,
+      y + top * s,
+    );
+    g.fillStyle(mixColor(leaf, 0xffffff, 0.22), 1);
+    g.fillTriangle(
+      x + half * 0.45 * s,
+      y + bottom * s,
+      x + half * s,
+      y + bottom * s,
+      x + half * 0.3 * s,
+      y + (bottom + (top - bottom) * 0.5) * s,
+    );
+    for (let i = -3; i <= 3; i++) {
+      const tx = x + (i / 3.5) * half * s;
+      g.fillStyle(i < 0 ? mixColor(leaf, 0x000000, 0.28) : leaf, 1);
+      g.fillTriangle(
+        tx - 3.4 * s,
+        y + bottom * s - 1,
+        tx + 3.4 * s,
+        y + bottom * s - 1,
+        tx,
+        y + (bottom + 5) * s,
+      );
+    }
     if (snow !== undefined) {
       g.fillStyle(snow, 1);
       const mid = bottom + (top - bottom) * 0.45;
@@ -469,11 +644,52 @@ export function house(
   roofColor: number,
   lit?: number,
 ): void {
+  // 影子往左下拉
+  g.fillStyle(0x1a1410, 0.22);
+  poly(
+    g,
+    [
+      P(cx - bw / 2, y - 1),
+      P(cx + bw / 2, y - 1),
+      P(cx + bw / 2 - 6, y + 5),
+      P(cx - bw * 0.95, y + 5),
+    ],
+    0x1a1410,
+    0.22,
+  );
   g.fillStyle(wall, 1);
   g.fillRect(cx - bw / 2, y - bh, bw, bh);
-  g.fillStyle(mixColor(wall, 0x000000, 0.25), 1);
-  g.fillRect(cx - bw / 2, y - bh, bw, 3);
+  // 牆：左邊三分之一背光，右邊緣一道亮，牆腳一條深色的石基
+  g.fillStyle(mixColor(wall, 0x000000, 0.22), 1);
+  g.fillRect(cx - bw / 2, y - bh, bw * 0.3, bh);
+  g.fillStyle(mixColor(wall, 0xffffff, 0.3), 1);
+  g.fillRect(cx + bw / 2 - 2, y - bh, 2, bh);
+  g.fillStyle(mixColor(wall, 0x000000, 0.4), 1);
+  g.fillRect(cx - bw / 2, y - 3, bw, 3);
+  // 屋簷下的陰影
+  g.fillStyle(0x1a1410, 0.3);
+  g.fillRect(cx - bw / 2, y - bh, bw, 4);
+  // 木柱
+  g.fillStyle(mixColor(wall, 0x000000, 0.45), 1);
+  g.fillRect(cx - bw / 2, y - bh, 2, bh);
+  g.fillRect(cx + bw / 2 - 4, y - bh, 2, bh);
   roof(g, cx, y - bh, bw * 1.3, bh * 0.75, roofColor);
+  // 屋瓦的紋路與受光的那一邊
+  g.fillStyle(mixColor(roofColor, 0x000000, 0.22), 0.7);
+  for (let dx = -bw * 0.5; dx <= bw * 0.5; dx += 5)
+    g.fillRect(cx + dx * 0.62, y - bh - bh * 0.7, 1.2, bh * 0.66);
+  g.fillStyle(mixColor(roofColor, 0xffffff, 0.3), 0.55);
+  poly(
+    g,
+    [
+      P(cx + bw * 0.12, y - bh - bh * 0.72),
+      P(cx + bw * 0.24, y - bh - bh * 0.72),
+      P(cx + bw * 0.58, y - bh - 3),
+      P(cx + bw * 0.34, y - bh - 3),
+    ],
+    mixColor(roofColor, 0xffffff, 0.3),
+    0.55,
+  );
   if (lit !== undefined) {
     g.fillStyle(lit, 0.25);
     g.fillRect(cx - bw * 0.2 - 2, y - bh * 0.72 - 2, bw * 0.4 + 4, bh * 0.5 + 4);

@@ -25,7 +25,6 @@ import {
   poly,
   rock,
   roof,
-  roundTree,
   seeded,
   sky,
   smoke,
@@ -58,6 +57,19 @@ import {
 
 export type SceneryTheme = RegionScene | 'city';
 
+/** 春天的桃花：深粉、粉、淡粉 */
+const BLOSSOM: readonly LeafPalette[] = [
+  { trunk: 0x5c3a2a, dark: 0xd9608c, mid: 0xf28cb0, light: 0xfbc0d4, glint: 0xffffff },
+  { trunk: 0x5c3a2a, dark: 0xe87aa0, mid: 0xf7a8c0, light: 0xfde2e9, glint: 0xffffff },
+  { trunk: 0x5c3a2a, dark: 0xe391a8, mid: 0xf9bccb, light: 0xfff0f3, glint: 0xffffff },
+];
+
+/** 夏天的綠樹 */
+const GREEN: readonly LeafPalette[] = [
+  { trunk: 0x7a4a2a, dark: 0x3f7a42, mid: 0x5fa252, light: 0x8fca6e, glint: 0xd8f5a8 },
+  { trunk: 0x7a4a2a, dark: 0x4f8a4a, mid: 0x6fae5e, light: 0x9fd07e, glint: 0xe2f8b8 },
+];
+
 /** 秋天的三種葉子：紅、橘、金 */
 const AUTUMN: readonly LeafPalette[] = [
   { trunk: 0x6f4426, dark: 0x9c2f1a, mid: 0xd4502a, light: 0xf08048, glint: 0xffc08a },
@@ -83,7 +95,7 @@ function slope(p: Paint): void {
   clouds(p, 13, 3);
 
   const m = layer(p);
-  ground(p, m, 0xeac27a, 0xc88c46);
+  ground(p, m, 0xeac27a, 0xc88c46, 'plain');
   grassField(p, m, 31, 0xd8a658, 0xb07a34, 0xffe6a8);
   // 村口後面的樹林，中間留一個缺口給路
   const cx = w * 0.5;
@@ -169,6 +181,15 @@ function bambooFerry(p: Paint): void {
   for (const s of onGround(p, 25, 22)) tuft(m, s.x, s.y, s.s, 0x7fa86a);
   for (const s of onGround(p, 26, 10, 0.15)) flower(m, s.x, s.y, s.s, 0xffffff, 0xf2c14e);
   for (const s of onGround(p, 27, 5, 0.3)) rock(m, s.x, s.y, s.s, 0x9fb0a0);
+  // 從碼頭往鏡頭來的小路，路邊幾顆大石頭
+  dirtPath(p, m, 30, dx, w * 0.42, 0xe6dcb6);
+  for (const [rx, ry, rs] of [
+    [0.24, 0.34, 2],
+    [0.7, 0.3, 1.6],
+    [0.82, 0.62, 2.8],
+  ]) {
+    rock(m, rx * w, hy + (h - hy) * ry, rs, 0x9fb0a0);
+  }
   fog(p, 28, [hy - 34, hy - 12, hy + 6], 0xffffff, 0.4);
   // 近處兩側的粗竹，長到畫面上面
   const n = layer(p);
@@ -222,7 +243,7 @@ function snowRidge(p: Paint): void {
   mountains(p, g, 33, 'peaks', hy, hy * 0.46 * 0.66, 0x9aa9cc, 6);
   const m = layer(p);
   mountains(p, m, 34, 'hills', hy + 2, hy * 0.16, 0xdfe7f3, 5);
-  ground(p, m, 0xf4f7fb, 0xd5e0ef);
+  ground(p, m, 0xf4f7fb, 0xd5e0ef, 'bare');
   // 雪地的起伏與陰影
   for (const s of onGround(p, 35, 14)) {
     m.fillStyle(0xc3d1e6, 0.5);
@@ -242,17 +263,27 @@ function snowRidge(p: Paint): void {
   m.fillEllipse(cx, hy + 10, 70, 12);
   smoke(p, cx + 15.5, hy - 56, 0xdfe7f3, 0.8);
   const t = layer(p);
+  // 小木屋旁的柵欄，遠處一排小松樹
+  woodFence(t, w * 0.36, w * 0.5, hy + 12, 0.8);
+  const far = seeded(37);
+  for (let i = 0; i < 16; i++) {
+    const fx = far() * w;
+    if (Math.abs(fx - cx) < 46) continue;
+    pine(t, fx, hy + 1 + far() * 3, 0.36 + far() * 0.16, 0x4f3626, 0x3f6a5c, 0xeef3fa);
+  }
+  // 松樹越靠近鏡頭越大
+  const gh = p.h - hy;
   const trees = [
-    [0.05, 1.1],
-    [0.13, 0.8],
     [0.44, 0.75],
-    [0.56, 0.95],
     [0.68, 0.8],
+    [0.56, 0.95],
+    [0.13, 1.0],
     [0.87, 1.15],
-    [0.96, 0.9],
+    [0.96, 1.5],
+    [0.03, 1.7],
   ];
   for (const [tx, s] of trees)
-    pine(t, tx * w, hy + 6 + (s - 0.75) * 16, s, 0x4f3626, 0x2f5a4a, 0xffffff);
+    pine(t, tx * w, hy + 6 + (s - 0.75) * gh * 0.4, s, 0x4f3626, 0x2f5a4a, 0xffffff);
   drifting(p, 'snow', [0xffffff]);
 }
 
@@ -297,7 +328,7 @@ function lanternFair(p: Paint): void {
     m.fillStyle(0xffb347, 0.14);
     m.fillEllipse(cx, hy + 10, bw * 1.4, 18);
   }
-  ground(p, m, 0x55354a, 0x2f1c28);
+  ground(p, m, 0x55354a, 0x2f1c28, 'bare');
   // 石板路與地上的燈影
   for (const s of onGround(p, 44, 46)) {
     m.fillStyle(0x1a0f18, 0.35);
@@ -416,17 +447,25 @@ function peachValley(p: Paint): void {
   }
   for (const s of onGround(p, 58, 16, 0.14)) tuft(m, s.x, s.y, s.s, 0x86b86a);
   for (const s of onGround(p, 59, 8, 0.2)) flower(m, s.x, s.y, s.s, 0xfff2a8, 0xf0a030);
-  const trees = [
-    [0.05, 1.2],
-    [0.16, 0.9],
-    [0.29, 1.0],
-    [0.71, 1.0],
-    [0.84, 0.88],
-    [0.95, 1.2],
+  // 過橋往鏡頭來的小路
+  dirtPath(p, m, 60, bx, w * 0.56, 0xeadcb4);
+  // 溪對岸遠遠的一排桃花林（橋的位置留一個缺口）
+  treeLine(p, m, 54, hy + 1, 9, BLOSSOM, 0.25, 0xe9f3c8, [bx - 46, bx + 46]);
+  // 兩旁的桃樹，越靠近鏡頭越大
+  const gh = p.h - hy;
+  const trees: [number, number, number][] = [
+    [0.3, 0.72, 1],
+    [0.7, 0.75, 2],
+    [0.2, 0.9, 0],
+    [0.81, 0.92, 1],
+    [0.1, 1.08, 2],
+    [0.91, 1.12, 0],
+    [0.015, 1.36, 1],
+    [0.99, 1.4, 2],
   ];
-  for (const [tx, s] of trees) {
-    roundTree(m, tx * w, hy + 26 + (s - 0.88) * 14, s, 0x5c3a2a, 0xe87aa0, 0xf7a8c0, 0xfde2e9);
-  }
+  trees.forEach(([tx, s, c], i) => {
+    lushTree(m, tx * w, hy + 24 + (s - 0.72) * gh * 0.34, s, BLOSSOM[c], 150 + i);
+  });
   drifting(p, 'petal', [0xf7a8c0, 0xfbd0dc, 0xffffff]);
 }
 
@@ -453,7 +492,7 @@ function desertRoad(p: Paint): void {
   dune.setPosition(-9, 3);
   mountains(p, dune, 63, 'dunes', hy + 4, hy * 0.2, 0xecc37f, 4);
   const n = layer(p);
-  ground(p, n, 0xefd6a0, 0xdcb672);
+  ground(p, n, 0xefd6a0, 0xdcb672, 'bare');
   // 風吹出來的沙紋
   for (const s of onGround(p, 64, 34)) {
     n.fillStyle(0xc99a56, 0.45);
@@ -461,7 +500,19 @@ function desertRoad(p: Paint): void {
     n.fillStyle(0xfbe9bf, 0.5);
     n.fillEllipse(s.x - 5 * s.s, s.y - 2 * s.s, 34 * s.s, 1.8 * s.s);
   }
+  // 商隊踩出來的路，往遠處的台地去
+  dirtPath(p, n, 68, w * 0.52, w * 0.4, 0xf6e2b2);
   for (const s of onGround(p, 65, 7, 0.2)) rock(n, s.x, s.y, s.s, 0xb98a5a);
+  // 路邊幾堆被風磨圓的大石頭
+  for (const [rx, ry, rs] of [
+    [0.16, 0.3, 2.6],
+    [0.2, 0.36, 1.7],
+    [0.8, 0.26, 2.2],
+    [0.95, 0.62, 3.4],
+    [0.03, 0.7, 3],
+  ]) {
+    rock(n, rx * w, hy + (p.h - hy) * ry, rs, 0xc08a56);
+  }
   // 乾草叢
   for (const s of onGround(p, 66, 9, 0.1)) tuft(n, s.x, s.y, s.s, 0xa9884a);
   // 枯樹與路標旗
@@ -547,6 +598,17 @@ function mistMarsh(p: Paint): void {
     }
   }
   for (const s of onGround(p, 75, 18)) tuft(m, s.x, s.y, s.s, 0x5e7a52);
+  // 靠近鏡頭的兩棵大枯樹與長滿青苔的石頭
+  deadTree(m, w * 0.02, hy + gh * 0.5, 2.1, 0x2a3830, rnd);
+  deadTree(m, w * 0.985, hy + gh * 0.42, 1.8, 0x2f3d34, rnd);
+  for (const [rx, ry, rs] of [
+    [0.1, 0.44, 2.4],
+    [0.6, 0.4, 1.8],
+    [0.92, 0.56, 2.8],
+    [0.45, 0.9, 3],
+  ]) {
+    rock(m, rx * w, hy + gh * ry, rs, 0x6f8a70);
+  }
   fog(p, 76, [hy + 6, hy + gh * 0.4], 0xdfe8dc, 0.22);
   sparkles(p, 77, 16, { x: 0, y: hy - 50, width: w, height: gh * 0.7 + 50 }, 0xe6ff8a, 1.8, 14);
 }
@@ -616,7 +678,7 @@ function flameRidge(p: Paint): void {
   smoke(p, w * 0.22, hy * 0.5 - 4, 0x3a2a2e, 1.2, 4);
   const m = layer(p);
   mountains(p, m, 83, 'peaks', hy + 2, hy * 0.16, 0x231012, 9);
-  ground(p, m, 0x55302a, 0x2a1516);
+  ground(p, m, 0x55302a, 0x2a1516, 'bare');
   // 地上的裂縫，底下透出岩漿的光
   const rnd = seeded(84);
   const cracks = layer(p);
@@ -736,7 +798,7 @@ function blueBay(p: Paint): void {
   m.fillCircle(lx, hy - 70, 12);
   poly(m, [P(lx - 6, hy - 73), P(lx + 6, hy - 73), P(lx, hy - 81)], 0xd9442b);
   // 沙灘、浪花
-  ground(p, m, 0xf6e7bd, 0xe0c488);
+  ground(p, m, 0xf6e7bd, 0xe0c488, 'bare');
   m.fillStyle(0xd9c08a, 1);
   m.fillRect(0, hy, w, 7);
   const foam = layer(p);
@@ -783,6 +845,16 @@ function blueBay(p: Paint): void {
   }
   for (const s of onGround(p, 96, 4, 0.3)) rock(n, s.x, s.y, s.s, 0xa9a08f);
   palm(n, w * 0.06, hy + 30, 1.15, 22);
+  // 最靠近鏡頭的一棵大椰子樹，和沙灘上的礁石
+  palm(n, w * 0.94, hy + (p.h - hy) * 0.55, 1.9, -30);
+  for (const [rx, ry, rs] of [
+    [0.3, 0.3, 1.8],
+    [0.34, 0.36, 1.2],
+    [0.62, 0.5, 2.4],
+    [0.1, 0.8, 3],
+  ]) {
+    rock(n, rx * w, hy + (p.h - hy) * ry, rs, 0x9aa3a8);
+  }
   palm(n, w * 0.15, hy + 18, 0.85, -14);
   palm(n, w * 0.7, hy + 16, 0.8, 16);
   birds(p, 97, 3, 0xffffff);
@@ -860,7 +932,7 @@ function cloudWalk(p: Paint): void {
   birds(p, 103, 2, 0xffffff, 0x2a2a2a);
   const m = layer(p);
   // 懸崖頂的岩石地面
-  ground(p, m, 0xd6d9e2, 0xb1b6c6);
+  ground(p, m, 0xd6d9e2, 0xb1b6c6, 'bare');
   for (const s of onGround(p, 104, 26)) {
     m.fillStyle(0x8f9db8, 0.4);
     m.fillRect(s.x, s.y, 30 * s.s, 1.5);
@@ -1077,8 +1149,22 @@ function homeCity(p: Paint): void {
     const t = (s.y - hy) / (h - hy);
     if (Math.abs(s.x - cx) > 50 + t * 170) flower(m, s.x, s.y, s.s, 0xfde2e7, 0xf2c14e);
   }
-  roundTree(m, w * 0.05, hy + 26, 1.15, 0x7a4a2a, 0x4f8a4a, 0x6fae5e, 0x9fd07e);
-  roundTree(m, w * 0.95, hy + 24, 1.1, 0x7a4a2a, 0x4f8a4a, 0x6fae5e, 0x9fd07e);
+  // 城牆腳下一排樹（城門前留空），大路兩旁的腳印旗與大樹
+  treeLine(p, m, 129, hy + 5, 11, GREEN, 0.12, 0xdfeecb, [cx - 60, cx + 60]);
+  pawBanner(m, cx - 50, hy + 16, 0.9, 0xd9542b);
+  pawBanner(m, cx + 36, hy + 16, 0.9, 0xd9542b);
+  const gh = h - hy;
+  const big: [number, number, number][] = [
+    [0.2, 0.82, 0],
+    [0.8, 0.85, 1],
+    [0.1, 1.05, 1],
+    [0.9, 1.08, 0],
+    [0.015, 1.36, 0],
+    [0.99, 1.4, 1],
+  ];
+  big.forEach(([tx, s, c], i) => {
+    lushTree(m, tx * w, hy + 14 + (s - 0.8) * gh * 0.36, s, GREEN[c], 170 + i);
+  });
   birds(p, 128, 2, 0x5a4a3a);
   drifting(p, 'petal', [0xf7c6d0, 0xfde2e7]);
 }
