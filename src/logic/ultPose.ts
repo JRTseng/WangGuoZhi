@@ -94,6 +94,27 @@ const TABLE: Readonly<Record<string, readonly [UltPose, number]>> = {
   atu: ['snooze', -8], // 悶聲扛
   nuomi: ['leap', -4], // 黏黏好運
   paofu: ['roll', 5], // 泡芙呼呼
+  // 喵國（T029）
+  juzuo: ['howl', 12], // 開飯令
+  huwen: ['pounce', 12], // 連環貓拳
+  moling: ['guard', 12], // 禮服鐵壁
+  xiaoman: ['crouch', 12], // 箱中妙計
+  xuetuan: ['roll', 12], // 歪打正著
+  mengda: ['guard', -12], // 山貓坐鎮
+  yeming: ['spin', 12], // 月下迷蹤
+  baoxing: ['dash', 12], // 星斑連閃
+  ruyi: ['snooze', 12], // 軟綿綿守護
+  lanjue: ['paw', 12], // 紳士茶會
+  zhaocai: ['paw', -12], // 招手來福
+  sennuo: ['rear', 12], // 森林屏障
+  lanyan: ['tailwhip', 12], // 藍眼奇謀
+  yinsi: ['paw', 14], // 銀毛輕撫
+  chiying: ['leap', 12], // 屋頂突襲
+  huilan: ['crouch', -12], // 靜觀其變
+  zhezhe: ['snooze', -12], // 圓眼呼嚕
+  aban: ['howl', -12], // 好鄰居
+  guangguang: ['dash', -12], // 暖身衝刺
+  tuanzi: ['snooze', 14], // 毛球擋路
 };
 
 /** 這隻狗（或敵人）放大絕招時的姿勢；表裡沒有的（敵方頭目、精銳）用長嚎或撲擊 */

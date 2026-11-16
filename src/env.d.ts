@@ -48,6 +48,7 @@ interface WgzDebugState {
     lord?: { level: number; exp: number; title: string };
     buttons: Record<
       | 'account'
+      | 'faction'
       | 'mail'
       | 'recruit'
       | 'shop'
@@ -117,6 +118,14 @@ interface WgzDebugState {
         button: WgzRect;
       }
     >;
+  };
+  /** 選陣營畫面（T029） */
+  faction?: {
+    /** 現在的陣營；還沒選是空字串 */
+    current: 'dog' | 'cat' | '';
+    fresh: boolean;
+    dog: WgzRect;
+    cat: WgzRect;
   };
   /** 登天塔畫面 */
   tower?: {

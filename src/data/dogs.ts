@@ -1,4 +1,5 @@
 import type { BattleTrait } from '../logic/battle';
+import { CATS } from './cats';
 
 /**
  * 官方已釋放的狗狗武將。前 5 隻依 docs/GDD.md，玩家一開始就擁有（見 STARTER_DOG_IDS）；
@@ -17,6 +18,11 @@ export type DogRole =
 export type DogRarity = 'N' | 'R' | 'SR' | 'SSR';
 /** 體型（T007） */
 export type DogSize = '小型' | '中型' | '大型';
+
+/** 陣營（T029）：汪國的狗、喵國的貓 */
+export type Faction = 'dog' | 'cat';
+export const FACTIONS: readonly Faction[] = ['dog', 'cat'];
+export const FACTION_NAMES: Readonly<Record<Faction, string>> = { dog: '汪國', cat: '喵國' };
 
 export interface DogSkill {
   name: string;
@@ -50,9 +56,11 @@ export interface DogData {
   rewardOnly?: boolean;
   /** 專屬特性（T024）：戰鬥中多一點自己的打法，規則在 src/logic/battle.ts 的 BattleTrait */
   trait?: BattleTrait;
+  /** 陣營（T029）：沒寫就是汪國的狗，'cat' 是喵國的貓 */
+  faction?: Faction;
 }
 
-export const DOGS: readonly DogData[] = [
+const DOG_LIST: readonly DogData[] = [
   {
     id: 'daer',
     name: '大耳',
@@ -849,6 +857,14 @@ export const DOGS: readonly DogData[] = [
   },
 ];
 
+/** 全部武將：50 隻狗＋喵國的貓（T029）。狗在前面，順序不變 */
+export const DOGS: readonly DogData[] = [...DOG_LIST, ...CATS];
+
+/** 這隻是哪個陣營的 */
+export function factionOf(d: Pick<DogData, 'faction'>): Faction {
+  return d.faction ?? 'dog';
+}
+
 /** 新玩家一開始就擁有的狗狗 */
 export const STARTER_DOG_IDS: readonly string[] = [
   'daer',
@@ -857,6 +873,20 @@ export const STARTER_DOG_IDS: readonly string[] = [
   'xiaosuan',
   'abai',
 ];
+
+/** 各陣營一開始就有的五隻（第一隻是預設的主頁角色與隊長） */
+export const STARTER_IDS: Readonly<Record<Faction, readonly string[]>> = {
+  dog: STARTER_DOG_IDS,
+  cat: ['juzuo', 'huwen', 'moling', 'xiaoman', 'xuetuan'],
+};
+
+/**
+ * 這個陣營的玩家看得到哪些武將：自己陣營的全部，加上已經擁有的
+ * （舊存檔換到喵國，原本的狗還在）。
+ */
+export function rosterOf(faction: Faction, owned: readonly string[] = []): DogData[] {
+  return DOGS.filter((d) => factionOf(d) === faction || owned.includes(d.id));
+}
 
 /** 依 id 找狗狗 */
 export function findDog(id: string): DogData | undefined {

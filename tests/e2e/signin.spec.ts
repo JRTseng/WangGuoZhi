@@ -191,7 +191,7 @@ test('七日簽到：要連續簽，漏了一天就從第 1 天重新開始', as
 });
 
 test('七日簽到：每天第一次進主頁自動跳出，回主頁不會再跳', async ({ page }) => {
-  await page.goto('/?fast=1&limits=1&signin=1');
+  await page.goto('/?fast=1&limits=1&signin=1&faction=0');
   // 今天還沒簽：一進主頁就被帶到簽到畫面
   await waitScene(page, 'SigninScene');
   expect(await signin(page)).toMatchObject({ ready: true, index: 0 });

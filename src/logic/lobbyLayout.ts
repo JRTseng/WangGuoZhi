@@ -15,6 +15,8 @@ export type MiniCardKey = (typeof MINI_CARD_KEYS)[number];
 export interface LobbyLayout {
   /** 左上頭像／等級／總戰力 */
   account: Rect;
+  /** 陣營徽章（T029）：帳號卡旁邊的小牌子，點了去選陣營畫面 */
+  faction: Rect;
   /** 右上資源（糧草、骨頭幣） */
   resources: Rect[];
   mail: Rect;
@@ -96,6 +98,7 @@ function landscapeLayout(w: number, h: number): LobbyLayout {
   const mw = (cw - gap) / 2;
   return {
     account: { x: m, y: 8, width: 240, height: 74 },
+    faction: { x: m + 240 + 8, y: 8 + 22, width: 84, height: 30 },
     resources,
     mail,
     shortcuts,
@@ -157,6 +160,7 @@ function portraitLayout(w: number, h: number): LobbyLayout {
   const dog = { x: w * 0.56, y: rowY - 40, scale: 1.35 };
   return {
     account: { x: m, y: 12, width: 216, height: 70 },
+    faction: { x: m + 216 + 8, y: 12 + 20, width: 84, height: 30 },
     resources,
     mail,
     shortcuts,
@@ -191,6 +195,7 @@ function bannerAbove(dog: { x: number; y: number; scale: number }): Rect {
 export function tappableRects(L: LobbyLayout): Record<string, Rect> {
   return {
     account: L.account,
+    faction: L.faction,
     mail: L.mail,
     ...L.shortcuts,
     ...L.menu,

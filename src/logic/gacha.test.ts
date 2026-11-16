@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { DOGS, STARTER_DOG_IDS, findDog } from '../data/dogs';
+import { DOGS as ALL, STARTER_DOG_IDS, factionOf, findDog } from '../data/dogs';
+
+/** 汪國的狗（喵國的貓另外在 faction.test.ts 檢查） */
+const DOGS = ALL.filter((d) => factionOf(d) === 'dog');
 import { createInitialState } from '../state/gameState';
 import { createRng } from './battle';
 import {
@@ -25,9 +28,9 @@ const rankOf = (id: string) => RARITIES.indexOf(findDog(id)!.rarity!);
 
 describe('狗狗資料（T007）', () => {
   it('每隻狗都有稀有度與體型，id 不重複', () => {
-    expect(new Set(DOGS.map((d) => d.id)).size).toBe(DOGS.length);
-    expect(new Set(DOGS.map((d) => d.name)).size).toBe(DOGS.length);
-    for (const d of DOGS) {
+    expect(new Set(ALL.map((d) => d.id)).size).toBe(ALL.length);
+    expect(new Set(ALL.map((d) => d.name)).size).toBe(ALL.length);
+    for (const d of ALL) {
       expect(d.rarity, d.name).toBeDefined();
       expect(d.size, d.name).toBeDefined();
     }
