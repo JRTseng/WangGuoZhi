@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { PIXEL_SIZE } from '../logic/atmosphere';
 import { COLORS, RARITY_COLORS } from '../config';
 import { DOGS, findDog, type DogData } from '../data/dogs';
 import { createRng, mixSeed } from '../logic/battle';
@@ -152,6 +153,7 @@ export class FrisbeeScene extends Phaser.Scene {
       color: d.color,
       accent: d.accent,
       gear: gearOf(getState(), d.id),
+      pixel: PIXEL_SIZE / l.dogScale,
     });
     this.sprite.setScale(l.dogScale).setDepth(10);
     this.sprite.play('wag');

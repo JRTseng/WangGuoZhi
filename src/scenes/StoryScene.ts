@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { PIXEL_SIZE } from '../logic/atmosphere';
 import { startNext, type NextFrom } from './components/nextStage';
 import { COLORS } from '../config';
 import { findDog } from '../data/dogs';
@@ -214,8 +215,13 @@ export class StoryScene extends Phaser.Scene {
     const dog = ln.speaker ? findDog(ln.speaker) : undefined;
     if (dog) {
       const sx = landscape ? w * 0.18 : w * 0.3;
-      this.speaker = new DogSprite(this, sx, box.y - 6, { color: dog.color, accent: dog.accent });
-      this.speaker.setScale(landscape ? 0.85 : 1.15).setDepth(5);
+      const size = landscape ? 0.85 : 1.15;
+      this.speaker = new DogSprite(this, sx, box.y - 6, {
+        color: dog.color,
+        accent: dog.accent,
+        pixel: PIXEL_SIZE / size,
+      });
+      this.speaker.setScale(size).setDepth(5);
       this.speaker.play('wag');
     }
 
