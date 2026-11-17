@@ -1,3 +1,4 @@
+import { wt } from '../../data/worldText';
 import Phaser from 'phaser';
 import { COLORS } from '../../config';
 import { findDog, type DogData } from '../../data/dogs';
@@ -308,7 +309,7 @@ export class DogPicker {
           this.scene,
           l.grid.x + l.grid.width / 2,
           l.grid.y + Math.min(60, l.grid.height / 2),
-          '沒有符合條件的狗狗\n點「全部」看所有狗狗',
+          wt('沒有符合條件的狗狗\n點「全部」看所有狗狗'),
           16,
           COLORS.inkSoft,
         )
@@ -538,7 +539,7 @@ export class DogPicker {
         l.boardHint.x,
         l.boardHint.y,
         this.notice ||
-          `${this.o.title()}・${empty ? '把狗狗拖到格子上' : '拖曳換位置・點一下移出'}`,
+          wt(`${this.o.title()}・${empty ? '把狗狗拖到格子上' : '拖曳換位置・點一下移出'}`),
         12,
         this.notice ? '#b0413e' : COLORS.inkSoft,
         !!this.notice,

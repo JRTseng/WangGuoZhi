@@ -1,3 +1,4 @@
+import { wt } from '../data/worldText';
 import Phaser from 'phaser';
 import { COLORS, RARITY_COLORS, rarityHex } from '../config';
 import { DOGS, findDog, type DogData } from '../data/dogs';
@@ -175,14 +176,18 @@ export class GearScene extends Phaser.Scene {
       const r = equip(st, this.dogId, g.id);
       if (!r.ok) {
         if (r.error !== 'exclusive') return;
-        this.note = `「${g.name}」是${findDog(g.exclusive ?? '')?.name ?? ''}的專屬裝備，別的狗穿不下`;
+        this.note = wt(
+          `「${g.name}」是${findDog(g.exclusive ?? '')?.name ?? ''}的專屬裝備，別的狗穿不下`,
+        );
         this.render();
         return;
       }
       setState(r.state);
       playSfx('equip');
       const from = r.from ? findDog(r.from)?.name : undefined;
-      this.note = from ? `從${from}身上換來「${g.name}」` : `「${g.name}」（${g.pun}）：${g.note}`;
+      this.note = from
+        ? `從${from}身上換來「${g.name}」`
+        : `「${g.name}」（${g.pun}）：${wt(g.note)}`;
     }
     this.render();
   }
@@ -411,7 +416,7 @@ export class GearScene extends Phaser.Scene {
       const status = mine
         ? `${owner ? '專屬・' : ''}穿著中・點一下脫下`
         : item.exclusive && item.exclusive !== this.dogId
-          ? `${owner}專屬・別的狗不能穿`
+          ? wt(`${owner}專屬・別的狗不能穿`)
           : owner
             ? `${owner}專屬・點一下穿上`
             : spare > 0

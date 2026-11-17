@@ -1,3 +1,4 @@
+import { wt } from '../data/worldText';
 import { playerFaction } from '../logic/faction';
 import Phaser from 'phaser';
 import { COLORS } from '../config';
@@ -130,7 +131,7 @@ export class SigninScene extends Phaser.Scene {
     const claim = new Button(
       this,
       L.claim,
-      !v.ready ? '今天已簽到' : needPick ? '選狗狗領取' : `簽到領取（第 ${v.index + 1} 天）`,
+      !v.ready ? '今天已簽到' : needPick ? wt('選狗狗領取') : `簽到領取（第 ${v.index + 1} 天）`,
       () => this.claim(),
       19,
     );
@@ -199,7 +200,7 @@ export class SigninScene extends Phaser.Scene {
     const lines = signinRewardText(cell.reward).split('・');
     // 自選碎片：多一行告訴玩家點這張卡可以選
     if (cell.reward.shards && !claimed) {
-      lines.push(cell.reward.shards.dogId ? '點這裡換一隻' : '點這裡選狗狗');
+      lines.push(cell.reward.shards.dogId ? '點這裡換一隻' : wt('點這裡選狗狗'));
     }
     const lineH = 17;
     const textTop = c.y + c.height - 34 - lines.length * lineH;
@@ -329,7 +330,7 @@ export class SigninScene extends Phaser.Scene {
         this,
         box.x + P.title.x,
         box.y + P.title.y,
-        '第 7 天要哪隻 SSR 狗狗的碎片？',
+        wt('第 7 天要哪隻 SSR 狗狗的碎片？'),
         17,
         COLORS.ink,
         true,

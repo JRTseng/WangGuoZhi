@@ -1,3 +1,4 @@
+import { wt } from '../data/worldText';
 import type { BattleRole } from './battle';
 
 /**
@@ -136,7 +137,11 @@ const isSkillRole = (role: string | undefined): role is SkillRole =>
 /** 這個定位的 10 個成長技能（照學會的等級排）；敵方的定位沒有 */
 export function levelSkillsOf(role: string | undefined): LevelSkill[] {
   if (!isSkillRole(role)) return [];
-  return LADDERS[role].map(([name, perks], i) => ({ level: (i + 1) * SKILL_EVERY, name, perks }));
+  return LADDERS[role].map(([name, perks], i) => ({
+    level: (i + 1) * SKILL_EVERY,
+    name: wt(name),
+    perks,
+  }));
 }
 
 /** 這個等級已經學會的技能 */

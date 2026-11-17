@@ -1,3 +1,4 @@
+import { wt } from '../data/worldText';
 import { ALL_GEARS } from '../data/equipment';
 import { REGIONS } from '../data/regions';
 import type { Resources } from '../data/resources';
@@ -292,7 +293,7 @@ function featViews(s: QuestFields): QuestView[] {
     return {
       id: featId(f.key, tier),
       tab: 'feat',
-      title: f.title.replace('{n}', String(target)),
+      title: wt(f.title).replace('{n}', String(target)),
       progress: Math.min(target, value),
       target,
       done: value >= target,

@@ -3,6 +3,7 @@ import { REGIONS, findStage } from './regions';
 import { STORIES, STORIES_BY_FACTION, findStory } from './stories';
 import { towerStage } from './tower';
 import { applyWorld, worldFaction } from './world';
+import { wt } from './worldText';
 import { breedArtOf } from '../scenes/components/breedArt';
 import { findDog } from './dogs';
 import { MAIN_QUESTS } from '../logic/quests';
@@ -93,5 +94,15 @@ describe('兩個陣營的世界（T031）', () => {
     expect(STORIES.map((s) => s.id)).toEqual(cat.map((s) => s.id));
     // 汪國的劇情還是找得到（存檔裡看過的不會被清掉）
     expect(findStory('prologue')).toBeTruthy();
+  });
+
+  it('畫面上的字跟著陣營換：狗狗說成貓咪，回到汪國就換回來', () => {
+    expect(wt('擁有 {n} 隻狗狗')).toBe('擁有 {n} 隻狗狗');
+    applyWorld('cat');
+    expect(wt('擁有 {n} 隻狗狗')).toBe('擁有 {n} 隻貓咪');
+    expect(wt('汪國招賢榜')).toBe('喵國招賢榜');
+    expect(wt('別的狗穿不下')).toBe('別的貓穿不下');
+    applyWorld('dog');
+    expect(wt('汪王')).toBe('汪王');
   });
 });

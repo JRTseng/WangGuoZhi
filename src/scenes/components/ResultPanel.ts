@@ -1,3 +1,4 @@
+import { wt } from '../../data/worldText';
 import Phaser from 'phaser';
 import { COLORS, FONT_FAMILY } from '../../config';
 import { findDog } from '../../data/dogs';
@@ -244,7 +245,9 @@ export class ResultPanel extends Phaser.GameObjects.Container {
       items.push(line);
 
       const amount = Math.max(...gains.map((g) => g.exp));
-      const title = win ? `每隻狗狗經驗 +${amount}` : `每隻狗狗經驗 +${amount}（打輸拿一半）`;
+      const title = win
+        ? wt(`每隻狗狗經驗 +${amount}`)
+        : wt(`每隻狗狗經驗 +${amount}（打輸拿一半）`);
       items.push(text(gx, y + 4, title, 15, COLORS.inkSoft, true));
       y += GAINS_HEAD;
 

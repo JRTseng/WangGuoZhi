@@ -1,3 +1,4 @@
+import { wt } from '../data/worldText';
 import { DOGS, findDog } from '../data/dogs';
 import { BACKGROUNDS } from '../data/backgrounds';
 import { findRegionOfStage, findStage } from '../data/regions';
@@ -428,14 +429,14 @@ export function resultNotes(
   const floor = towerFloorOf(record.stageId);
   if (!record.win && floor) {
     notes.push('這一層還沒過，調整隊伍再來（爬塔不花體力）');
-    notes.push('狗狗們掛彩了，休息一下就好（不影響能力）');
+    notes.push(wt('狗狗們掛彩了，休息一下就好（不影響能力）'));
   } else if (record.win && floor) {
     notes.push(floor >= TOWER_FLOORS ? '登上塔頂了！' : `通過第 ${floor} 層！`);
     const gift = findGear(record.towerGearId ?? '');
     if (gift) notes.push(`獲得爬塔限定裝備「${gift.name}」`);
   } else if (!record.win) {
     notes.push('只帶回三成物資，關卡還沒通過');
-    notes.push('狗狗們掛彩了，休息一下就好（不影響能力）');
+    notes.push(wt('狗狗們掛彩了，休息一下就好（不影響能力）'));
   } else if (!before.cleared.includes(record.stageId)) notes.push('通過關卡！下一關已開放');
   const drop = findGear(record.dropGearId ?? '');
   if (drop) notes.push(dropNote(drop));

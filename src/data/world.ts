@@ -12,6 +12,7 @@ import {
 } from './regions';
 import { STORIES, STORIES_BY_FACTION } from './stories';
 import { rebuildTower } from './tower';
+import { setWorldWords } from './worldText';
 
 /**
  * 兩個陣營看到的世界不一樣（T031，Jimmy 2026-11-17：「劇情可以做設計不一樣的…敵人也可以改一下」）。
@@ -107,6 +108,7 @@ export function worldFaction(): Faction {
 
 /** 把關卡敵人、頭目、章節介紹、劇情、登天塔換成這個陣營的版本 */
 export function applyWorld(faction: Faction): void {
+  setWorldWords(faction);
   if (faction === applied) return;
   if (!original) {
     original = new Map(

@@ -1,3 +1,4 @@
+import { wt } from '../data/worldText';
 import { DOGS, findDog } from '../data/dogs';
 import type { GameState } from '../state/gameState';
 import { autoTeam, type DogContext } from './dogFilter';
@@ -56,8 +57,8 @@ export function placeDog(
   if (team.includes(dogId)) {
     return { state: setDogCell(state, team, dogId, row, lane), team: [...team], error: null };
   }
-  if (!state.owned.includes(dogId)) return fail('還沒擁有這隻狗');
-  if (busyDogIds(state).has(dogId)) return fail('寄宿中的狗要先接回來');
+  if (!state.owned.includes(dogId)) return fail(wt('還沒擁有這隻狗'));
+  if (busyDogIds(state).has(dogId)) return fail(wt('寄宿中的狗要先接回來'));
   const cells = teamCells(state, team);
   const at = cells.findIndex((c) => c.row === row && c.lane === lane);
   if (at < 0 && team.length >= max) {

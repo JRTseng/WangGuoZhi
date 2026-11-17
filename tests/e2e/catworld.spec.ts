@@ -46,3 +46,17 @@ test('喵國的世界：劇情是找九命鈴那一套，關卡的敵人與頭�
     expect(n.endsWith('貓')).toBe(true);
   }
 });
+
+test('喵國的成就說的是貓咪，不是狗狗', async ({ page }) => {
+  await openLobby(page, '?fast=1&faction=cat');
+  await tap(page, (await wgz(page)).lobby!.buttons.quest);
+  await waitScene(page, 'QuestScene');
+  await tap(page, (await wgz(page)).quest!.tabs.feat);
+  await page.waitForFunction(() =>
+    window.__WGZ__?.quest?.rows.some((r) => r.id.startsWith('feat-dogs')),
+  );
+  const rows = (await wgz(page)).quest!.rows;
+  for (const r of rows) expect(r.title).not.toContain('狗');
+  expect(rows.find((r) => r.id.startsWith('feat-dogs'))!.title).toContain('貓咪');
+  await page.screenshot({ path: `${SHOTS}/cat-feats.png` });
+});
