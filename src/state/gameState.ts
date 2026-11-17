@@ -1,3 +1,4 @@
+import type { HomeState } from '../logic/home';
 import { DOGS, STARTER_DOG_IDS, type Faction } from '../data/dogs';
 import type { GearSlot } from '../data/equipment';
 import type { ThemeId } from '../data/regions';
@@ -309,6 +310,8 @@ export interface GameState {
   lord: LordState;
   /** 任務（T011）：領過的獎勵、累計勝場與今天的每日任務（規則見 src/logic/quests.ts） */
   quests: QuestState;
+  /** 我的家（T033）：住哪幾隻、擺了哪些家具（規則見 src/logic/home.ts） */
+  home: HomeState;
   /** 訓練場每日小遊戲（T022）：今天玩過沒、最佳紀錄 */
   frisbee: FrisbeeState;
   /** 七日簽到（T026）：上次簽到的日期與累計天數 */
@@ -375,5 +378,6 @@ export function createInitialState(now: number = Date.now()): GameState {
     tower: { week: '', floor: 0, last: 0, best: 0, gear: [] },
     faction: '',
     war: { week: '', faction: '', points: 0, claimed: [], result: null },
+    home: { residents: null, placed: null, area: 'indoor', style: 'meadow' },
   };
 }

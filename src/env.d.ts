@@ -50,6 +50,7 @@ interface WgzDebugState {
       | 'account'
       | 'faction'
       | 'mail'
+      | 'home'
       | 'recruit'
       | 'shop'
       | 'reward'
@@ -279,6 +280,26 @@ interface WgzDebugState {
       /** 招式台詞那一條（T017）：點了可以改；line 是目前會喊的台詞，custom 代表是玩家自己填的 */
       skillLine: { skill: string; line: string; custom: boolean } & WgzRect;
     } & WgzRect)[];
+  };
+  /** 我的家（HomeScene，T033） */
+  home?: {
+    area: string;
+    style: string;
+    residents: string[];
+    /** 擺出來的家具（這個場景的） */
+    pieces: ({ id: string } & WgzRect)[];
+    buttons: { style: WgzRect; furniture: WgzRect; residents: WgzRect; area: WgzRect };
+    field: WgzRect;
+    /** 最近一次跳出來的提示 */
+    note: string;
+    modal: {
+      kind: string;
+      cells: ({ id: string; on: boolean } & WgzRect)[];
+      close: WgzRect;
+      clear: WgzRect | null;
+      prev: WgzRect | null;
+      next: WgzRect | null;
+    } | null;
   };
   /** 倉庫（GearScene，T014） */
   gear?: {
