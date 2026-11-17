@@ -3,6 +3,7 @@ import { BACKGROUNDS } from '../data/backgrounds';
 import { DOGS, findDog } from '../data/dogs';
 import { sanitizeFaction } from './faction';
 import { sanitizeWar } from './war';
+import { sanitizeHome } from './home';
 import { findStage, type ThemeId } from '../data/regions';
 import type { Resources } from '../data/resources';
 import { findStory } from '../data/stories';
@@ -448,6 +449,8 @@ export function sanitizeState(raw: unknown, now: number): GameState {
     faction: sanitizeFaction(raw.faction),
     // 陣營積分戰（T030）
     war: sanitizeWar(raw.war),
+    // 我的家（T033）
+    home: sanitizeHome(raw.home, isOwned),
   };
 }
 

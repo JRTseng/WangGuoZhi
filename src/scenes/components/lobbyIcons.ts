@@ -12,7 +12,9 @@ export type LobbyIcon =
   | 'reward'
   | 'mail'
   | 'event'
-  | 'train';
+  | 'train'
+  | 'paw'
+  | 'pawCat';
 
 /** 主頁用的簡單幾何圖示（佔位美術），以 (x, y) 為中心、s 約為半徑 */
 export function drawLobbyIcon(
@@ -108,6 +110,37 @@ export function drawLobbyIcon(
       g.fillPoints(pts, true);
       break;
     }
+    case 'paw':
+      // 狗腳印：掌墊大、腳趾前面有爪子
+      drawPaw(g, x, y + s * 0.15, s * 1.15, color);
+      for (const [dx, dy] of [
+        [-0.72, -0.78],
+        [-0.26, -1.2],
+        [0.26, -1.2],
+        [0.72, -0.78],
+      ])
+        g.fillTriangle(
+          x + (dx - 0.1) * s,
+          y + (dy + 0.12) * s,
+          x + (dx + 0.1) * s,
+          y + (dy + 0.12) * s,
+          x + dx * 1.08 * s,
+          y + (dy - 0.14) * s,
+        );
+      break;
+    case 'pawCat':
+      // 貓腳印：圓圓的、沒有爪子，掌墊是三瓣
+      for (const [dx, dy] of [
+        [-0.72, -0.3],
+        [-0.26, -0.78],
+        [0.26, -0.78],
+        [0.72, -0.3],
+      ])
+        g.fillCircle(x + dx * s, y + dy * s, s * 0.27);
+      g.fillCircle(x - s * 0.3, y + s * 0.42, s * 0.36);
+      g.fillCircle(x + s * 0.3, y + s * 0.42, s * 0.36);
+      g.fillCircle(x, y + s * 0.2, s * 0.4);
+      break;
     case 'train':
       // 骨頭（訓練用）
       g.fillRect(x - s * 0.7, y - s * 0.2, s * 1.4, s * 0.4);

@@ -376,6 +376,16 @@ export class LobbyScene extends Phaser.Scene {
   /** 右上第二列：召募／商城／獎勵 */
   private drawShortcuts(): void {
     const S = this.layout.shortcuts;
+    // 我的家（T033）：腳印按鈕，汪國是狗腳印、喵國是貓腳印
+    const cat = playerFaction(getState()) === 'cat';
+    new RoundShortcut(
+      this,
+      S.home,
+      '我的家',
+      cat ? 'pawCat' : 'paw',
+      cat ? 0xd9708f : 0xb5651d,
+      () => this.scene.start('HomeScene'),
+    );
     new RoundShortcut(this, S.recruit, '召募', 'recruit', 0xa83a2b, () =>
       this.scene.start('RecruitScene'),
     ).setDot(true);
