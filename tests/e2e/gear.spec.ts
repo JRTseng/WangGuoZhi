@@ -34,7 +34,15 @@ test('倉庫：空的時候有說明；有裝備可以依部位篩選、穿上�
   s = (await wgz(page)).gear!;
   expect(s.total).toBe(11);
   expect(s.items).toHaveLength(10);
-  expect(s.tabs.map((t) => t.key)).toEqual(['all', 'clothes', 'gloves', 'pants', 'shoes', 'head']);
+  expect(s.tabs.map((t) => t.key)).toEqual([
+    'all',
+    'clothes',
+    'gloves',
+    'pants',
+    'shoes',
+    'head',
+    'acc',
+  ]);
   for (const r of [...s.tabs, ...s.slots, s.prev, s.next]) {
     expect(r.x).toBeGreaterThanOrEqual(0);
     expect(r.x + r.width).toBeLessThanOrEqual(844);
@@ -77,7 +85,9 @@ test('倉庫：空的時候有說明；有裝備可以依部位篩選、穿上�
 
   // 一鍵穿上：五個部位都挑最好的
   await tap(page, s.autoButton);
-  await page.waitForFunction(() => window.__WGZ__?.gear?.slots.every((x) => !!x.gearId));
+  await page.waitForFunction(() =>
+    window.__WGZ__?.gear?.slots.slice(0, 5).every((x) => !!x.gearId),
+  );
   s = (await wgz(page)).gear!;
   expect(s.slots.map((x) => x.gearId)).toEqual([
     'robe-yimingjingren',
@@ -85,6 +95,8 @@ test('倉庫：空的時候有說明；有裝備可以依部位篩選、穿上�
     'shorts-kuku',
     'sneaker-wuxiekeji',
     'crown-yiguandaodi',
+    null,
+    null,
   ]);
   expect(s.stats.gearAttack + s.stats.gearDefense).toBe(12 + 4 + 4 + 12 + 12);
   expect(s.stats.power).toBe(before.power + 44);
@@ -134,6 +146,8 @@ test('倉庫：空的時候有說明；有裝備可以依部位篩選、穿上�
     'shorts-kuku',
     'sneaker-wuxiekeji',
     'crown-yiguandaodi',
+    null,
+    null,
   ]);
 });
 
@@ -191,4 +205,63 @@ test('專屬裝備：有那隻狗就送，只有牠能穿，SSR 的攻防再多 
   expect(s.stats.power).toBe(before.power + s.stats.gearAttack + s.stats.gearDefense);
   await page.waitForTimeout(300);
   await page.screenshot({ path: `${SHOTS}/gear-exclusive.png` });
+});
+
+test('飾品：爬塔送的鈴鐺、蝴蝶結戴在頸飾、耳飾的位置，不佔原本五個部位', async ({ page }) => {
+  await openLobby(page, '?fast=1');
+  await patchSave(page, {
+    gear: { 'tw-20': 1, 'tw-40': 1, 'tw-60': 1, 'tw-80': 1, 'tw-100': 1, 'crown-yiguandaodi': 1 },
+    // 舊存檔：鈴鐺那一件原本是帽子，穿在頭飾的位置
+    equipped: { daer: { head: 'tw-20' } },
+  });
+  await tap(page, (await wgz(page)).lobby!.buttons.bag);
+  await waitScene(page, 'GearScene');
+  let s = (await wgz(page)).gear!;
+  expect(s.slots.map((x) => x.slot)).toEqual([
+    'clothes',
+    'gloves',
+    'pants',
+    'shoes',
+    'head',
+    'neck',
+    'ear',
+  ]);
+  // 舊存檔戴在頭上的那一件，自動搬到頸飾
+  expect(s.slots[4].gearId).toBeNull();
+  expect(s.slots[5].gearId).toBe('tw-20');
+  // 點飾品格跳到「飾品」分頁，五件都在
+  await tap(page, s.slots[6]);
+  await page.waitForFunction(() => window.__WGZ__?.gear?.tab === 'acc');
+  s = (await wgz(page)).gear!;
+  expect(s.items.map((i) => i.id).sort()).toEqual(['tw-100', 'tw-20', 'tw-40', 'tw-60', 'tw-80']);
+  await tap(
+    page,
+    s.items.find((i) => i.id === 'tw-40')!,
+  );
+  await page.waitForFunction(() => window.__WGZ__?.gear?.slots[6].gearId === 'tw-40');
+  // 帽子照樣可以戴，和飾品不衝突
+  await tap(page, (await wgz(page)).gear!.autoButton);
+  await page.waitForFunction(() => window.__WGZ__?.gear?.slots[4].gearId === 'crown-yiguandaodi');
+  s = (await wgz(page)).gear!;
+  expect(s.slots[5].gearId).not.toBeNull();
+  expect(s.slots[6].gearId).not.toBeNull();
+  await page.waitForTimeout(300);
+  await page.screenshot({ path: `${SHOTS}/gear-accessories.png` });
+  // 換一條頸飾
+  await tap(
+    page,
+    s.items.find((i) => i.id === 'tw-60')!,
+  );
+  await page.waitForFunction(() => window.__WGZ__?.gear?.slots[5].gearId === 'tw-60');
+  await tap(
+    page,
+    (await wgz(page)).gear!.items.find((i) => i.id === 'tw-80')!,
+  );
+  await page.waitForFunction(() => window.__WGZ__?.gear?.slots[6].gearId === 'tw-80');
+  await page.waitForTimeout(300);
+  await page.screenshot({ path: `${SHOTS}/gear-accessories-2.png` });
+  await tap(page, (await wgz(page)).backButton!);
+  await waitScene(page, 'LobbyScene');
+  await page.waitForTimeout(400);
+  await page.screenshot({ path: `${SHOTS}/gear-accessories-lobby.png` });
 });

@@ -433,7 +433,7 @@ export function resultNotes(
   } else if (record.win && floor) {
     notes.push(floor >= TOWER_FLOORS ? '登上塔頂了！' : `通過第 ${floor} 層！`);
     const gift = findGear(record.towerGearId ?? '');
-    if (gift) notes.push(`獲得爬塔限定裝備「${gift.name}」`);
+    if (gift) notes.push(`獲得爬塔限定飾品「${gift.name}」`);
   } else if (!record.win) {
     notes.push('只帶回三成物資，關卡還沒通過');
     notes.push(wt('狗狗們掛彩了，休息一下就好（不影響能力）'));

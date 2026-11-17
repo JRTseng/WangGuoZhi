@@ -6,7 +6,7 @@ import {
   EXCLUSIVE_GEARS,
   GEARS,
   GEAR_BONUS,
-  GEAR_SLOTS,
+  BASE_SLOTS,
   exclusiveGearOf,
   findGear,
 } from '../data/equipment';
@@ -49,7 +49,7 @@ const seq = (...xs: number[]) => {
 describe('裝備資料', () => {
   it('每個部位至少 4 件，id 不重複，加成合計照稀有度', () => {
     expect(new Set(GEARS.map((g) => g.id)).size).toBe(GEARS.length);
-    for (const slot of GEAR_SLOTS) {
+    for (const slot of BASE_SLOTS) {
       expect(GEARS.filter((g) => g.slot === slot).length).toBeGreaterThanOrEqual(4);
     }
     for (const g of GEARS) {
@@ -61,7 +61,7 @@ describe('裝備資料', () => {
   });
   it('名字不重複，每個稀有度每個部位都有', () => {
     expect(new Set(GEARS.map((g) => g.name)).size).toBe(GEARS.length);
-    for (const slot of GEAR_SLOTS) {
+    for (const slot of BASE_SLOTS) {
       for (const r of ['N', 'R', 'SR', 'SSR'] as const) {
         expect(
           GEARS.some((g) => g.slot === slot && g.rarity === r),
