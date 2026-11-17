@@ -22,7 +22,7 @@ import {
 } from '../state/gameState';
 import { findGear } from '../data/equipment';
 import { boardingSlotCount } from './boarding';
-import { grantExclusives, sanitizeGear } from './equipment';
+import { grantExclusives, sanitizeGear, sanitizeGearStars } from './equipment';
 import { HISTORY_MAX, TEAM_SIZE, battleTeamOf } from './expedition';
 import { isFormationValue } from './formation';
 import { TEAM_PRESETS } from './teams';
@@ -389,6 +389,8 @@ export function sanitizeState(raw: unknown, now: number): GameState {
     owned,
     ...sanitizeGear(raw.gear, raw.equipped, isOwned),
   });
+  // 裝備星等（T036）
+  const gearStars = sanitizeGearStars(raw.gearStars);
 
   // 開戰到一半的仗（T023）：關卡與隊伍要認得，隊伍的攻防與站位用現在的資料重新排
   let pending: PendingBattle | null = null;
@@ -404,7 +406,7 @@ export function sanitizeState(raw: unknown, now: number): GameState {
       pending = {
         stageId: p.stageId as string,
         dogIds: ids,
-        team: battleTeamOf({ dogs, formation, equipped }, ids),
+        team: battleTeamOf({ dogs, formation, equipped, gearStars }, ids),
         seed: Math.floor(p.seed) >>> 0,
         at: Math.min(now, int(p.at, now)),
       };
@@ -439,6 +441,7 @@ export function sanitizeState(raw: unknown, now: number): GameState {
     pending,
     gear,
     equipped,
+    gearStars,
     wounds: sanitizeWounds(raw.wounds, isOwned, now),
     // 經驗零食：只留認得的種類、正整數
     snacks: countMap(raw.snacks, (id) => !!findSnack(id)),

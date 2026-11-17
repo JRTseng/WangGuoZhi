@@ -320,6 +320,8 @@ export interface GameState {
   gear: Record<string, number>;
   /** 每隻狗每個部位穿哪一件裝備，以狗狗 id 為鍵（規則見 src/logic/equipment.ts） */
   equipped: Record<string, Partial<Record<GearSlot, string>>>;
+  /** 裝備星等（T036）：每種裝備升到幾星，以裝備 id 為鍵，沒記的是 0 星（規則見 src/logic/gearStar.ts） */
+  gearStars: Record<string, number>;
   /** 受傷外觀（T014）：哪些狗剛出征回來或掛彩、到什麼時候為止；純外觀（見 src/logic/wounds.ts） */
   wounds: Record<string, { until: number; level: 1 | 2 }>;
   /** 經驗零食：每種有幾個，以零食 id 為鍵（見 src/logic/snacks.ts） */
@@ -388,6 +390,7 @@ export function createInitialState(now: number = Date.now()): GameState {
     pending: null,
     gear: {},
     equipped: {},
+    gearStars: {},
     wounds: {},
     snacks: {},
     quests: { claimed: [], wins: 0, daily: { counts: {}, claimed: [] } },

@@ -23,6 +23,8 @@ export interface GearLayout {
   gap: number;
   /** 標題列右邊的「一鍵穿上」 */
   auto: Rect;
+  /** 「一鍵穿上」左邊的「全部升星」（T036） */
+  starAll: Rect;
 }
 
 export const GEAR_TAB_COUNT = 7;
@@ -84,6 +86,7 @@ export function gearLayout(w: number, h: number, bar: number): GearLayout {
     cardH: 64,
     gap,
     auto: { x: w - 8 - 112, y: 6, width: 112, height: bar - 12 },
+    starAll: { x: w - 8 - 112 - 8 - 124, y: 6, width: 124, height: bar - 12 },
   };
 }
 
@@ -104,4 +107,22 @@ export function gearScrollMax(l: GearLayout, count: number): number {
   const rows = Math.ceil(count / l.cols);
   const content = rows * l.cardH + Math.max(0, rows - 1) * l.gap;
   return Math.max(0, content - l.list.height);
+}
+
+/** 卡片左邊的圖示：點這裡開升星視窗（T036）。比畫出來的圖示大一點，手指好按 */
+export function gearCardIcon(card: Rect): Rect {
+  return { x: card.x, y: card.y, width: 60, height: card.height };
+}
+
+/** 升星視窗（T036）的大小，與裡面「升星」「關閉」兩顆按鈕的位置（box 是視窗的範圍） */
+export const GEAR_STAR_PANEL = { width: 440, height: 250 };
+export function gearStarPanelButtons(box: Rect): { up: Rect; close: Rect } {
+  const y = box.y + box.height - 58;
+  const gap = 16;
+  const bw = 150;
+  const x = box.x + (box.width - bw * 2 - gap) / 2;
+  return {
+    up: { x, y, width: bw, height: 44 },
+    close: { x: x + bw + gap, y, width: bw, height: 44 },
+  };
 }

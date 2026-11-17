@@ -11,28 +11,41 @@ async function openFrisbee(page: Page) {
   await waitScene(page, 'FrisbeeScene');
 }
 
-/** 把滑鼠移到遊戲座標 x（場地高度的中間） */
-async function steer(page: Page, x: number) {
-  const box = (await page.locator('canvas').boundingBox())!;
-  const s = box.width / 844;
-  await page.mouse.move(box.x + x * s, box.y + 240 * s);
-}
-
 /**
  * 玩一場：每個飛盤一落地就把滑鼠移到下一個落點（狗狗會自己跑過去）。
- * skip 裡的那幾個故意跑到場地另一頭不接。回傳接到幾個。
+ * skip 裡的那幾個故意跑到場地另一頭不接。回傳結算。
+ * 移滑鼠的動作放在頁面裡、每一格畫面做一次，不經過測試程式來回傳話：
+ * 機器很慢的時候來回一次可能超過一秒，狗狗會來不及跑到（2026-11-17、11-18 CI 因此失敗過）。
  */
 async function play(page: Page, skip: number[] = []) {
   await page.waitForFunction(() => window.__WGZ__?.frisbee?.phase === 'play');
-  const f = await frisbee(page);
-  for (let i = 0; i < f.plan.length; i++) {
-    const x = f.plan[i].landX;
-    const far = x > 422 ? f.field.x : f.field.x + f.field.width;
-    await steer(page, skip.includes(i) ? far : x);
-    await page.waitForFunction((n) => window.__WGZ__?.frisbee?.outcomes[n] !== null, i, {
-      timeout: 20_000,
-    });
-  }
+  await page.evaluate(
+    (skipped) =>
+      new Promise<void>((resolve) => {
+        const canvas = document.querySelector('canvas')!;
+        const frame = () => {
+          const f = window.__WGZ__?.frisbee;
+          if (!f || f.phase !== 'play') return resolve();
+          const i = f.outcomes.findIndex((o) => o === null);
+          if (i >= 0) {
+            const x = f.plan[i].landX;
+            const far = x > 422 ? f.field.x : f.field.x + f.field.width;
+            const box = canvas.getBoundingClientRect();
+            const s = box.width / 844;
+            canvas.dispatchEvent(
+              new MouseEvent('mousemove', {
+                clientX: box.left + (skipped.includes(i) ? far : x) * s,
+                clientY: box.top + 240 * s,
+                bubbles: true,
+              }),
+            );
+          }
+          requestAnimationFrame(frame);
+        };
+        frame();
+      }),
+    skip,
+  );
   await page.waitForFunction(() => window.__WGZ__?.frisbee?.phase === 'result', null, {
     timeout: 10_000,
   });
