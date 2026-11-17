@@ -38,6 +38,8 @@ export interface UltimateShowOptions {
     gear?: readonly GearData[];
     /** 犬種：照犬種畫 */
     breed?: string;
+    /** 角色 id：有圖檔的角色用圖檔（T035） */
+    photo?: string;
   };
   /** 這一下實際打到（或補到）的對象 */
   target: ShowPoint;
@@ -199,6 +201,7 @@ export function playUltimate(
     gear: o.caster.gear,
     pixel: PIXEL_SIZE / size0,
     breed: o.caster.breed,
+    photo: o.caster.photo,
   });
   // 敵方面向左邊
   dog.setScale(dir * size0 * 0.5, size0 * 0.5);

@@ -74,6 +74,7 @@ export class DogInfoPanel {
       dark: !o.owned,
       ...o.look,
       breed: dog.breed,
+      photo: dog.id,
     });
     layer.add(head);
     // 頭像下面：稀有度・體型・星數（T007）

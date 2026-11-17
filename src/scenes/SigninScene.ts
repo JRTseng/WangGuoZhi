@@ -287,7 +287,11 @@ export class SigninScene extends Phaser.Scene {
       g.lineStyle(3, SSR, 1);
       g.fillCircle(x, y, s * 1.35);
       g.strokeCircle(x, y, s * 1.35);
-      if (dog) drawDogHead(g, x, y + 2, s * 0.92, dog.color, dog.accent, { breed: dog.breed });
+      if (dog)
+        drawDogHead(g, x, y + 2, s * 0.92, dog.color, dog.accent, {
+          breed: dog.breed,
+          photo: dog.id,
+        });
       else this.body.add(addText(this, x, y, '？', 26, '#c0392b', true).setOrigin(0.5));
     } else {
       // 零食：照零食的顏色畫一塊，加一點高光
@@ -359,7 +363,10 @@ export class SigninScene extends Phaser.Scene {
       g.fillRoundedRect(r.x, r.y, r.width, r.height, 12);
       g.strokeRoundedRect(r.x, r.y, r.width, r.height, 12);
       const hr = Math.min(26, (r.height - 50) / 2.4);
-      drawDogHead(g, cx, r.y + 10 + hr * 1.15, hr, d.color, d.accent, { breed: d.breed });
+      drawDogHead(g, cx, r.y + 10 + hr * 1.15, hr, d.color, d.accent, {
+        breed: d.breed,
+        photo: d.id,
+      });
       const name = addText(this, cx, r.y + r.height - 38, d.name, 14, COLORS.ink, true).setOrigin(
         0.5,
         0,

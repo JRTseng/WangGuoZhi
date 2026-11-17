@@ -4,6 +4,7 @@ import type { GearData } from '../../data/equipment';
 import { darken } from '../ui';
 import { breedArtOf } from './breedArt';
 import { drawBandage, drawCone, drawHeadGearBack, drawHeadGearFront } from './gearArt';
+import { addPhotoHead, photoArtOf } from './photoArt';
 
 export interface HeadOptions {
   /** 未擁有：整隻變暗、眼睛變問號 */
@@ -18,6 +19,8 @@ export interface HeadOptions {
   hurt?: 0 | 1 | 2;
   /** 犬種（T025）：有照犬種畫好的就用那個犬種自己的臉，沒有就用通用的 */
   breed?: string;
+  /** 角色 id（T035）：這隻角色有圖檔就用圖檔的頭像，不用程式畫 */
+  photo?: string;
 }
 
 /**
@@ -44,6 +47,18 @@ export function drawDogHead(
   // 頭套那一圈畫在頭後面：身上的頭飾，或掛彩時戴的
   drawHeadGearBack(g, gear, r, x, y);
   if (hurt === 2 && !hasHeadGear) drawCone(g, x, y, r, 0xdfeaf2, 0x8d99ae);
+
+  const photo = photoArtOf(opts.photo);
+  if (photo) {
+    // 圖檔頭像是另外一個物件，蓋在這張畫布上面；頭飾與 OK 繃畫在更上面那一層
+    const over = addPhotoHead(g, x, y, r, photo, !!opts.dark);
+    drawHeadGearFront(over, gear, r, x, y);
+    if (hurt > 0) {
+      drawBandage(over, x - r * 0.42, y - r * 0.5, r * 0.62, -0.5);
+      if (hurt === 2) drawBandage(over, x + r * 0.58, y + r * 0.42, r * 0.5, 0.6);
+    }
+    return;
+  }
 
   const art = opts.dark ? undefined : breedArtOf(opts.breed);
   if (art) {

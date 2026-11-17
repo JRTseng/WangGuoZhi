@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { COLORS, FONT_FAMILY } from '../config';
 import { formatVersion } from '../logic/version';
 import { renderScale } from '../logic/resolution';
+import { preloadPhotoArt } from './components/photoArt';
 import { viewOf } from './ui';
 
 /** 開機畫面停留時間（毫秒） */
@@ -10,6 +11,11 @@ const BOOT_HOLD_MS = 800;
 export class BootScene extends Phaser.Scene {
   constructor() {
     super('BootScene');
+  }
+
+  preload(): void {
+    // 圖檔角色（T035）
+    preloadPhotoArt(this);
   }
 
   create(): void {

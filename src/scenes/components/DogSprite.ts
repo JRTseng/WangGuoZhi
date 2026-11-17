@@ -4,7 +4,8 @@ import type { GearData } from '../../data/equipment';
 import type { UltPose } from '../../logic/ultPose';
 import { breedArtOf } from './breedArt';
 import { drawDogHead, drawEyes } from './dogArt';
-import { drawBandage, drawBodyGear } from './gearArt';
+import { drawBandage, drawBodyGear, drawHeadGearFront } from './gearArt';
+import { PHOTO_HEAD_LIFT, PHOTO_HEAD_SIDE, photoArtOf } from './photoArt';
 import { pixelize } from './pixelStage';
 
 /** 主頁狗狗會輪流做的動作 */
@@ -28,6 +29,8 @@ export interface DogLook {
    * 站在像素場景裡的狗要給，才會和背景同一種質感；不給就是平滑的線條（卡片、倉庫用）。
    */
   pixel?: number;
+  /** 角色 id（T035）：這隻角色有圖檔就整隻用圖檔（正面站姿），動作用彈跳、搖晃、壓扁來做 */
+  photo?: string;
 }
 
 /**
@@ -44,6 +47,8 @@ export class DogSprite extends Phaser.GameObjects.Container {
   private readonly shadow: Phaser.GameObjects.Ellipse;
   /** 像素畫風時身上各部位的像素圖（染光線顏色用） */
   private readonly pixParts: Phaser.GameObjects.RenderTexture[] = [];
+  /** 圖檔角色的那張圖（沒有圖檔的是 null） */
+  private readonly photo: Phaser.GameObjects.Image | null = null;
   private tweensRunning: Phaser.Tweens.Tween[] = [];
   private cycle: (() => void) | null = null;
   private current: DogAction = 'idle';
@@ -57,6 +62,38 @@ export class DogSprite extends Phaser.GameObjects.Container {
 
     this.shadow = scene.add.ellipse(0, 0, 130, 22, 0x000000, 0.18);
     this.rig = scene.add.container(0, 0);
+
+    const photo = photoArtOf(look.photo);
+    if (photo) {
+      // 圖檔角色：整隻是一張圖，不拍成像素（要看的就是圖本身）；頭、尾巴不能分開動
+      const H = photo.height;
+      const W = H * photo.aspect;
+      this.shadow.setSize(W * 1.05, 20).setOrigin(0.5);
+      this.photo = scene.add.image(0, 0, `${photo.key}-body`).setOrigin(0.5, 1);
+      this.photo.setDisplaySize(W, H);
+      // 頭飾與 OK 繃照臉的位置畫上去；衣服褲子鞋子手套是照側身畫的，對不上正面站姿，先不畫
+      const r = (photo.face.half * 2 * H) / PHOTO_HEAD_SIDE;
+      const fx = photo.face.x * H - W / 2;
+      const fy = photo.face.y * H - H + r * PHOTO_HEAD_LIFT;
+      const og = scene.add.graphics();
+      const worn = look.gear ?? [];
+      const wound = look.hurt ?? 0;
+      drawHeadGearFront(og, worn, r, fx, fy);
+      if (wound > 0) {
+        drawBandage(og, fx - r * 0.42, fy - r * 0.5, r * 0.62, -0.5);
+        drawBandage(og, W * 0.1, -H * 0.3, 22, 0.5);
+      }
+      if (wound === 2) drawBandage(og, fx + r * 0.58, fy + r * 0.42, r * 0.5, 0.6);
+      this.head = scene.add.container(46, -96);
+      this.tail = scene.add.container(-52, -62);
+      this.lids = scene.add.graphics().setVisible(false);
+      this.zzz = this.makeZzz(scene);
+      this.rig.add([this.photo, og, this.zzz]);
+      this.addSparkles(scene, worn);
+      this.add([this.shadow, this.rig]);
+      scene.add.existing(this);
+      return;
+    }
 
     // 尾巴（以根部為原點旋轉）
     const art = breedArtOf(look.breed);
@@ -155,7 +192,16 @@ export class DogSprite extends Phaser.GameObjects.Container {
       );
     }
 
-    this.zzz = scene.add
+    this.zzz = this.makeZzz(scene);
+
+    this.rig.add([this.tail, body, bodyGear, ...bodyPix, this.head, this.zzz]);
+    this.addSparkles(scene, gear);
+    this.add([this.shadow, this.rig]);
+    scene.add.existing(this);
+  }
+
+  private makeZzz(scene: Phaser.Scene): Phaser.GameObjects.Text {
+    return scene.add
       .text(70, -150, 'Z z z', {
         fontFamily: FONT_FAMILY,
         fontSize: '22px',
@@ -166,10 +212,10 @@ export class DogSprite extends Phaser.GameObjects.Container {
       })
       .setOrigin(0.5)
       .setVisible(false);
+  }
 
-    this.rig.add([this.tail, body, bodyGear, ...bodyPix, this.head, this.zzz]);
-
-    // 穿著專屬裝備：身邊有幾顆閃閃的星星（SSR 金色、SR 紫色）
+  /** 穿著專屬裝備：身邊有幾顆閃閃的星星（SSR 金色、SR 紫色） */
+  private addSparkles(scene: Phaser.Scene, gear: readonly GearData[]): void {
     const special = gear.find((x) => x.exclusive);
     if (special) {
       const tint = special.rarity === 'SSR' ? '#f4c430' : '#c39bd3';
@@ -199,13 +245,12 @@ export class DogSprite extends Phaser.GameObjects.Container {
         });
       });
     }
-    this.add([this.shadow, this.rig]);
-    scene.add.existing(this);
   }
 
   /** 讓狗跟著場景的光線染一點顏色（黃昏偏橘、夜晚偏藍）；只有像素畫風的狗有用 */
   setLight(color: number): this {
     for (const part of this.pixParts) part.setTint(color);
+    this.photo?.setTint(color);
     return this;
   }
 
@@ -317,6 +362,22 @@ export class DogSprite extends Phaser.GameObjects.Container {
         t({ targets: this.rig, scaleY: 0.83, duration: 1200, yoyo: true, repeat: -1 });
         t({ targets: this.zzz, alpha: 1, y: -170, duration: 1400, repeat: -1 });
         break;
+    }
+    if (this.photo) {
+      // 圖檔角色的頭和尾巴不能分開動，改成整隻搖一搖
+      const sway = (from: number, to: number, duration: number) =>
+        t({
+          targets: this.rig,
+          angle: { from, to },
+          duration,
+          yoyo: true,
+          repeat: -1,
+          ease: 'Sine.easeInOut',
+        });
+      if (action === 'wag') sway(-5, 5, 260);
+      else if (action === 'look') sway(-7, 7, 800);
+      else if (action === 'sit') sway(-3, 3, 1000);
+      else if (action === 'lick') sway(4, 10, 380);
     }
     this.onActionChange?.(action);
     return this;
@@ -550,6 +611,17 @@ export class DogSprite extends Phaser.GameObjects.Container {
         t({ targets: head, y: -100, angle: -14 + lean, duration: ms * 0.12, delay: ms * 0.45 });
         t({ targets: tail, angle: 20, duration: beat, delay: ms * 0.5, yoyo: true, repeat: -1 });
         break;
+    }
+    if (this.photo && (pose === 'howl' || pose === 'paw')) {
+      // 這兩個姿勢原本只動頭，圖檔角色改成整隻往後仰再晃
+      t({
+        targets: rig,
+        angle: { from: -12 + lean, to: 6 + lean },
+        duration: beat * 1.6,
+        yoyo: true,
+        repeat: -1,
+        ease: 'Sine.easeInOut',
+      });
     }
     return this;
   }

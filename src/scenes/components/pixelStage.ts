@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { PIXELIZED_KEY } from './photoArt';
 import { blurTaps } from '../../logic/atmosphere';
 
 /**
@@ -128,5 +129,7 @@ export function pixelize(
   g.setScale(1 / px).setAlpha(1);
   rt.draw(g, -bounds.x / px, -bounds.y / px);
   g.setScale(scaleX, scaleY).setPosition(x, y).setAlpha(alpha).setVisible(false);
+  // 畫布上如果有圖檔頭像（T035），畫布藏起來頭像還是要在
+  g.setData(PIXELIZED_KEY, true);
   return rt;
 }

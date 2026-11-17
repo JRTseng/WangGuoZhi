@@ -301,6 +301,7 @@ export class GearScene extends Phaser.Scene {
       accent: d.accent,
       gear: worn,
       breed: d.breed,
+      photo: d.id,
     });
     sprite.setScale(l.dog.scale);
     sprite.play('idle');

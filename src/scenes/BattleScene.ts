@@ -417,6 +417,7 @@ export class BattleScene extends Phaser.Scene {
       dark: down,
       gear: u.gear,
       breed: u.breed,
+      photo: u.side === 'team' ? u.id : undefined,
     });
     u.box.setAlpha(down ? 0.7 : 1);
 
@@ -605,6 +606,7 @@ export class BattleScene extends Phaser.Scene {
         ),
         gear: caster.gear,
         breed: caster.breed,
+        photo: caster.side === 'team' ? caster.id : undefined,
       },
       target: (e.hits[0] ? this.units[e.hits[0].side][e.hits[0].target] : caster).slot,
       allies: alive(this.units[ult.side]),

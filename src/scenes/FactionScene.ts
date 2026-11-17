@@ -113,6 +113,7 @@ export class FactionScene extends Phaser.Scene {
       color: lead.color,
       accent: lead.accent,
       breed: lead.breed,
+      photo: lead.id,
     });
     sprite.setScale(0.9);
     this.add.existing(sprite);
@@ -131,7 +132,7 @@ export class FactionScene extends Phaser.Scene {
       g.fillCircle(cx, cy, hr + 2);
       g.lineStyle(1.5, L.color, 0.8);
       g.strokeCircle(cx, cy, hr + 2);
-      drawDogHead(g, cx, cy + 2, hr * 0.62, d.color, d.accent, { breed: d.breed });
+      drawDogHead(g, cx, cy + 2, hr * 0.62, d.color, d.accent, { breed: d.breed, photo: d.id });
     });
     addText(
       this,
