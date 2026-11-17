@@ -3,7 +3,7 @@ import { openLobby, tap, waitScene, wgz } from './helpers';
 
 const SHOTS = 'artifacts/screenshots/faction';
 const CAT_STARTERS = ['juzuo', 'huwen', 'moling', 'xiaoman', 'xuetuan'];
-const CATS = 20;
+const CATS = 50;
 const saved = (page: Page) =>
   page.evaluate(() => JSON.parse(window.localStorage.getItem('wgz-save')!).state);
 
@@ -35,7 +35,7 @@ test('選陣營：一開始先選，選喵國手上是五隻貓、召募只抽�
   await page.waitForTimeout(600);
   await page.screenshot({ path: `${SHOTS}/faction-cat-lobby.png` });
 
-  // 召募：總數是喵國的 20 隻，十連抽到的全是貓
+  // 召募：總數是喵國的 50 隻，十連抽到的全是貓
   await tap(page, (await wgz(page)).lobby!.buttons.recruit);
   await waitScene(page, 'RecruitScene');
   const r = (await wgz(page)).recruit!;

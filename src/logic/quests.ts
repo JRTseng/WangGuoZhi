@@ -1,3 +1,4 @@
+import { wt } from '../data/worldText';
 import { ALL_GEARS } from '../data/equipment';
 import { REGIONS } from '../data/regions';
 import type { Resources } from '../data/resources';
@@ -76,7 +77,10 @@ export const MAIN_QUESTS: readonly MainDef[] = REGIONS.flatMap((r) => {
     },
     {
       id: `main-${r.id}-boss`,
-      title: `第 ${r.chapter} 章：打倒${last.boss ? `頭目「${last.boss.name}」` : `「${last.name}」`}`,
+      // 頭目的名字會跟著陣營換（T031），所以用到的時候才組
+      get title() {
+        return `第 ${r.chapter} 章：打倒${last.boss ? `頭目「${last.boss.name}」` : `「${last.name}」`}`;
+      },
       stageIds: ids,
       reward: { ...last.reward },
     },
@@ -289,7 +293,7 @@ function featViews(s: QuestFields): QuestView[] {
     return {
       id: featId(f.key, tier),
       tab: 'feat',
-      title: f.title.replace('{n}', String(target)),
+      title: wt(f.title).replace('{n}', String(target)),
       progress: Math.min(target, value),
       target,
       done: value >= target,

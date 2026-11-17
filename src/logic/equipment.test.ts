@@ -357,7 +357,7 @@ describe('專屬裝備', () => {
         expect(g!.name.length).toBeLessThanOrEqual(8);
       } else expect(g).toBeUndefined();
     }
-    expect(EXCLUSIVE_GEARS).toHaveLength(28);
+    expect(EXCLUSIVE_GEARS).toHaveLength(40);
     expect(new Set(ALL_GEARS.map((g) => g.id)).size).toBe(ALL_GEARS.length);
     expect(new Set(ALL_GEARS.map((g) => g.name)).size).toBe(ALL_GEARS.length);
     // 比同稀有度的一般裝備強

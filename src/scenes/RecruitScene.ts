@@ -1,3 +1,4 @@
+import { wt } from '../data/worldText';
 import { playerFaction } from '../logic/faction';
 import Phaser from 'phaser';
 import { countQuest } from '../logic/quests';
@@ -76,7 +77,7 @@ export class RecruitScene extends Phaser.Scene {
       this,
       l.note.x,
       l.note.y,
-      '目前免費、不限次數・重複的狗會換成碎片',
+      wt('目前免費、不限次數・重複的狗會換成碎片'),
       13,
       COLORS.inkSoft,
     ).setOrigin(0.5);
@@ -105,8 +106,8 @@ export class RecruitScene extends Phaser.Scene {
     const cx = b.x + b.width / 2;
     // 內容固定高度約 190，看板比較高時整塊往下置中
     const y0 = b.y + Math.max(0, (b.height - 190) / 2);
-    addText(this, cx, y0 + 10, '汪國招賢榜', 22, '#fff6e8', true).setOrigin(0.5, 0);
-    addText(this, cx, y0 + 40, '各路狗狗好漢，等你來召募', 13, '#f6d9b8').setOrigin(0.5, 0);
+    addText(this, cx, y0 + 10, wt('汪國招賢榜'), 22, '#fff6e8', true).setOrigin(0.5, 0);
+    addText(this, cx, y0 + 40, wt('各路狗狗好漢，等你來召募'), 13, '#f6d9b8').setOrigin(0.5, 0);
 
     const featured = featuredDogs(3, playerFaction(getState()));
     const step = Math.min(110, (b.width - 40) / featured.length);
@@ -175,7 +176,7 @@ export class RecruitScene extends Phaser.Scene {
           this,
           cx,
           l.results.y + l.results.height / 2 - 14,
-          '按下面的按鈕召募狗狗',
+          wt('按下面的按鈕召募狗狗'),
           17,
           COLORS.ink,
           true,
@@ -184,7 +185,7 @@ export class RecruitScene extends Phaser.Scene {
           this,
           cx,
           l.results.y + l.results.height / 2 + 16,
-          '重複抽到的狗會換成碎片，到訓練場升星',
+          wt('重複抽到的狗會換成碎片，到訓練場升星'),
           13,
           COLORS.inkSoft,
         ).setOrigin(0.5),

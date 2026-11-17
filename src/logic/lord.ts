@@ -1,3 +1,4 @@
+import { wt } from '../data/worldText';
 import type { GameState, LordState } from '../state/gameState';
 
 /**
@@ -39,7 +40,7 @@ const TITLES: readonly (readonly [number, string])[] = [
 
 /** 這個等級的稱號 */
 export function lordTitle(level: number): string {
-  return (TITLES.find(([lv]) => level >= lv) ?? TITLES[TITLES.length - 1])[1];
+  return wt((TITLES.find(([lv]) => level >= lv) ?? TITLES[TITLES.length - 1])[1]);
 }
 
 /** 一場出征給多少城主經驗 */

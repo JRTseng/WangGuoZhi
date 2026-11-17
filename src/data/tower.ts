@@ -1,6 +1,7 @@
 import type { Resources } from './resources';
 import { LINEUP_SCALE } from './lineupScale';
 import {
+  ENEMY_KINDS,
   EXTRA_STAGES,
   REGIONS,
   STAGE_LINEUPS,
@@ -8,6 +9,7 @@ import {
   parseLineup,
   teamMaxOf,
   type BossData,
+  type EnemyKind,
   type StageData,
 } from './regions';
 
@@ -58,6 +60,9 @@ export function towerReward(floor: number): Resources {
 /** 守層的小頭目：名字照層數輪，犬種與顏色借那一章的頭目 */
 const KEEPER_NAMES = ['守門', '巡梯', '看火', '敲鐘', '掌燈', '持旗', '磨爪', '鎮樓', '望風'];
 
+let keeperSuffix = '犬';
+let towerKinds: Readonly<Record<string, EnemyKind>> = ENEMY_KINDS;
+
 function buildFloor(floor: number): void {
   const block = Math.floor((floor - 1) / TOWER_BLOCK);
   const region = REGIONS[block % REGIONS.length];
@@ -66,8 +71,8 @@ function buildFloor(floor: number): void {
   const guard = isGuardFloor(floor);
   const boss: BossData = guard
     ? { ...last.boss!, name: `塔主${last.boss!.name}` }
-    : { ...last.boss!, name: `${KEEPER_NAMES[(floor - 1) % TOWER_BLOCK]}犬` };
-  const enemies = parseLineup(lineup, region.gang, boss);
+    : { ...last.boss!, name: `${KEEPER_NAMES[(floor - 1) % TOWER_BLOCK]}${keeperSuffix}` };
+  const enemies = parseLineup(lineup, region.gang, boss, towerKinds);
   const teamMax = teamMaxOf(enemies);
   const perDog = towerPerDog(floor) * (teamMax < STAGE_TEAM_CAP ? 1.08 : 1);
   const stage: StageData = {
@@ -84,7 +89,17 @@ function buildFloor(floor: number): void {
   EXTRA_STAGES.set(stage.id, { stage, region });
 }
 
-for (let f = 1; f <= TOWER_FLOORS; f++) buildFloor(f);
+/** 重建整座塔（換陣營後敵人換了一套，由 src/data/world.ts 呼叫）；suffix 是守層小頭目名字的最後一個字 */
+export function rebuildTower(
+  suffix = '犬',
+  kinds: Readonly<Record<string, EnemyKind>> = ENEMY_KINDS,
+): void {
+  keeperSuffix = suffix;
+  towerKinds = kinds;
+  for (let f = 1; f <= TOWER_FLOORS; f++) buildFloor(f);
+}
+
+rebuildTower();
 
 /** 第幾層的關卡資料 */
 export function towerStage(floor: number): StageData | undefined {

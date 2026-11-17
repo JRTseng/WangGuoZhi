@@ -21,12 +21,12 @@ const NOW = 1_800_000_000_000;
 const fresh = () => createInitialState(NOW);
 
 describe('喵國的貓（T029）', () => {
-  it('20 隻：N 6／R 6／SR 4／SSR 4，六種定位都有，每隻都有台詞與畫法', () => {
-    expect(CATS).toHaveLength(20);
+  it('50 隻：N 14／R 16／SR 10／SSR 10，六種定位都有，每隻都有台詞與畫法', () => {
+    expect(CATS).toHaveLength(50);
     const count = (r: string) => CATS.filter((d) => d.rarity === r).length;
-    expect(RARITIES.map(count)).toEqual([6, 6, 4, 4]);
+    expect(RARITIES.map(count)).toEqual([14, 16, 10, 10]);
     for (const role of ['補給', '突擊', '守護', '謀略', '幸運', '補血']) {
-      expect(CATS.filter((d) => d.role.endsWith(role)).length, role).toBeGreaterThanOrEqual(2);
+      expect(CATS.filter((d) => d.role.endsWith(role)).length, role).toBeGreaterThanOrEqual(8);
     }
     for (const c of CATS) {
       expect(factionOf(c)).toBe('cat');
@@ -94,22 +94,22 @@ describe('選陣營', () => {
     ).toEqual(CATS.map((d) => d.id).sort());
     let s = chooseFaction(fresh(), 'cat');
     const rng = createRng(7);
-    for (let i = 0; i < 200; i++) s = pull(s, 10, rng).state;
+    for (let i = 0; i < 400; i++) s = pull(s, 10, rng).state;
     expect(s.owned.every((id) => factionOf(findDog(id)!) === 'cat')).toBe(true);
-    expect(collection(s.owned, 'cat')).toEqual({ owned: 20, total: 20 });
+    expect(collection(s.owned, 'cat')).toEqual({ owned: 50, total: 50 });
     expect(featuredDogs(3, 'cat').every((d) => d.rarity === 'SSR' && d.faction === 'cat')).toBe(
       true,
     );
-    expect(signinPickPool('cat')).toHaveLength(4);
+    expect(signinPickPool('cat')).toHaveLength(10);
     expect(signinPickPool('dog')).toHaveLength(10);
   });
 
   it('看得到的名單：自己陣營的全部，加上手上別陣營的', () => {
     expect(rosterOf('dog')).toHaveLength(50);
-    expect(rosterOf('cat')).toHaveLength(20);
-    expect(rosterOf('cat', ['daer'])).toHaveLength(21);
-    expect(collection(['daer', 'juzuo'], 'cat')).toEqual({ owned: 2, total: 21 });
-    expect(DOGS).toHaveLength(70);
+    expect(rosterOf('cat')).toHaveLength(50);
+    expect(rosterOf('cat', ['daer'])).toHaveLength(51);
+    expect(collection(['daer', 'juzuo'], 'cat')).toEqual({ owned: 2, total: 51 });
+    expect(DOGS).toHaveLength(100);
   });
 
   it('存檔記得陣營；舊存檔沒有這一欄就是還沒選', () => {

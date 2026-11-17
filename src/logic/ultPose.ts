@@ -115,6 +115,36 @@ const TABLE: Readonly<Record<string, readonly [UltPose, number]>> = {
   aban: ['howl', -12], // 好鄰居
   guangguang: ['dash', -12], // 暖身衝刺
   tuanzi: ['snooze', 14], // 毛球擋路
+  jinzong: ['howl', 4], // 狐尾號令
+  fuxing: ['paw', 4], // 絨球招福
+  xueshan: ['guard', 4], // 雪原不退
+  shandian: ['dash', 4], // 三段疾閃
+  xingsha: ['spin', 4], // 月紗流星
+  nuanyang: ['snooze', 4], // 曬暖暖
+  liefeng: ['leap', 4], // 草原飛撲
+  huanying: ['tailwhip', 4], // 轉角消失
+  yunduo: ['roll', 4], // 雲朵抱抱
+  ziye: ['crouch', 4], // 夜緞纏繞
+  haifeng: ['leap', 7], // 乘風破浪
+  tieguo: ['guard', 7], // 穩如鐵鍋
+  shizi: ['guard', -7], // 小黑豹站崗
+  dundun: ['rear', 4], // 笑面石墩
+  feimao: ['dash', -4], // 捲毛旋風
+  tangyuan: ['roll', -4], // 滾滾來財
+  xiaohu: ['spin', -4], // 溜溜鑽
+  baohe: ['tailwhip', -4], // 清涼一排
+  mitang: ['paw', 7], // 甜甜靠近
+  shuke: ['paw', -7], // 引經據典
+  yuanshan: ['crouch', -4], // 霧裡看花
+  daqiao: ['howl', -4], // 捲耳傳令
+  shitou: ['guard', 9], // 硬頸
+  xiaoci: ['pounce', 4], // 點點快爪
+  pipi: ['pounce', -4], // 精靈偷襲
+  doudou: ['spin', 7], // 亂七八糟拳
+  mimi: ['leap', -7], // 巷口奇遇
+  naigai: ['snooze', -4], // 暖肚子
+  agui: ['howl', 7], // 街坊集合
+  tudou: ['rear', -4], // 兔子跳領隊
 };
 
 /** 這隻狗（或敵人）放大絕招時的姿勢；表裡沒有的（敵方頭目、精銳）用長嚎或撲擊 */

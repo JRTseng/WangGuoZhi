@@ -3,6 +3,8 @@ import { settleBoarding } from '../logic/boarding';
 import { settlePending } from '../logic/expedition';
 import { SAVE_BACKUP_KEY, SAVE_KEY, deserialize, serialize, type LoadStatus } from '../logic/save';
 import { regenMsFromSearch, settle, type TimeOptions } from '../logic/stamina';
+import { applyWorld } from '../data/world';
+import { playerFaction } from '../logic/faction';
 import { createInitialState, type GameState } from './gameState';
 
 /**
@@ -41,6 +43,8 @@ function load(): { state: GameState; status: LoadStatus; settled: boolean } {
 
 const loaded = load();
 let current: GameState = loaded.state;
+// 關卡的敵人、頭目與劇情跟著陣營換一套（T031）
+applyWorld(playerFaction(current));
 let loadStatus: LoadStatus = loaded.status;
 let lastSaveOk = true;
 
@@ -58,6 +62,7 @@ export function getState(): GameState {
 export function setState(next: GameState): void {
   if (next === current) return;
   current = next;
+  applyWorld(playerFaction(current));
   save();
 }
 
@@ -74,6 +79,7 @@ export function acknowledgeLoad(): void {
 /** 清除存檔，回到新遊戲（設定面板的「重新開始」） */
 export function resetSave(): void {
   current = createInitialState();
+  applyWorld(playerFaction(current));
   loadStatus = 'new';
   save();
 }
@@ -98,6 +104,7 @@ export function tick(now: number = Date.now()): GameState {
     next.stamina.value === current.stamina.value &&
     keys.every((k) => k === 'stamina' || next[k] === current[k]);
   current = next;
+  applyWorld(playerFaction(current));
   if (!onlyClock) save();
   return current;
 }

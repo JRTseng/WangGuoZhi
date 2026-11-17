@@ -1,3 +1,4 @@
+import { wt } from '../data/worldText';
 import Phaser from 'phaser';
 import { PIXEL_SIZE } from '../logic/atmosphere';
 import { bodyScale } from '../logic/dogSize';
@@ -192,7 +193,7 @@ export class FrisbeeScene extends Phaser.Scene {
         this,
         p.x + 16,
         p.y + 12,
-        '飛盤會一個一個丟出來，手指按著左右滑，帶狗狗跑到影子那裡就接到',
+        wt('飛盤會一個一個丟出來，手指按著左右滑，帶狗狗跑到影子那裡就接到'),
         14,
         COLORS.ink,
         true,
@@ -201,7 +202,7 @@ export class FrisbeeScene extends Phaser.Scene {
         this,
         p.x + 16,
         p.y + 36,
-        `選一隻狗上場（拿經驗的是牠）・最佳紀錄 ${st.frisbee.best}／${FRISBEE_COUNT}`,
+        wt(`選一隻狗上場（拿經驗的是牠）・最佳紀錄 ${st.frisbee.best}／${FRISBEE_COUNT}`),
         13,
         COLORS.inkSoft,
       ),

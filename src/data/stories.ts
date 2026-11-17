@@ -1,3 +1,5 @@
+import { CAT_STORIES } from './catStories';
+import type { Faction } from './dogs';
 import type { RegionScene } from './regions';
 
 /**
@@ -20,7 +22,7 @@ export interface StoryData {
   lines: readonly StoryLine[];
 }
 
-export const STORIES: readonly StoryData[] = [
+const DOG_STORIES: readonly StoryData[] = [
   {
     id: 'prologue',
     title: '序章\u3000新城主上任',
@@ -157,6 +159,18 @@ export const STORIES: readonly StoryData[] = [
   },
 ];
 
+/**
+ * 現在這個陣營看的劇情（T031）：汪國與喵國各一套，關卡解鎖的時機一樣、內容不同。
+ * 預設是汪國的；換陣營時由 src/data/world.ts 的 applyWorld 換掉裡面的內容。
+ */
+export const STORIES: StoryData[] = [...DOG_STORIES];
+
+export const STORIES_BY_FACTION: Readonly<Record<Faction, readonly StoryData[]>> = {
+  dog: DOG_STORIES,
+  cat: CAT_STORIES,
+};
+
+/** 找劇情：兩個陣營的都找得到（存檔裡看過的劇情兩邊都留著） */
 export function findStory(id: string): StoryData | undefined {
-  return STORIES.find((s) => s.id === id);
+  return DOG_STORIES.find((s) => s.id === id) ?? CAT_STORIES.find((s) => s.id === id);
 }

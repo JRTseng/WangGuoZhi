@@ -1,3 +1,4 @@
+import { wt } from '../data/worldText';
 import Phaser from 'phaser';
 import { COLORS } from '../config';
 import { DOGS, type DogData } from '../data/dogs';
@@ -151,7 +152,7 @@ export class BoardingScene extends Phaser.Scene {
       if (i >= open) {
         this.drawEmptySlot(g, r, '🔒 打贏第 1 章 Boss 開放', true);
       } else if (!slot) {
-        this.drawEmptySlot(g, r, this.ids.length > 0 ? '空位・從下面選一隻狗' : '空位', false);
+        this.drawEmptySlot(g, r, this.ids.length > 0 ? wt('空位・從下面選一隻狗') : '空位', false);
       } else {
         const d = this.dog(slot.dogId);
         const note = `+${slot.exp} 經驗${slot.levels > 0 ? `・升 ${slot.levels} 級` : ''}`;
@@ -163,7 +164,7 @@ export class BoardingScene extends Phaser.Scene {
         this,
         l.listTitle.x,
         l.listTitle.y,
-        `板凳上的狗（寄宿位 ${st.boarding.length}/${open}）`,
+        wt(`板凳上的狗（寄宿位 ${st.boarding.length}/${open}）`),
         landscape ? 13 : 14,
         COLORS.ink,
         true,
@@ -200,7 +201,7 @@ export class BoardingScene extends Phaser.Scene {
           this,
           l.list.x + l.list.width / 2,
           l.list.y + 28,
-          '所有的狗都在寄宿了',
+          wt('所有的狗都在寄宿了'),
           14,
           COLORS.inkSoft,
         ).setOrigin(0.5),
