@@ -1,3 +1,4 @@
+import { ratTierOf } from '../data/rats';
 import { towerFloorOf } from '../data/tower';
 import { STAMINA_MAX, type DailyState, type GameState } from '../state/gameState';
 
@@ -183,8 +184,8 @@ export function runBlock(
   now: number,
   o?: TimeOptions,
 ): RunBlock {
-  // 爬塔不花體力、沒有次數
-  if (towerFloorOf(stageId)) return { ok: true };
+  // 爬塔與老鼠幫不花體力、不算主線的每日次數
+  if (towerFloorOf(stageId) || ratTierOf(stageId)) return { ok: true };
   if (runsLeft(state, stageId, now, o) <= 0) {
     return { ok: false, reason: 'no-runs', waitMs: nextResetAt(now, o) - now };
   }
@@ -206,7 +207,7 @@ export function spendRun(
   o?: TimeOptions,
 ): GameState {
   const s = settle(state, now, o);
-  if ((!staminaOn(o) && !runsOn(o)) || towerFloorOf(stageId)) return s;
+  if ((!staminaOn(o) && !runsOn(o)) || towerFloorOf(stageId) || ratTierOf(stageId)) return s;
   return {
     ...s,
     // 從滿體力往下扣的那一刻開始計時恢復

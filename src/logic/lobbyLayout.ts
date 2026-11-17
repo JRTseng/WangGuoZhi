@@ -6,7 +6,8 @@ export type MenuKey = (typeof MENU_KEYS)[number];
 
 /** 右上一排圓形小圖示 */
 /** home 是「我的家」（T033）：腳印按鈕 */
-export const SHORTCUT_KEYS = ['home', 'recruit', 'shop', 'reward'] as const;
+/** rats 是活動事件「刺青老鼠幫」（T034）：只有在活動時段才畫出來 */
+export const SHORTCUT_KEYS = ['rats', 'home', 'recruit', 'shop', 'reward'] as const;
 export type ShortcutKey = (typeof SHORTCUT_KEYS)[number];
 
 /** 右側小卡片 */

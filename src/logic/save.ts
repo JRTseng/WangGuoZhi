@@ -1,3 +1,4 @@
+import { ratTierOf } from '../data/rats';
 import { towerFloorOf } from '../data/tower';
 import { BACKGROUNDS } from '../data/backgrounds';
 import { DOGS, findDog } from '../data/dogs';
@@ -33,6 +34,7 @@ import { sanitizeFrisbee } from './frisbee';
 import { sanitizeLord } from './lord';
 import { sanitizeQuests } from './quests';
 import { sanitizeSignin } from './signin';
+import { isRatLoot, sanitizeRats } from './ratRaid';
 import { sanitizeTower } from './tower';
 import { findSnack } from './snacks';
 import { isTrainingSort } from './trainingSort';
@@ -184,6 +186,7 @@ function historyRecord(v: unknown): ExpeditionRecord | null {
   if (v.dropGearId !== undefined && (typeof v.dropGearId !== 'string' || !findGear(v.dropGearId))) {
     return null;
   }
+  if (v.loot !== undefined && !(Array.isArray(v.loot) && v.loot.every(isRatLoot))) return null;
   if (v.dropSnack !== undefined) {
     const d = v.dropSnack;
     if (!isObj(d) || typeof d.id !== 'string' || !findSnack(d.id) || !isNum(d.amount)) return null;
@@ -309,7 +312,10 @@ export function sanitizeState(raw: unknown, now: number): GameState {
       }
     : base.auto;
 
-  const cleared = stringList(raw.cleared, (id) => isStage(id) && !towerFloorOf(id));
+  const cleared = stringList(
+    raw.cleared,
+    (id) => isStage(id) && !towerFloorOf(id) && !ratTierOf(id),
+  );
 
   // 寄宿位（T021）：只留擁有、不在隊伍裡、不重複的狗，超過位子數的丟掉；時間不能比現在晚
   const boarding: BoardingSlot[] = [];
@@ -445,6 +451,7 @@ export function sanitizeState(raw: unknown, now: number): GameState {
     signin: sanitizeSignin(raw.signin),
     // 登天塔
     tower: sanitizeTower(raw.tower),
+    rats: sanitizeRats(raw.rats),
     // 陣營（T029）
     faction: sanitizeFaction(raw.faction),
     // 陣營積分戰（T030）

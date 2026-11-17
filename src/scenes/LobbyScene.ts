@@ -7,6 +7,7 @@ import { chooseFaction, factionFromSearch, needFactionPick, playerFaction } from
 import { claimableCount } from '../logic/quests';
 import { markSigninShown, signinPopup, signinPopupFromSearch, signinReady } from '../logic/signin';
 import { towerOpen } from '../logic/tower';
+import { ratVisible, ratWavesLeft } from '../logic/ratRaid';
 import { bodyScale } from '../logic/dogSize';
 import { REGIONS, findStage } from '../data/regions';
 import { RESOURCE_LABELS, type Resources } from '../data/resources';
@@ -125,6 +126,8 @@ export class LobbyScene extends Phaser.Scene {
     delete buttons.status;
     delete buttons.auto;
     delete buttons.autoBanner;
+    // 老鼠幫的按鈕只有活動時段才畫
+    if (!ratVisible(getState(), Date.now(), timeOptions())) delete buttons.rats;
     patchDebug({
       lobby: {
         dogId: getState().lobbyDogId,
@@ -378,6 +381,13 @@ export class LobbyScene extends Phaser.Scene {
     const S = this.layout.shortcuts;
     // 我的家（T033）：腳印按鈕，汪國是狗腳印、喵國是貓腳印
     const cat = playerFaction(getState()) === 'cat';
+    // 活動事件：刺青老鼠幫（T034），在活動時段才出現，今天還有幾波沒打就亮紅點
+    const st = getState();
+    if (ratVisible(st, Date.now(), timeOptions())) {
+      new RoundShortcut(this, S.rats, '老鼠幫', 'rat', 0x6f6a78, () =>
+        this.scene.start('RatScene'),
+      ).setDot(ratWavesLeft(st, Date.now(), timeOptions()) > 0);
+    }
     new RoundShortcut(
       this,
       S.home,

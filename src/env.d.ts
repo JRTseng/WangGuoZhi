@@ -50,6 +50,7 @@ interface WgzDebugState {
       | 'account'
       | 'faction'
       | 'mail'
+      | 'rats'
       | 'home'
       | 'recruit'
       | 'shop'
@@ -141,6 +142,14 @@ interface WgzDebugState {
     claim: WgzRect;
     result: WgzRect | null;
     switch: WgzRect;
+  };
+  /** 活動事件「刺青老鼠幫」畫面（T034） */
+  rats?: {
+    open: boolean;
+    tier: number;
+    wavesLeft: number;
+    total: number;
+    fight: WgzRect | null;
   };
   /** 登天塔畫面 */
   tower?: {

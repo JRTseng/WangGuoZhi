@@ -37,7 +37,25 @@ export interface DogProgress {
 }
 
 /** 一次出征的紀錄（T019 起出征當下就結算，沒有等待時間） */
+/** 打贏老鼠幫拿到的一樣寶物（T034） */
+export type RatLoot =
+  | { kind: 'food' | 'bones'; amount: number }
+  | { kind: 'snack' | 'shards'; id: string; amount: number }
+  | { kind: 'gear'; id: string };
+
+/** 活動事件「刺青老鼠幫」（T034，規則見 src/logic/ratRaid.ts） */
+export interface RatState {
+  /** 這份次數是哪一個遊戲日的 */
+  day: string;
+  /** 今天打贏幾波 */
+  wins: number;
+  /** 累計打贏幾波 */
+  total: number;
+}
+
 export interface ExpeditionRecord {
+  /** 打贏老鼠幫拿到的寶物（T034） */
+  loot?: RatLoot[];
   /** 這一仗送的爬塔限定裝備 id（登天塔） */
   towerGearId?: string;
   /** 這一仗幫陣營賺了幾分（T030） */
@@ -318,6 +336,7 @@ export interface GameState {
   signin: SigninState;
   /** 登天塔：這週與上週的進度 */
   tower: TowerState;
+  rats: RatState;
   /** 陣營（T029）：汪國 dog／喵國 cat；空字串是還沒選（當汪國） */
   faction: Faction | '';
   /** 陣營積分戰（T030） */
@@ -376,6 +395,7 @@ export function createInitialState(now: number = Date.now()): GameState {
     frisbee: { day: '', best: 0 },
     signin: { day: '', count: 0, streak: 0, pick: '', shown: '' },
     tower: { week: '', floor: 0, last: 0, best: 0, gear: [] },
+    rats: { day: '', wins: 0, total: 0 },
     faction: '',
     war: { week: '', faction: '', points: 0, claimed: [], result: null },
     home: { residents: null, placed: null, area: 'indoor', style: 'meadow' },
