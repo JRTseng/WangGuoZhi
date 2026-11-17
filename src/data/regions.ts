@@ -21,7 +21,7 @@ export interface BossData {
  * 搗蛋鬼亂打、會爆擊會閃；藥師幫受傷的同伴回血；精銳是比較壯的先鋒，會放大絕招。
  * weight 是這一隻佔敵方總戰力的比重。數值都是暫定。
  */
-interface EnemyKind {
+export interface EnemyKind {
   label: string;
   role: BattleRole;
   weight: number;
@@ -118,7 +118,12 @@ const SUFFIX = '甲乙丙丁戊己庚辛壬';
  * 把陣容字串變成敵人清單。寫法：「前排/中排/後排」，一個字母一隻（見 ENEMY_KINDS），B 是頭目。
  * 例如 'gg/B/s' = 前排兩隻盾兵、中排頭目、後排一隻投石手。同名的後面加甲乙丙。
  */
-export function parseLineup(lineup: string, gang: GangData, boss?: BossData): BattleEnemy[] {
+export function parseLineup(
+  lineup: string,
+  gang: GangData,
+  boss?: BossData,
+  kinds: Readonly<Record<string, EnemyKind>> = ENEMY_KINDS,
+): BattleEnemy[] {
   const out: BattleEnemy[] = [];
   lineup.split('/').forEach((letters, row) => {
     for (const ch of letters) {
@@ -133,7 +138,7 @@ export function parseLineup(lineup: string, gang: GangData, boss?: BossData): Ba
         });
         continue;
       }
-      const k = ENEMY_KINDS[ch];
+      const k = kinds[ch];
       if (!k) throw new Error(`沒有這種敵人：${ch}`);
       out.push({
         name: `${gang.name}${k.label}`,

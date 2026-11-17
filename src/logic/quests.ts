@@ -76,7 +76,10 @@ export const MAIN_QUESTS: readonly MainDef[] = REGIONS.flatMap((r) => {
     },
     {
       id: `main-${r.id}-boss`,
-      title: `第 ${r.chapter} 章：打倒${last.boss ? `頭目「${last.boss.name}」` : `「${last.name}」`}`,
+      // 頭目的名字會跟著陣營換（T031），所以用到的時候才組
+      get title() {
+        return `第 ${r.chapter} 章：打倒${last.boss ? `頭目「${last.boss.name}」` : `「${last.name}」`}`;
+      },
       stageIds: ids,
       reward: { ...last.reward },
     },

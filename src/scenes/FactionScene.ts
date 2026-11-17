@@ -27,7 +27,7 @@ const LOOK: Readonly<
     soft: 0xe2e8f8,
     text: '#3c4c86',
     line: '我行我素的貓咪們，各有絕活',
-    pool: '召募到的都是貓咪（20 種）',
+    pool: '召募到的都是貓咪（50 種）',
   },
 };
 
