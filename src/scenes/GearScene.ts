@@ -16,8 +16,10 @@ import {
   DROP_RATE,
   equip,
   equipBest,
+  gearAtStar,
   gearBonusLabel,
   gearOf,
+  gearStarOf,
   ownedCount,
   ownedGears,
   spareCount,
@@ -25,19 +27,40 @@ import {
   unequip,
   wearersOf,
 } from '../logic/equipment';
-import { gearCard, gearLayout, gearScrollMax, type GearLayout } from '../logic/gearLayout';
+import {
+  GEAR_STAR_PANEL,
+  gearCard,
+  gearCardIcon,
+  gearLayout,
+  gearScrollMax,
+  gearStarPanelButtons,
+  type GearLayout,
+} from '../logic/gearLayout';
+import {
+  checkGearStarUp,
+  gearStarCostLabel,
+  gearStarPreview,
+  gearStarReadyCount,
+  gearStarText,
+  gearStarUp,
+  gearStarUpAll,
+} from '../logic/gearStar';
 import type { Rect } from '../logic/layout';
 import { dogStats } from '../logic/leveling';
 import { getState, setState } from '../state/store';
 import { playSfx } from './components/audio';
+import { Button } from './components/Button';
 import { DogSprite } from './components/DogSprite';
 import { drawGearIcon } from './components/gearArt';
 import { makeTapArea } from './components/hitArea';
-import { addText, drawHeader, patchDebug, resetDebug, viewOf } from './ui';
+import { addText, drawHeader, openModal, patchDebug, resetDebug, viewOf } from './ui';
 
 const BAR = 56;
 /** 手指移動超過這個距離就當成捲動，不算點卡片 */
 const TAP_SLOP = 8;
+/** 星星與升星按鈕的金色（和訓練場的升星按鈕同一個顏色） */
+const STAR_COLOR = 0xc98a12;
+const STAR_HEX = '#b8860b';
 /** 分頁：全部、五個部位、飾品（頸飾與耳飾合在一頁，T032） */
 type Tab = 'all' | GearSlot | 'acc';
 const TABS: readonly Tab[] = ['all', ...BASE_SLOTS, 'acc'];
@@ -56,6 +79,7 @@ export interface GearSceneData {
  * 倉庫（T014）：左邊是一隻狗（左右箭頭換狗）和牠的五個裝備格，右邊是擁有的裝備，可以依部位篩選。
  * 點右邊的裝備就穿上，再點一次脫下；沒有多的、被別隻狗穿走的，點了會從牠身上換過來。
  * 點左邊的裝備格會跳到那個部位的分頁。標題列右邊「一鍵穿上」幫這隻狗挑沒人穿的裡面最好的。
+ * 裝備升星（T036）：點卡片左邊的圖示開升星視窗；標題列「全部升星」把多的同款一次吃掉、能升的都升。
  */
 export class GearScene extends Phaser.Scene {
   private layout!: GearLayout;
@@ -69,6 +93,16 @@ export class GearScene extends Phaser.Scene {
   private cards!: Phaser.GameObjects.Container;
   private items: GearData[] = [];
   private note = '';
+  private starAllBg!: Phaser.GameObjects.Graphics;
+  private starAllLabel!: Phaser.GameObjects.Text;
+  /** 升星視窗；沒開為 null */
+  private star: {
+    layer: Phaser.GameObjects.Container;
+    gearId: string;
+    up: Rect;
+    close: Rect;
+    message: string;
+  } | null = null;
 
   constructor() {
     super('GearScene');
@@ -86,6 +120,7 @@ export class GearScene extends Phaser.Scene {
   }
 
   create(): void {
+    this.star = null;
     resetDebug(this);
     const { w, h } = viewOf(this);
     const l = (this.layout = gearLayout(w, h, BAR));
@@ -105,6 +140,23 @@ export class GearScene extends Phaser.Scene {
     makeTapArea(ac, ab.width, ab.height);
     ac.on('pointerup', () => this.autoEquip());
 
+    // 一鍵穿上左邊：全部升星（多的同款一次吃掉，能升的都升）
+    const sb = l.starAll;
+    const sc = this.add.container(sb.x, sb.y).setDepth(51);
+    this.starAllBg = this.add.graphics();
+    this.starAllLabel = addText(
+      this,
+      sb.width / 2,
+      sb.height / 2,
+      '',
+      16,
+      '#ffffff',
+      true,
+    ).setOrigin(0.5);
+    sc.add([this.starAllBg, this.starAllLabel]);
+    makeTapArea(sc, sb.width, sb.height);
+    sc.on('pointerup', () => this.starAll());
+
     this.left = this.add.container(0, 0);
     this.tabsLayer = this.add.container(0, 0);
     this.cards = this.add.container(0, 0);
@@ -117,7 +169,8 @@ export class GearScene extends Phaser.Scene {
     const inList = (p: Phaser.Input.Pointer) =>
       p.worldX >= l.list.x && p.worldY >= l.list.y && p.worldY <= l.list.y + l.list.height;
     this.input.on('pointerdown', (p: Phaser.Input.Pointer) => {
-      this.dragFrom = inList(p) ? { x: p.worldX, y: p.worldY, scroll: this.scrollY } : null;
+      this.dragFrom =
+        !this.star && inList(p) ? { x: p.worldX, y: p.worldY, scroll: this.scrollY } : null;
     });
     this.input.on('pointermove', (p: Phaser.Input.Pointer) => {
       if (this.dragFrom && p.isDown)
@@ -130,9 +183,9 @@ export class GearScene extends Phaser.Scene {
       if (Math.abs(p.worldX - from.x) > TAP_SLOP || Math.abs(p.worldY - from.y) > TAP_SLOP) return;
       this.tapCard(p.worldX, p.worldY + this.scrollY);
     });
-    this.input.on('wheel', (_p: unknown, _o: unknown, _dx: number, dy: number) =>
-      this.scrollTo(this.scrollY + dy),
-    );
+    this.input.on('wheel', (_p: unknown, _o: unknown, _dx: number, dy: number) => {
+      if (!this.star) this.scrollTo(this.scrollY + dy);
+    });
 
     patchDebug({ backButton: back });
     this.render();
@@ -166,6 +219,7 @@ export class GearScene extends Phaser.Scene {
   }
 
   private autoEquip(): void {
+    if (this.star) return;
     const st = getState();
     const next = equipBest(st, this.dogId);
     this.note = next === st ? '已經穿著手邊最好的了' : `${this.dog.name}換上手邊最好的裝備`;
@@ -182,6 +236,13 @@ export class GearScene extends Phaser.Scene {
     });
     const g = this.items[i];
     if (!g) return;
+    // 點左邊的圖示：開升星視窗
+    const icon = gearCardIcon(gearCard(this.layout, i));
+    if (x <= icon.x + icon.width) {
+      playSfx('tap');
+      this.openStar(g.id);
+      return;
+    }
     const st = getState();
     if (st.equipped[this.dogId]?.[g.slot] === g.id) {
       setState(unequip(st, this.dogId, g.slot));
@@ -206,6 +267,146 @@ export class GearScene extends Phaser.Scene {
     this.render();
   }
 
+  // ---- 升星（T036） ----
+
+  /** 全部升星：每種一般裝備，多的同款夠就一直升 */
+  private starAll(): void {
+    if (this.star) return;
+    const r = gearStarUpAll(getState());
+    if (r.ups.length === 0) {
+      this.note = '沒有可以升星的裝備・同一款多拿幾件就能升';
+      this.render();
+      return;
+    }
+    setState(r.state);
+    playSfx('levelup');
+    const first = findGear(r.ups[0].gearId);
+    this.note =
+      r.ups.length === 1
+        ? `「${first?.name ?? ''}」升到 ★${r.ups[0].to}`
+        : `${r.ups.length} 種裝備升星了（「${first?.name ?? ''}」★${r.ups[0].to} 等）`;
+    this.render();
+  }
+
+  /** 開（或重畫）升星視窗 */
+  private openStar(gearId: string, message = ''): void {
+    const item = findGear(gearId);
+    if (!item) return;
+    this.star?.layer.destroy();
+    const st = getState();
+    const check = checkGearStarUp(st, gearId);
+    const preview = gearStarPreview(item, check.star);
+    const { layer, box } = openModal(this, GEAR_STAR_PANEL, () => this.closeStar());
+    const add = (o: Phaser.GameObjects.GameObject) => (layer.add(o), o);
+    const g = this.add.graphics();
+    add(g);
+    g.fillStyle(0xffffff, 1);
+    g.lineStyle(2, RARITY_COLORS[item.rarity], 1);
+    g.fillRoundedRect(box.x + 18, box.y + 18, 64, 64, 10);
+    g.strokeRoundedRect(box.x + 18, box.y + 18, 64, 64, 10);
+    drawGearIcon(g, box.x + 50, box.y + 50, 23, item);
+    const tx = box.x + 96;
+    add(addText(this, tx, box.y + 16, item.name, 19, COLORS.ink, true));
+    add(
+      addText(
+        this,
+        tx,
+        box.y + 42,
+        `${item.rarity}・${GEAR_SLOT_LABEL[item.slot]}`,
+        13,
+        rarityHex(item.rarity),
+        true,
+      ),
+    );
+    add(addText(this, tx, box.y + 60, gearStarText(check.star), 20, STAR_HEX, true));
+    if (message) {
+      add(
+        addText(this, box.x + box.width - 18, box.y + 18, message, 15, '#2f7d32', true).setOrigin(
+          1,
+          0,
+        ),
+      );
+    }
+
+    // 現在 → 下一星
+    g.fillStyle(0xf4e9d8, 1);
+    g.fillRoundedRect(box.x + 16, box.y + 94, box.width - 32, 82, 12);
+    const lx = box.x + 28;
+    add(addText(this, lx, box.y + 101, `現在\u3000${gearBonusLabel(preview.now)}`, 14, COLORS.ink));
+    add(
+      addText(
+        this,
+        lx,
+        box.y + 123,
+        preview.next
+          ? `下一星\u3000${gearBonusLabel(preview.next)}`
+          : '已經升到最高星，同款的每一件都是這個數字',
+        14,
+        preview.next ? '#2f7d32' : COLORS.inkSoft,
+        !!preview.next,
+      ),
+    );
+    if (check.cost) {
+      const unit = check.cost.kind === 'copies' ? '件' : '';
+      add(
+        addText(
+          this,
+          lx,
+          box.y + 147,
+          `需要\u3000${gearStarCostLabel(item, check.cost)}（有 ${check.have}${unit}）`,
+          14,
+          check.short > 0 ? '#c0392b' : COLORS.ink,
+          true,
+        ),
+      );
+      if (check.cost.kind === 'copies') {
+        add(
+          addText(
+            this,
+            box.x + box.width - 28,
+            box.y + 149,
+            '穿著的與最後一件不會用掉',
+            12,
+            COLORS.inkSoft,
+          ).setOrigin(1, 0),
+        );
+      }
+    }
+
+    const { up, close } = gearStarPanelButtons(box);
+    add(
+      new Button(
+        this,
+        up,
+        check.reason === 'maxed' ? '已滿星' : check.short > 0 ? '材料不夠' : '升星',
+        () => this.starOnce(gearId),
+        18,
+      )
+        .setColor(STAR_COLOR)
+        .setEnabled(check.ok),
+    );
+    add(new Button(this, close, '關閉', () => this.closeStar(), 18).setColor(COLORS.bar));
+    this.star = { layer, gearId, up, close, message };
+    this.publish();
+  }
+
+  private starOnce(gearId: string): void {
+    const r = gearStarUp(getState(), gearId);
+    if (!r.check.ok) return;
+    setState(r.state);
+    playSfx('levelup');
+    const item = findGear(gearId);
+    this.note = `「${item?.name ?? ''}」升到 ★${r.check.star + 1}`;
+    this.render();
+    this.openStar(gearId, `升星！★${r.check.star + 1}`);
+  }
+
+  private closeStar(): void {
+    this.star?.layer.destroy();
+    this.star = null;
+    this.publish();
+  }
+
   private scrollTo(y: number): void {
     const max = gearScrollMax(this.layout, this.items.length);
     const next = Math.min(max, Math.max(0, y));
@@ -218,6 +419,12 @@ export class GearScene extends Phaser.Scene {
   // ---- 畫面 ----
 
   private render(): void {
+    const ready = gearStarReadyCount(getState());
+    const sb = this.layout.starAll;
+    this.starAllLabel.setText(ready > 0 ? `全部升星 ${ready}` : '全部升星');
+    this.starAllBg.clear();
+    this.starAllBg.fillStyle(ready > 0 ? STAR_COLOR : COLORS.buttonDisabled, 1);
+    this.starAllBg.fillRoundedRect(0, 0, sb.width, sb.height, 12);
     this.renderLeft();
     this.renderTabs();
     this.renderCards();
@@ -258,7 +465,9 @@ export class GearScene extends Phaser.Scene {
         addText(this, r.width / 2, r.height / 2 - 2, label, 26, COLORS.ink, true).setOrigin(0.5),
       ]);
       makeTapArea(c, r.width, r.height);
-      c.on('pointerup', () => this.switchDog(step));
+      c.on('pointerup', () => {
+        if (!this.star) this.switchDog(step);
+      });
       this.left.add(c);
     }
 
@@ -322,6 +531,7 @@ export class GearScene extends Phaser.Scene {
       sg.fillRoundedRect(0, 0, r.width, r.height, 10);
       sg.strokeRoundedRect(0, 0, r.width, r.height, 10);
       c.add(sg);
+      const slotStar = item ? gearStarOf(st, item.id) : 0;
       if (item) drawGearIcon(sg, r.width / 2, r.height / 2, 17, item);
       else
         c.add(addText(this, r.width / 2, r.height / 2, '＋', 20, '#c9b79c', true).setOrigin(0.5));
@@ -336,8 +546,17 @@ export class GearScene extends Phaser.Scene {
           this.tab === tabOf(slot),
         ).setOrigin(0.5, 0),
       );
+      if (slotStar > 0) {
+        c.add(
+          addText(this, r.width - 3, 1, `★${slotStar}`, 12, STAR_HEX, true)
+            .setOrigin(1, 0)
+            .setStroke('#ffffff', 3),
+        );
+      }
       makeTapArea(c, r.width, r.height + 18);
-      c.on('pointerup', () => this.setTab(tabOf(slot)));
+      c.on('pointerup', () => {
+        if (!this.star) this.setTab(tabOf(slot));
+      });
       this.left.add(c);
     });
   }
@@ -372,7 +591,9 @@ export class GearScene extends Phaser.Scene {
         ).setOrigin(0.5),
       ]);
       makeTapArea(c, r.width, r.height);
-      c.on('pointerup', () => this.setTab(tab));
+      c.on('pointerup', () => {
+        if (!this.star) this.setTab(tab);
+      });
       this.tabsLayer.add(c);
     });
   }
@@ -430,7 +651,16 @@ export class GearScene extends Phaser.Scene {
       g.lineStyle(1.5, COLORS.cardBorder, 1);
       g.fillRoundedRect(8, 8, 48, 48, 8);
       g.strokeRoundedRect(8, 8, 48, 48, 8);
-      drawGearIcon(g, 32, 32, 17, item);
+      drawGearIcon(g, 32, 28, 15, item);
+      // 圖示下緣一條「升星」：點圖示開升星視窗，材料夠的時候是金色
+      const star = gearStarOf(st, item.id);
+      const starCheck = checkGearStarUp(st, item.id);
+      const at = gearAtStar(item, star);
+      g.fillStyle(
+        starCheck.ok ? STAR_COLOR : starCheck.reason === 'maxed' ? COLORS.harvest : 0x9a8c7a,
+        1,
+      );
+      g.fillRoundedRect(8, 41, 48, 15, { tl: 0, tr: 0, bl: 8, br: 8 });
       const owner = item.exclusive ? (findDog(item.exclusive)?.name ?? '') : '';
       const status = mine
         ? `${owner ? '專屬・' : ''}穿著中・點一下脫下`
@@ -446,6 +676,15 @@ export class GearScene extends Phaser.Scene {
         addText(this, 64, 7, item.name, 15, COLORS.ink, true),
         addText(
           this,
+          32,
+          48.5,
+          starCheck.reason === 'maxed' ? '滿星' : starCheck.ok ? '可升星' : '升星',
+          12,
+          '#ffffff',
+          true,
+        ).setOrigin(0.5),
+        addText(
+          this,
           r.width - 10,
           8,
           `×${ownedCount(st, item.id)}`,
@@ -459,13 +698,18 @@ export class GearScene extends Phaser.Scene {
           64 + item.rarity.length * 9 + 6,
           27,
           item.pct
-            ? gearBonusLabel(item)
-            : `${GEAR_SLOT_LABEL[item.slot]}\u3000${gearBonusLabel(item)}`,
+            ? gearBonusLabel(at)
+            : `${GEAR_SLOT_LABEL[item.slot]}\u3000${gearBonusLabel(at)}`,
           item.pct ? 12 : 13,
           COLORS.ink,
         ),
         addText(this, 64, 45, status, 12, mine ? '#2f7d32' : COLORS.inkSoft, mine),
       ]);
+      // 升過星的：名字後面寫幾星
+      if (star > 0) {
+        const nameText = c.list[1] as Phaser.GameObjects.Text;
+        c.add(addText(this, 64 + nameText.width + 5, 8, `★${star}`, 14, STAR_HEX, true));
+      }
       // 專屬裝備：圖示角落一顆星
       if (item.exclusive) {
         c.add(addText(this, 44, 4, '✦', 15, rarityHex(item.rarity), true).setStroke('#ffffff', 3));
@@ -494,6 +738,18 @@ export class GearScene extends Phaser.Scene {
         prev: l.prev,
         next: l.next,
         autoButton: l.auto,
+        starAllButton: l.starAll,
+        starReady: gearStarReadyCount(st),
+        starPanel: this.star
+          ? {
+              gearId: this.star.gearId,
+              star: gearStarOf(st, this.star.gearId),
+              ok: checkGearStarUp(st, this.star.gearId).ok,
+              message: this.star.message,
+              up: this.star.up,
+              close: this.star.close,
+            }
+          : null,
         tabs: TABS.map((key, i) => ({ key, active: key === this.tab, ...l.tabs[i] })),
         slots: GEAR_SLOTS.map((slot, i) => ({
           slot,
@@ -514,6 +770,9 @@ export class GearScene extends Phaser.Scene {
             spare: spareCount(st, item.id),
             wearing: st.equipped[this.dogId]?.[item.slot] === item.id,
             exclusive: item.exclusive ?? null,
+            star: gearStarOf(st, item.id),
+            canStar: checkGearStarUp(st, item.id).ok,
+            icon: { ...gearCardIcon(r), y },
             visible: y >= l.list.y && y + r.height <= l.list.y + l.list.height + 0.5,
             ...r,
             y,

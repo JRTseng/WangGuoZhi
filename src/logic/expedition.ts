@@ -17,7 +17,14 @@ import {
   type BattleInput,
   type BattleResult,
 } from './battle';
-import { addGear, dropNote, gearPerks, grantExclusives, rollDrop } from './equipment';
+import {
+  addGear,
+  dropNote,
+  gearPerks,
+  grantExclusives,
+  rollDrop,
+  type WornState,
+} from './equipment';
 import { exclusiveGearOf, findGear } from '../data/equipment';
 import { battleRoleOf, teamCells } from './formation';
 import { newSkills, perkText, perksOf, sumPerks } from './levelSkills';
@@ -82,7 +89,7 @@ export function idleDogIds(state: GameState): string[] {
 
 /** 把狗狗轉成戰鬥用的攻防、定位：攻防 = 基礎值 + 升級成長值 + 裝備加成。站位另外由 battleTeamOf 填 */
 export function battleDogOf(
-  state: Pick<GameState, 'dogs'> & { equipped?: GameState['equipped'] },
+  state: Pick<GameState, 'dogs'> & WornState,
   dogId: string,
 ): BattleDog | undefined {
   const d = findDog(dogId);
@@ -111,7 +118,7 @@ export function battleDogOf(
 
 /** 一支隊伍的戰鬥資料：攻防、定位，加上目前陣型的站位（T023） */
 export function battleTeamOf(
-  state: Pick<GameState, 'dogs' | 'formation'> & { equipped?: GameState['equipped'] },
+  state: Pick<GameState, 'dogs' | 'formation'> & WornState,
   dogIds: readonly string[],
 ): BattleDog[] {
   const known = dogIds.filter((id) => !!findDog(id));
@@ -154,7 +161,7 @@ export function expeditionBattle(
 
 /** 選隊伍畫面的「勝率約 N%」：用目前的攻防與陣型、自動放招模擬很多場 */
 export function stageWinChance(
-  state: Pick<GameState, 'dogs' | 'formation'> & { equipped?: GameState['equipped'] },
+  state: Pick<GameState, 'dogs' | 'formation'> & WornState,
   stageId: string,
   dogIds: readonly string[],
 ): number {

@@ -1,7 +1,7 @@
 import { findDog, type DogData, type DogRarity } from '../data/dogs';
 import type { StageData } from '../data/regions';
 import type { DogProgress, GameState } from '../state/gameState';
-import { gearBonus, gearPct } from './equipment';
+import { gearBonus, gearPct, type WornState } from './equipment';
 import { calcPower } from './power';
 
 /**
@@ -237,7 +237,7 @@ export function expeditionExp(stage: Pick<StageData, 'difficulty'>, win: boolean
 // ---- 讀取：畫面與戰鬥都用這裡的數字 ----
 
 /** 有 equipped 的話攻防會把裝備加成算進去（T014）；沒給就當成沒穿 */
-type HasDogs = Pick<GameState, 'dogs'> & { equipped?: GameState['equipped'] };
+type HasDogs = Pick<GameState, 'dogs'> & WornState;
 
 /** 這隻狗的養成進度；狀態裡還沒有（例如還沒擁有）就用初始值 */
 export function progressOf(state: HasDogs, dog: DogData): DogProgress {

@@ -329,6 +329,18 @@ interface WgzDebugState {
     prev: WgzRect;
     next: WgzRect;
     autoButton: WgzRect;
+    /** 全部升星（T036）與現在有幾種裝備可以升 */
+    starAllButton: WgzRect;
+    starReady: number;
+    /** 升星視窗；沒開為 null */
+    starPanel: {
+      gearId: string;
+      star: number;
+      ok: boolean;
+      message: string;
+      up: WgzRect;
+      close: WgzRect;
+    } | null;
     tabs: ({ key: string; active: boolean } & WgzRect)[];
     /** 五個裝備格：穿著的裝備 id，沒穿為 null */
     slots: ({ slot: string; gearId: string | null } & WgzRect)[];
@@ -347,6 +359,10 @@ interface WgzDebugState {
       wearing: boolean;
       /** 專屬裝備：只有這隻狗能穿（狗狗 id）；一般裝備為 null */
       exclusive: string | null;
+      /** 幾星、現在材料夠不夠升星、點哪裡開升星視窗（T036） */
+      star: number;
+      canStar: boolean;
+      icon: WgzRect;
       visible: boolean;
     } & WgzRect)[];
   };

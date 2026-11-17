@@ -27,6 +27,42 @@ type HasGear = Pick<GameState, 'gear' | 'equipped'>;
 /** 出征打贏掉 1 件裝備的機率（Jimmy 2026-11-12） */
 export const DROP_RATE = 0.3;
 
+/** 算加成要看的東西：誰穿什麼、每種裝備升到幾星（T036）；沒給就當成沒穿、沒升星 */
+export type WornState = { equipped?: GameState['equipped']; gearStars?: GameState['gearStars'] };
+
+// ---- 裝備星等（T036）：每種裝備各自有星數，同款的每一件一起變強；升星的規則在 src/logic/gearStar.ts ----
+
+/** 裝備最多升到幾星（剛拿到是 0 星） */
+export const GEAR_STAR_MAX = 5;
+/** 每一星讓這件裝備的攻防合計多原本的多少（暫定）；每一星至少 +1，所以加成小的 N、R 裝備升得比較有感 */
+export const GEAR_STAR_STEP = 0.2;
+/** 有比例加成的專屬裝備，每一星比例再多這麼多（5% → 滿星 10%，暫定） */
+export const GEAR_STAR_PCT = 0.01;
+
+/** 這種裝備現在幾星（0～GEAR_STAR_MAX） */
+export function gearStarOf(state: { gearStars?: GameState['gearStars'] }, gearId: string): number {
+  const n = state.gearStars?.[gearId] ?? 0;
+  return Number.isFinite(n) ? Math.min(GEAR_STAR_MAX, Math.max(0, Math.floor(n))) : 0;
+}
+
+/** 這件裝備升到 star 星時的加成；功能（perks）不跟著星數變 */
+export function gearAtStar(
+  g: Pick<GearData, 'attack' | 'defense' | 'pct'>,
+  star: number,
+): { attack: number; defense: number; pct?: number } {
+  const s = Math.min(GEAR_STAR_MAX, Math.max(0, Math.floor(star)));
+  // 多出來的合計：原本合計的 20% × 星數，但每一星至少 +1（加成小的裝備才不會升了沒變）
+  const total = g.attack + g.defense;
+  const extra = total > 0 ? Math.max(s, Math.round(total * GEAR_STAR_STEP * s)) : 0;
+  // 照原本攻防的比例分
+  const extraAttack = total > 0 ? Math.round((extra * g.attack) / total) : 0;
+  return {
+    attack: g.attack + extraAttack,
+    defense: g.defense + (extra - extraAttack),
+    ...(g.pct ? { pct: Math.round((g.pct + GEAR_STAR_PCT * s) * 1000) / 1000 } : {}),
+  };
+}
+
 /** 一隻狗身上的裝備（照部位順序） */
 export function gearOf(state: { equipped?: GameState['equipped'] }, dogId: string): GearData[] {
   const worn = state.equipped?.[dogId];
@@ -40,15 +76,13 @@ export function gearOf(state: { equipped?: GameState['equipped'] }, dogId: strin
 }
 
 /** 一隻狗身上的裝備加成合計 */
-export function gearBonus(
-  state: { equipped?: GameState['equipped'] },
-  dogId: string,
-): { attack: number; defense: number } {
+export function gearBonus(state: WornState, dogId: string): { attack: number; defense: number } {
   let attack = 0;
   let defense = 0;
   for (const g of gearOf(state, dogId)) {
-    attack += g.attack;
-    defense += g.defense;
+    const at = gearAtStar(g, gearStarOf(state, g.id));
+    attack += at.attack;
+    defense += at.defense;
   }
   return { attack, defense };
 }
@@ -63,8 +97,11 @@ export function gearPerks(
 }
 
 /** 身上的專屬裝備讓攻擊、防禦各多多少比例（沒穿是 0） */
-export function gearPct(state: { equipped?: GameState['equipped'] }, dogId: string): number {
-  return gearOf(state, dogId).reduce((s, g) => s + (g.pct ?? 0), 0);
+export function gearPct(state: WornState, dogId: string): number {
+  return gearOf(state, dogId).reduce(
+    (s, g) => s + (gearAtStar(g, gearStarOf(state, g.id)).pct ?? 0),
+    0,
+  );
 }
 
 /**
@@ -172,8 +209,11 @@ export function unequip(state: GameState, dogId: string, slot: GearSlot): GameSt
   return { ...state, equipped: setSlot(state.equipped, dogId, slot, null) };
 }
 
-/** 比哪一件比較好：攻防合計，有比例加成的（專屬）再往前排 */
-const total = (g: GearData): number => g.attack + g.defense + (g.pct ?? 0) * 1000;
+/** 比哪一件比較好：攻防合計（算進星等），有比例加成的（專屬）再往前排 */
+function gearScore(state: Pick<GameState, 'gearStars'>, g: GearData): number {
+  const at = gearAtStar(g, gearStarOf(state, g.id));
+  return at.attack + at.defense + (at.pct ?? 0) * 1000;
+}
 
 /**
  * 一鍵穿上：每個部位從「身上那件＋倉庫裡沒人穿的」挑加成最高的。
@@ -188,7 +228,7 @@ export function equipBest(state: GameState, dogId: string): GameState {
     for (const g of ALL_GEARS) {
       if (g.slot !== slot || spareCount(s, g.id) <= 0) continue;
       if (g.exclusive && g.exclusive !== dogId) continue;
-      if (!best || total(g) > total(best)) best = g;
+      if (!best || gearScore(s, g) > gearScore(s, best)) best = g;
     }
     if (best && best !== current) {
       const r = equip(s, dogId, best.id);
@@ -246,7 +286,7 @@ export function rollDrop(
 
 // ---- 顯示用 ----
 
-/** 「攻 +4」「防 +2」「攻 +1 防 +3」；專屬的比例加成接在後面「攻防 +5%」 */
+/** 「攻 +4」「防 +2」「攻 +1 防 +3」；專屬的比例加成接在後面「攻防 +5%」。要顯示升星後的數字就先過 gearAtStar */
 export function gearBonusLabel(g: Pick<GearData, 'attack' | 'defense' | 'pct'>): string {
   return [
     g.attack > 0 ? `攻 +${g.attack}` : '',
@@ -263,6 +303,18 @@ export function dropNote(g: GearData): string {
 }
 
 // ---- 讀檔時的整理 ----
+
+/** 讀檔時整理裝備星等：只留認得的裝備，星數夾在 1～GEAR_STAR_MAX（0 星不記） */
+export function sanitizeGearStars(raw: unknown): Record<string, number> {
+  const out: Record<string, number> = {};
+  if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) return out;
+  for (const [id, n] of Object.entries(raw)) {
+    if (findGear(id) && typeof n === 'number' && Number.isFinite(n) && n >= 1) {
+      out[id] = Math.min(GEAR_STAR_MAX, Math.floor(n));
+    }
+  }
+  return out;
+}
 
 /**
  * 把讀進來的裝備資料整理成合法的：只留認得的裝備與擁有的狗、部位要對，

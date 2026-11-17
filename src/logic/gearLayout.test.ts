@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { GEAR_TAB_COUNT, gearCard, gearLayout, gearScrollMax } from './gearLayout';
+import {
+  GEAR_STAR_PANEL,
+  GEAR_TAB_COUNT,
+  gearCard,
+  gearCardIcon,
+  gearLayout,
+  gearScrollMax,
+  gearStarPanelButtons,
+} from './gearLayout';
 import type { Rect } from './layout';
 
 const W = 844;
@@ -65,5 +73,35 @@ describe('倉庫版面', () => {
     expect(gearScrollMax(l, 8)).toBe(0);
     expect(gearScrollMax(l, 9)).toBe(l.cardH + l.gap);
     expect(gearScrollMax(l, 21)).toBe(7 * (l.cardH + l.gap));
+  });
+
+  it('全部升星在標題列裡、不蓋到一鍵穿上與返回、也不蓋到中間的標題', () => {
+    expect(l.starAll.y + l.starAll.height).toBeLessThanOrEqual(56);
+    expect(overlap(l.starAll, l.auto)).toBe(false);
+    expect(l.starAll.x).toBeGreaterThan(W / 2 + 40);
+    expect(l.starAll.height).toBeGreaterThanOrEqual(44);
+  });
+
+  it('卡片的圖示範圍在卡片左邊、夠大好按', () => {
+    const card = gearCard(l, 3);
+    const icon = gearCardIcon(card);
+    expect(inside(icon, card)).toBe(true);
+    expect(icon.width).toBeGreaterThanOrEqual(44);
+    expect(icon.height).toBeGreaterThanOrEqual(44);
+    expect(icon.width).toBeLessThan(card.width / 2);
+  });
+
+  it('升星視窗的兩顆按鈕在視窗裡、不重疊、夠大', () => {
+    const box: Rect = {
+      x: (W - GEAR_STAR_PANEL.width) / 2,
+      y: (H - GEAR_STAR_PANEL.height) / 2,
+      ...GEAR_STAR_PANEL,
+    };
+    expect(inside(box, { x: 0, y: 0, width: W, height: H })).toBe(true);
+    const b = gearStarPanelButtons(box);
+    expect(inside(b.up, box)).toBe(true);
+    expect(inside(b.close, box)).toBe(true);
+    expect(overlap(b.up, b.close)).toBe(false);
+    for (const r of [b.up, b.close]) expect(r.height).toBeGreaterThanOrEqual(44);
   });
 });
