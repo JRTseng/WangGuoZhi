@@ -162,6 +162,7 @@ export class FrisbeeScene extends Phaser.Scene {
       gear: gearOf(getState(), d.id),
       pixel: PIXEL_SIZE / scale,
       breed: d.breed,
+      photo: d.id,
     });
     this.sprite.setScale(scale).setDepth(10);
     this.sprite.play('wag');
@@ -220,6 +221,7 @@ export class FrisbeeScene extends Phaser.Scene {
       g.strokeRoundedRect(r.x + pad, r.y + pad, r.width - pad * 2, r.height - pad * 2, 9);
       drawDogHead(g, r.x + r.width / 2, r.y + r.height / 2 + 3, r.width * 0.27, d.color, d.accent, {
         breed: d.breed,
+        photo: d.id,
       });
       const c = this.add.container(r.x, r.y);
       makeTapArea(c, r.width, r.height);
@@ -240,6 +242,7 @@ export class FrisbeeScene extends Phaser.Scene {
       accent: d.accent,
       gear: gearOf(st, d.id),
       breed: d.breed,
+      photo: d.id,
     });
     preview.setScale(l.preview.scale);
     preview.play('wag');

@@ -4,6 +4,7 @@ import { BACKGROUNDS } from '../data/backgrounds';
 import { DOGS, FACTION_NAMES, findDog } from '../data/dogs';
 import { warReady } from '../logic/war';
 import { chooseFaction, factionFromSearch, needFactionPick, playerFaction } from '../logic/faction';
+import { grantTryDog, tryDogFromSearch } from '../logic/tryDog';
 import { claimableCount } from '../logic/quests';
 import { markSigninShown, signinPopup, signinPopupFromSearch, signinReady } from '../logic/signin';
 import { towerOpen } from '../logic/tower';
@@ -111,6 +112,9 @@ export class LobbyScene extends Phaser.Scene {
     if (factionQuery.pick && getState().faction !== factionQuery.pick) {
       setState(chooseFaction(getState(), factionQuery.pick));
     }
+    // 網址指定要試看的角色（T035）：直接拿到、放到主頁與隊伍
+    const tryId = tryDogFromSearch(window.location.search);
+    if (tryId) setState(grantTryDog(getState(), tryId));
 
     this.drawBackground();
     this.drawDog();
@@ -224,6 +228,7 @@ export class LobbyScene extends Phaser.Scene {
       hurt: (this.dogHurt = woundLevel(getState(), d.id, Date.now())),
       pixel: PIXEL_SIZE / scale,
       breed: d.breed,
+      photo: d.id,
     });
     this.dog.setScale(scale);
     this.lightDog();
@@ -281,6 +286,7 @@ export class LobbyScene extends Phaser.Scene {
     drawDogHead(g, cx, cy + 4, R * 0.62, d.color, d.accent, {
       ...headLook(st, d.id),
       breed: d.breed,
+      photo: d.id,
     });
     g.lineStyle(4, LOBBY.gold, 1);
     g.strokeCircle(cx, cy, R);
@@ -440,6 +446,7 @@ export class LobbyScene extends Phaser.Scene {
           g.fillCircle(w - h * 0.34, h * 0.36, h * 0.3);
           drawDogHead(g, w - h * 0.34, h * 0.39, h * 0.19, leader.color, leader.accent, {
             breed: leader.breed,
+            photo: leader.id,
           });
         },
       },

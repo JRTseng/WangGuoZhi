@@ -272,6 +272,7 @@ export class HomeScene extends Phaser.Scene {
       accent: dog.accent,
       gear: gearOf(getState(), dog.id),
       breed: dog.breed,
+      photo: dog.id,
       pixel: PIXEL_SIZE / scale,
     });
     sprite.setScale(scale).setDepth(y);
@@ -590,7 +591,10 @@ export class HomeScene extends Phaser.Scene {
             else this.say(`最多住 ${HOME_MAX} 隻，先請一隻搬出去`);
           });
           const g = this.add.graphics();
-          drawDogHead(g, r.width / 2, r.height / 2 - 8, 19, d.color, d.accent, { breed: d.breed });
+          drawDogHead(g, r.width / 2, r.height / 2 - 8, 19, d.color, d.accent, {
+            breed: d.breed,
+            photo: d.id,
+          });
           g.fillStyle(RARITY_COLORS[d.rarity ?? 'N'], 1);
           g.fillRect(4, 4, 6, 6);
           c.add([

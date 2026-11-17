@@ -492,6 +492,7 @@ export class DogPicker {
         drawDogHead(g, c.x + c.width / 2, c.y + 7 + hr, hr, d.color, d.accent, {
           ...headLook(getState(), d.id),
           breed: d.breed,
+          photo: d.id,
         });
         this.layer.add([
           addText(
@@ -518,6 +519,7 @@ export class DogPicker {
         drawDogHead(g, c.x + 8 + hr, c.y + c.height / 2 + 2, hr, d.color, d.accent, {
           ...headLook(getState(), d.id),
           breed: d.breed,
+          photo: d.id,
         });
         this.layer.add(
           addText(
@@ -639,6 +641,7 @@ export class DogPicker {
     drawDogHead(g, 0, -8, 22, d.color, d.accent, {
       ...headLook(getState(), d.id),
       breed: d.breed,
+      photo: d.id,
     });
     ghost.add([g, addText(this.scene, 0, 26, d.name, 14, COLORS.ink, true).setOrigin(0.5)]);
     this.lift = { id, from, ghost };
@@ -683,6 +686,7 @@ export class DogPicker {
     drawDogHead(g, r.width / 2, hr + 16, hr, d.color, d.accent, {
       dark: !s.owned,
       breed: d.breed,
+      photo: d.id,
       ...headLook(getState(), d.id),
     });
     c.add(g);
