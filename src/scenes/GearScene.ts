@@ -1,8 +1,11 @@
+import type { GameState } from '../state/gameState';
 import { wt } from '../data/worldText';
 import Phaser from 'phaser';
 import { COLORS, RARITY_COLORS, rarityHex } from '../config';
 import { DOGS, findDog, type DogData } from '../data/dogs';
 import {
+  ACCESSORY_SLOTS,
+  BASE_SLOTS,
   GEAR_SLOTS,
   GEAR_SLOT_LABEL,
   findGear,
@@ -35,8 +38,12 @@ import { addText, drawHeader, patchDebug, resetDebug, viewOf } from './ui';
 const BAR = 56;
 /** 手指移動超過這個距離就當成捲動，不算點卡片 */
 const TAP_SLOP = 8;
-type Tab = 'all' | GearSlot;
-const TABS: readonly Tab[] = ['all', ...GEAR_SLOTS];
+/** 分頁：全部、五個部位、飾品（頸飾與耳飾合在一頁，T032） */
+type Tab = 'all' | GearSlot | 'acc';
+const TABS: readonly Tab[] = ['all', ...BASE_SLOTS, 'acc'];
+const tabOf = (slot: GearSlot): Tab => (ACCESSORY_SLOTS.includes(slot) ? 'acc' : slot);
+const tabLabel = (tab: Tab): string =>
+  tab === 'all' ? '全部' : tab === 'acc' ? '飾品' : GEAR_SLOT_LABEL[tab];
 
 export interface GearSceneData {
   /** 一進來先看哪隻狗；沒給就是主頁那隻 */
@@ -142,6 +149,13 @@ export class GearScene extends Phaser.Scene {
     this.dogId = owned[(i + step + owned.length) % owned.length];
     this.note = '';
     this.render();
+  }
+
+  /** 這個分頁裡有哪些裝備 */
+  private gearsIn(st: GameState, tab: Tab): GearData[] {
+    if (tab === 'all') return ownedGears(st);
+    if (tab === 'acc') return ACCESSORY_SLOTS.flatMap((slot) => ownedGears(st, slot));
+    return ownedGears(st, tab);
   }
 
   private setTab(tab: Tab): void {
@@ -292,7 +306,7 @@ export class GearScene extends Phaser.Scene {
     sprite.play('idle');
     this.left.add(sprite);
 
-    // 五個裝備格
+    // 五個裝備格＋兩個飾品格
     GEAR_SLOTS.forEach((slot, i) => {
       const r = l.slots[i];
       const item = worn.find((x) => x.slot === slot);
@@ -300,7 +314,7 @@ export class GearScene extends Phaser.Scene {
       const sg = this.add.graphics();
       sg.fillStyle(item ? 0xffffff : 0xefe3d0, 1);
       sg.lineStyle(
-        this.tab === slot ? 3 : 2,
+        this.tab === tabOf(slot) ? 3 : 2,
         item ? RARITY_COLORS[item.rarity] : COLORS.cardBorder,
         1,
       );
@@ -317,12 +331,12 @@ export class GearScene extends Phaser.Scene {
           r.height + 3,
           GEAR_SLOT_LABEL[slot],
           12,
-          this.tab === slot ? '#b5651d' : COLORS.inkSoft,
-          this.tab === slot,
+          this.tab === tabOf(slot) ? '#b5651d' : COLORS.inkSoft,
+          this.tab === tabOf(slot),
         ).setOrigin(0.5, 0),
       );
       makeTapArea(c, r.width, r.height + 18);
-      c.on('pointerup', () => this.setTab(slot));
+      c.on('pointerup', () => this.setTab(tabOf(slot)));
       this.left.add(c);
     });
   }
@@ -337,7 +351,7 @@ export class GearScene extends Phaser.Scene {
       const n =
         tab === 'all'
           ? totalGear(st)
-          : ownedGears(st, tab).reduce((s, g) => s + ownedCount(st, g.id), 0);
+          : this.gearsIn(st, tab).reduce((s, g) => s + ownedCount(st, g.id), 0);
       const c = this.add.container(r.x, r.y);
       const g = this.add.graphics();
       g.fillStyle(on ? COLORS.button : COLORS.card, 1);
@@ -350,7 +364,7 @@ export class GearScene extends Phaser.Scene {
           this,
           r.width / 2,
           r.height / 2,
-          `${tab === 'all' ? '全部' : GEAR_SLOT_LABEL[tab]} ${n}`,
+          `${tabLabel(tab)} ${n}`,
           14,
           on ? '#ffffff' : COLORS.ink,
           true,
@@ -366,7 +380,7 @@ export class GearScene extends Phaser.Scene {
   private renderCards(): void {
     const l = this.layout;
     const st = getState();
-    this.items = ownedGears(st, this.tab === 'all' ? undefined : this.tab);
+    this.items = this.gearsIn(st, this.tab);
     this.scrollY = Math.min(this.scrollY, gearScrollMax(l, this.items.length));
     this.cards.removeAll(true);
     this.cards.y = -this.scrollY;
@@ -379,7 +393,11 @@ export class GearScene extends Phaser.Scene {
           this,
           cx,
           l.list.y + 96,
-          none ? '倉庫還是空的' : `還沒有${GEAR_SLOT_LABEL[this.tab as GearSlot]}`,
+          none
+            ? '倉庫還是空的'
+            : this.tab === 'acc'
+              ? '還沒有飾品・爬塔每 20 層送一件'
+              : `還沒有${tabLabel(this.tab)}`,
           18,
           COLORS.inkSoft,
           true,

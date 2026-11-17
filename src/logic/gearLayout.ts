@@ -2,7 +2,7 @@ import type { Rect } from './layout';
 
 /**
  * 倉庫畫面（T014）的版面，純計算。固定橫式 844 x 390：
- * 左邊一張卡是狗狗（左右箭頭換狗、全身像、五個裝備格），右邊是部位分頁與裝備清單（兩欄、可上下捲）。
+ * 左邊一張卡是狗狗（左右箭頭換狗、全身像、五個裝備格＋兩個飾品格），右邊是部位分頁與裝備清單（兩欄、可上下捲）。
  */
 export interface GearLayout {
   /** 左邊狗狗那張卡 */
@@ -11,9 +11,9 @@ export interface GearLayout {
   next: Rect;
   /** 狗狗腳底的位置與縮放 */
   dog: { x: number; y: number; scale: number };
-  /** 五個裝備格，順序同 GEAR_SLOTS */
+  /** 七個裝備格，順序同 GEAR_SLOTS：下面一排五個部位，狗狗右邊直的兩格是飾品（T032） */
   slots: Rect[];
-  /** 六個分頁：全部＋五個部位 */
+  /** 七個分頁：全部＋五個部位＋飾品 */
   tabs: Rect[];
   /** 清單可見範圍 */
   list: Rect;
@@ -25,7 +25,7 @@ export interface GearLayout {
   auto: Rect;
 }
 
-export const GEAR_TAB_COUNT = 6;
+export const GEAR_TAB_COUNT = 7;
 const SLOT_COUNT = 5;
 
 export function gearLayout(w: number, h: number, bar: number): GearLayout {
@@ -45,11 +45,21 @@ export function gearLayout(w: number, h: number, bar: number): GearLayout {
     width: slot,
     height: slot,
   }));
-  const dog = { x: pane.x + pane.width / 2 - 8, y: slotY - 10, scale: 0.85 };
+  // 飾品兩格：貼著卡片右邊，直的疊在五個部位上面
+  const acc = 46;
+  for (let i = 0; i < 2; i++) {
+    slots.push({
+      x: pane.x + pane.width - 8 - acc,
+      y: slotY - (2 - i) * (acc + 16) - 6,
+      width: acc,
+      height: acc,
+    });
+  }
+  const dog = { x: pane.x + pane.width / 2 - 30, y: slotY - 10, scale: 0.82 };
 
   const rx = pane.x + pane.width + m;
   const rw = w - m - rx;
-  const tabGap = 6;
+  const tabGap = 5;
   const tabW = Math.floor((rw - tabGap * (GEAR_TAB_COUNT - 1)) / GEAR_TAB_COUNT);
   const tabs = Array.from({ length: GEAR_TAB_COUNT }, (_, i) => ({
     x: rx + i * (tabW + tabGap),

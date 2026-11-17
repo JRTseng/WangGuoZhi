@@ -9,9 +9,14 @@ import type { DogRarity } from './dogs';
  * GEARS 是一般裝備（關卡會掉）；專屬裝備在下面的 EXCLUSIVE_GEARS。
  * 純資料，不放公式；穿脫與掉落的規則在 src/logic/equipment.ts。
  */
-export type GearSlot = 'clothes' | 'gloves' | 'pants' | 'shoes' | 'head';
+export type GearSlot = 'clothes' | 'gloves' | 'pants' | 'shoes' | 'head' | 'neck' | 'ear';
 
-export const GEAR_SLOTS: readonly GearSlot[] = ['clothes', 'gloves', 'pants', 'shoes', 'head'];
+/** 一般的五個部位（關卡會掉、專屬裝備也在這五個部位） */
+export const BASE_SLOTS: readonly GearSlot[] = ['clothes', 'gloves', 'pants', 'shoes', 'head'];
+/** 飾品的兩個位置（T032，Jimmy 2026-11-17：裝備欄多一些飾品位置）：頸飾、耳飾，目前只有爬塔拿得到 */
+export const ACCESSORY_SLOTS: readonly GearSlot[] = ['neck', 'ear'];
+
+export const GEAR_SLOTS: readonly GearSlot[] = [...BASE_SLOTS, ...ACCESSORY_SLOTS];
 
 export const GEAR_SLOT_LABEL: Readonly<Record<GearSlot, string>> = {
   clothes: '衣服',
@@ -19,6 +24,8 @@ export const GEAR_SLOT_LABEL: Readonly<Record<GearSlot, string>> = {
   pants: '褲子',
   shoes: '鞋子',
   head: '頭飾',
+  neck: '頸飾',
+  ear: '耳飾',
 };
 
 /** 每個稀有度的加成合計（攻擊 + 防禦） */
@@ -41,7 +48,12 @@ export type GearStyle =
   | 'cone'
   | 'bow'
   | 'hat'
-  | 'crown';
+  | 'crown'
+  | 'bell'
+  | 'scarf'
+  | 'locket'
+  | 'ribbon'
+  | 'flower';
 
 export interface GearData {
   id: string;
@@ -942,81 +954,83 @@ export const EXCLUSIVE_GEARS: readonly GearData[] = [
 ];
 
 /**
- * 爬塔限定裝備（Jimmy 2026-11-17：「通關可以有限定功能裝備，只有爬塔才會提供的」）：
- * 每 20 層第一次通關送一件，五個部位各一件；除了攻防還帶一個特殊功能（暫定）。
+ * 爬塔限定飾品（Jimmy 2026-11-17：「通關可以有限定功能裝備，只有爬塔才會提供的」，
+ * 同一天再補：做成真實世界看得到的飾品，例如鈴鐺、蝴蝶結，裝備欄多飾品位置）：
+ * 每 20 層第一次通關送一件，戴在頸飾或耳飾的位置，不佔原本五個部位；
+ * 除了攻防還帶一個特殊功能（暫定），戴上去身上看得到。id 沿用原本的 tw-N，已經拿到的人不用重拿。
  */
 export const TOWER_GEARS: readonly GearData[] = [
   {
     id: 'tw-20',
-    name: '塔高望遠帽',
-    slot: 'head',
+    name: '一鳴驚人鈴鐺',
+    slot: 'neck',
     rarity: 'SSR',
     attack: 6,
     defense: 6,
-    pun: '登高望遠',
-    note: '站得高看得遠，開打前就先想好了。',
-    style: 'hat',
-    color: 0x3b6ea5,
+    pun: '一鳴驚人',
+    note: '平常安安靜靜，一響起來全場都看過來。',
+    style: 'bell',
+    color: 0xc0392b,
     accent: 0xf4c430,
     tower: 20,
     perks: { startEn: 30 },
   },
   {
     id: 'tw-40',
-    name: '塔實做事手套',
-    slot: 'gloves',
+    name: '義結金蘭蝴蝶結',
+    slot: 'ear',
     rarity: 'SSR',
     attack: 12,
     defense: 0,
-    pun: '踏實做事',
-    note: '一拳一拳慢慢來，偶爾特別準。',
-    style: 'mitt',
-    color: 0x8a5a33,
-    accent: 0xf2c14b,
+    pun: '義結金蘭',
+    note: '別在耳朵旁邊，出手特別有精神，偶爾特別準。',
+    style: 'ribbon',
+    color: 0xe0567a,
+    accent: 0xffd56b,
     tower: 40,
     perks: { crit: 0.1 },
   },
   {
     id: 'tw-60',
-    name: '腳塔實地鞋',
-    slot: 'shoes',
+    name: '巾非昔比領巾',
+    slot: 'neck',
     rarity: 'SSR',
     attack: 6,
     defense: 6,
-    pun: '腳踏實地',
-    note: '每一步都踩得穩，要閃也閃得開。',
-    style: 'sneaker',
-    color: 0x4f9a6a,
+    pun: '今非昔比',
+    note: '圍上去整個不一樣了，跑起來領巾飄飄，要閃也閃得開。',
+    style: 'scarf',
+    color: 0x3b6ea5,
     accent: 0xfafafa,
     tower: 60,
     perks: { dodge: 0.1 },
   },
   {
     id: 'tw-80',
-    name: '塔破鐵褲',
-    slot: 'pants',
+    name: '花好月圓小花',
+    slot: 'ear',
     rarity: 'SSR',
     attack: 0,
     defense: 12,
-    pun: '踏破鐵鞋',
-    note: '爬了八十層都沒磨破，結實。',
-    style: 'trousers',
-    color: 0x6b7385,
-    accent: 0xc0392b,
+    pun: '花好月圓',
+    note: '塔上才開的小花，戴著心情好，挨打也不太痛。',
+    style: 'flower',
+    color: 0xfafafa,
+    accent: 0xf2c14b,
     tower: 80,
     perks: { guard: 0.1 },
   },
   {
     id: 'tw-100',
-    name: '登塔造極袍',
-    slot: 'clothes',
+    name: '鎖向無敵金鎖片',
+    slot: 'neck',
     rarity: 'SSR',
     attack: 6,
     defense: 6,
-    pun: '登峰造極',
-    note: '塔頂的風很大，披上它就不怕。',
-    style: 'robe',
-    color: 0x7a3b8a,
+    pun: '所向無敵',
+    note: '塔頂才有的長命鎖，掛在胸前沉甸甸的，很安心。',
+    style: 'locket',
+    color: 0xc0392b,
     accent: 0xffd56b,
     tower: 100,
     perks: { atk: 0.1, hp: 0.1 },

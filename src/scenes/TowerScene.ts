@@ -155,12 +155,12 @@ export class TowerScene extends Phaser.Scene {
       const gift = TOWER_GEARS.find((x) => !t.gear.includes(x.tower!));
       if (gift) {
         line(
-          `第 ${gift.tower} 層限定裝備：${gift.name}（${perkText(gift.perks ?? {})}）`,
+          `第 ${gift.tower} 層限定飾品：${gift.name}（${perkText(gift.perks ?? {})}）`,
           14,
           '#7a3b8a',
           true,
         );
-      } else line('五件爬塔限定裝備都拿到了', 14, '#4f8a3c', true);
+      } else line('五件爬塔限定飾品都拿到了', 14, '#4f8a3c', true);
 
       if (next) {
         fight = { x: card.x + card.width - 18 - btnW, y: btnY, width: btnW, height: 46 };

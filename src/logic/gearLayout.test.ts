@@ -25,8 +25,8 @@ describe('倉庫版面', () => {
   });
 
   it('五個裝備格在狗狗卡裡排成一列、夠大好按，狗狗站在格子上面', () => {
-    expect(l.slots).toHaveLength(5);
-    for (const [i, s] of l.slots.entries()) {
+    expect(l.slots).toHaveLength(7);
+    for (const [i, s] of l.slots.slice(0, 5).entries()) {
       expect(inside(s, l.pane)).toBe(true);
       expect(s.width).toBeGreaterThanOrEqual(44);
       if (i > 0) expect(s.x).toBeGreaterThan(l.slots[i - 1].x + l.slots[i - 1].width);
@@ -35,7 +35,20 @@ describe('倉庫版面', () => {
     expect(inside(l.prev, l.pane) && inside(l.next, l.pane)).toBe(true);
   });
 
-  it('六個分頁不重疊、夠寬；清單兩欄，一頁看得到四列', () => {
+  it('飾品兩格直的疊在卡片右邊，不壓到下面那一排、也不壓到換狗的箭頭', () => {
+    const [neck, ear] = l.slots.slice(5);
+    for (const s of [neck, ear]) {
+      expect(inside(s, l.pane)).toBe(true);
+      expect(s.width).toBeGreaterThanOrEqual(44);
+      expect(overlap(s, l.next)).toBe(false);
+      for (const base of l.slots.slice(0, 5)) expect(overlap(s, base)).toBe(false);
+    }
+    expect(neck.y + neck.height).toBeLessThan(ear.y);
+    // 格子下面還有一行部位名稱
+    expect(ear.y + ear.height + 14).toBeLessThanOrEqual(l.slots[0].y);
+  });
+
+  it('七個分頁不重疊、夠寬；清單兩欄，一頁看得到四列', () => {
     expect(l.tabs).toHaveLength(GEAR_TAB_COUNT);
     for (let i = 1; i < l.tabs.length; i++) expect(overlap(l.tabs[i - 1], l.tabs[i])).toBe(false);
     expect(l.tabs[0].width).toBeGreaterThanOrEqual(70);

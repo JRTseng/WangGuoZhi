@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { DOGS } from '../data/dogs';
-import { TOWER_GEARS, findGear } from '../data/equipment';
+import { ACCESSORY_SLOTS, TOWER_GEARS, findGear } from '../data/equipment';
 import { findRegionOfStage, findStage } from '../data/regions';
 import {
   TOWER_FLOORS,
@@ -105,16 +105,16 @@ describe('塔的資料', () => {
     }
   });
 
-  it('爬塔限定裝備：五件、五個部位各一件、都有特殊功能，穿上就進戰鬥', () => {
+  it('爬塔限定飾品：五件、都戴在飾品的位置、都有特殊功能，戴上就進戰鬥', () => {
     expect(TOWER_GEARS.map((g) => g.tower)).toEqual([20, 40, 60, 80, 100]);
-    expect(new Set(TOWER_GEARS.map((g) => g.slot)).size).toBe(5);
+    for (const g of TOWER_GEARS) expect(ACCESSORY_SLOTS).toContain(g.slot);
     for (const g of TOWER_GEARS) {
       expect(g.perks).toBeTruthy();
       expect(findGear(g.id)).toBe(g);
       expect(g.attack + g.defense).toBe(12);
     }
     const s = strong();
-    const worn = { ...s, equipped: { liuxing: { head: 'tw-20' } } };
+    const worn = { ...s, equipped: { liuxing: { neck: 'tw-20' } } };
     const before = battleDogOf(s, 'liuxing')!.perks?.startEn ?? 0;
     expect(battleDogOf(worn, 'liuxing')!.perks!.startEn).toBe(before + 30);
   });

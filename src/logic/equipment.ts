@@ -291,10 +291,12 @@ export function sanitizeGear(
         const id: unknown = (worn as Record<string, unknown>)[slot];
         if (typeof id !== 'string') continue;
         const g = findGear(id);
-        if (!g || g.slot !== slot || (used[id] ?? 0) >= (gear[id] ?? 0)) continue;
+        if (!g || (used[id] ?? 0) >= (gear[id] ?? 0)) continue;
         if (g.exclusive && g.exclusive !== dogId) continue;
+        // 裝備換了部位（爬塔限定裝備改成飾品，T032）：搬到它現在的位置，那個位置有東西了就放回倉庫
+        if (g.slot !== slot && (out[g.slot] || !g.tower)) continue;
         used[id] = (used[id] ?? 0) + 1;
-        out[slot] = id;
+        out[g.slot] = id;
       }
       if (Object.keys(out).length > 0) equipped[dogId] = out;
     }

@@ -50,6 +50,123 @@ const CROWN: readonly P[] = [
   [0.85, 0.55],
 ];
 
+/** 鈴鐺：中心 (x, y)，r 是半徑 */
+function drawBell(g: G, x: number, y: number, r: number, gold: number): void {
+  g.fillStyle(gold, 1);
+  g.fillCircle(x, y, r);
+  g.strokeCircle(x, y, r);
+  g.fillStyle(0xfff3c4, 1);
+  g.fillCircle(x - r * 0.35, y - r * 0.38, r * 0.22);
+  g.fillStyle(COLORS.inkHex, 1);
+  g.fillRect(x - r * 0.62, y + r * 0.05, r * 1.24, Math.max(1, r * 0.16));
+  g.fillCircle(x, y + r * 0.48, r * 0.2);
+}
+
+/** 長命鎖：中心 (x, y)，r 是半寬 */
+function drawLocket(g: G, x: number, y: number, r: number, gold: number): void {
+  const pts = [
+    { x: x - r, y: y - r * 0.55 },
+    { x: x + r, y: y - r * 0.55 },
+    { x: x + r * 0.78, y: y + r * 0.35 },
+    { x, y: y + r * 0.8 },
+    { x: x - r * 0.78, y: y + r * 0.35 },
+  ];
+  g.fillStyle(gold, 1);
+  g.fillPoints(pts, true);
+  g.strokePoints(pts, true);
+  g.fillStyle(0xc0392b, 1);
+  g.fillCircle(x, y - r * 0.02, r * 0.26);
+}
+
+/** 蝴蝶結（有兩條垂下來的緞帶）：中心 (x, y)，s 是半寬 */
+function drawRibbon(g: G, x: number, y: number, s: number, color: number, knot: number): void {
+  for (const k of [-1, 1]) {
+    const tail = [
+      { x: x + k * 0.05 * s, y },
+      { x: x + k * 0.5 * s, y: y + 0.9 * s },
+      { x: x + k * 0.12 * s, y: y + 0.72 * s },
+    ];
+    g.fillStyle(color, 1);
+    g.fillPoints(tail, true);
+    g.strokePoints(tail, true);
+  }
+  for (const k of [-1, 1]) {
+    const wing = [
+      { x, y },
+      { x: x + k * 0.95 * s, y: y - 0.6 * s },
+      { x: x + k * 0.95 * s, y: y + 0.45 * s },
+    ];
+    g.fillStyle(color, 1);
+    g.fillPoints(wing, true);
+    g.strokePoints(wing, true);
+  }
+  g.fillStyle(knot, 1);
+  g.fillCircle(x, y, 0.24 * s);
+  g.strokeCircle(x, y, 0.24 * s);
+}
+
+/** 五瓣小花：中心 (x, y)，r 是整朵的半徑 */
+function drawFlower(g: G, x: number, y: number, r: number, petal: number, core: number): void {
+  for (let i = 0; i < 5; i++) {
+    const a = -Math.PI / 2 + (i * Math.PI * 2) / 5;
+    const px = x + Math.cos(a) * r * 0.55;
+    const py = y + Math.sin(a) * r * 0.55;
+    g.fillStyle(petal, 1);
+    g.fillCircle(px, py, r * 0.42);
+    g.strokeCircle(px, py, r * 0.42);
+  }
+  g.fillStyle(core, 1);
+  g.fillCircle(x, y, r * 0.32);
+  g.strokeCircle(x, y, r * 0.32);
+}
+
+/**
+ * 飾品（T032）畫在頭的前面：頸飾掛在下巴下面，耳飾別在耳朵旁邊。
+ * 頭的中心在 (x, y)，r 是頭的半徑；小頭像與全身像共用。
+ */
+export function drawAccessories(g: G, gears: readonly Look[], r: number, x = 0, y = 0): void {
+  const lw = Math.max(1.5, r / 14);
+  const neck = gears.find((k) => k.slot === 'neck');
+  if (neck) {
+    g.lineStyle(lw, COLORS.inkHex, 1);
+    if (neck.style === 'scarf') {
+      const pts = [
+        { x: x - r * 0.62, y: y + r * 0.74 },
+        { x: x + r * 0.62, y: y + r * 0.74 },
+        { x: x + r * 0.08, y: y + r * 1.42 },
+      ];
+      g.fillStyle(neck.color, 1);
+      g.fillPoints(pts, true);
+      g.strokePoints(pts, true);
+      g.fillStyle(neck.accent, 1);
+      g.fillCircle(x + r * 0.03, y + r * 0.98, r * 0.07);
+      g.fillCircle(x - r * 0.22, y + r * 0.88, r * 0.055);
+      g.fillCircle(x + r * 0.28, y + r * 0.88, r * 0.055);
+    } else {
+      // 項圈：沿著下巴的一段弧
+      g.lineStyle(lw * 2.6, COLORS.inkHex, 1);
+      g.beginPath();
+      g.arc(x, y, r * 0.99, 0.3 * Math.PI, 0.7 * Math.PI);
+      g.strokePath();
+      g.lineStyle(lw * 1.6, neck.color, 1);
+      g.beginPath();
+      g.arc(x, y, r * 0.99, 0.3 * Math.PI, 0.7 * Math.PI);
+      g.strokePath();
+      g.lineStyle(lw, COLORS.inkHex, 1);
+      if (neck.style === 'locket') drawLocket(g, x, y + r * 1.2, r * 0.26, neck.accent);
+      else drawBell(g, x, y + r * 1.18, r * 0.22, neck.accent);
+    }
+  }
+  const ear = gears.find((k) => k.slot === 'ear');
+  if (ear) {
+    g.lineStyle(lw, COLORS.inkHex, 1);
+    const ex = x - r * 0.72;
+    const ey = y - r * 0.72;
+    if (ear.style === 'flower') drawFlower(g, ex, ey, r * 0.34, ear.color, ear.accent);
+    else drawRibbon(g, ex, ey, r * 0.36, ear.color, ear.accent);
+  }
+}
+
 /** 小圖示：中心 (cx, cy)，s 是半徑（整個圖大約 2s 見方） */
 export function drawGearIcon(g: G, cx: number, cy: number, s: number, gear: Look): void {
   const { color, accent } = gear;
@@ -270,6 +387,48 @@ export function drawGearIcon(g: G, cx: number, cy: number, s: number, gear: Look
       dot(-0.5, 0.25, 0.1, 0xffffff);
       dot(0.5, 0.25, 0.1, 0xffffff);
       break;
+    case 'bell':
+      // 項圈＋鈴鐺
+      g.lineStyle(lw * 2.4, color, 1);
+      g.beginPath();
+      g.arc(cx, cy - 0.55 * s, 0.8 * s, 0.12 * Math.PI, 0.88 * Math.PI);
+      g.strokePath();
+      g.lineStyle(lw, COLORS.inkHex, 1);
+      drawBell(g, cx, cy + 0.38 * s, 0.46 * s, accent);
+      break;
+    case 'scarf':
+      box(-0.9, -0.7, 1.8, 0.34, color);
+      poly(
+        g,
+        cx,
+        cy,
+        s,
+        [
+          [-0.78, -0.4],
+          [0.78, -0.4],
+          [0, 0.85],
+        ],
+        color,
+      );
+      dot(0, -0.02, 0.11);
+      dot(-0.3, -0.2, 0.08);
+      dot(0.3, -0.2, 0.08);
+      break;
+    case 'locket':
+      // 紅繩＋金鎖片
+      g.lineStyle(lw * 1.6, color, 1);
+      g.beginPath();
+      g.arc(cx, cy - 0.6 * s, 0.78 * s, 0.14 * Math.PI, 0.86 * Math.PI);
+      g.strokePath();
+      g.lineStyle(lw, COLORS.inkHex, 1);
+      drawLocket(g, cx, cy + 0.36 * s, 0.5 * s, accent);
+      break;
+    case 'ribbon':
+      drawRibbon(g, cx, cy, s, color, accent);
+      break;
+    case 'flower':
+      drawFlower(g, cx, cy, 0.9 * s, color, accent);
+      break;
   }
 }
 
@@ -388,6 +547,7 @@ export function drawCone(
 }
 
 export function drawHeadGearFront(front: G, gears: readonly Look[], r: number, x = 0, y = 0): void {
+  drawAccessories(front, gears, r, x, y);
   const head = gears.find((g) => g.slot === 'head');
   if (!head || head.style === 'cone') return;
   if (head.style === 'bandana') {
