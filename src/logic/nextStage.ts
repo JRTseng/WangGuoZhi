@@ -4,6 +4,9 @@ import { TEAM_MIN, busyDogIds, stageTeamMax } from './expedition';
 import { isStageUnlocked } from './progress';
 import { towerCanFight } from './tower';
 import { towerFloorOf, towerStage } from '../data/tower';
+import { ratTierOf } from '../data/rats';
+import { ratCanFight } from './ratRaid';
+import { findStage } from '../data/regions';
 import { runBlock, type TimeOptions } from './stamina';
 import { dogPower } from './team';
 
@@ -32,6 +35,11 @@ export function nextStageOf(stageId: string): { stage: StageData; chapter: numbe
     const stage = towerStage(floor + 1);
     return stage ? { stage, chapter: -1 } : undefined;
   }
+  // 老鼠幫：今天還有下一波就再打同一關（chapter 給 -1，回去的時候回活動畫面）
+  if (ratTierOf(stageId)) {
+    const stage = findStage(stageId);
+    return stage ? { stage, chapter: -1 } : undefined;
+  }
   const all = REGIONS.flatMap((r, chapter) => r.stages.map((stage) => ({ stage, chapter })));
   const i = all.findIndex((x) => x.stage.id === stageId);
   return i >= 0 ? all[i + 1] : undefined;
@@ -55,7 +63,9 @@ export function nextStagePlan(
   if (!next) return null;
   const open = towerFloorOf(next.stage.id)
     ? towerCanFight(state, next.stage.id, now, o)
-    : isStageUnlocked(state, next.stage.id);
+    : ratTierOf(next.stage.id)
+      ? ratCanFight(state, next.stage.id, now, o)
+      : isStageUnlocked(state, next.stage.id);
   if (!open) return null;
   const busy = busyDogIds(state);
   const able = team.filter((id) => state.owned.includes(id) && !busy.has(id));

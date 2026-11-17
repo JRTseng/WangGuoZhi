@@ -2625,6 +2625,248 @@ const SPECS: Record<string, BreedSpec> = {
   },
 };
 
+// ---------------------------------------------------------------- 刺青老鼠幫（T034）
+
+type Tattoo = 'heart' | 'star' | 'fish' | 'anchor';
+
+/** 可愛版的「刺青」：像貼紙一樣的小圖案，s 約為半徑 */
+function tattoo(g: G, x: number, y: number, s: number, kind: Tattoo): void {
+  switch (kind) {
+    case 'heart':
+      g.fillStyle(0xe85d75, 1);
+      g.fillCircle(x - s * 0.45, y - s * 0.25, s * 0.52);
+      g.fillCircle(x + s * 0.45, y - s * 0.25, s * 0.52);
+      g.fillTriangle(x - s * 0.92, y, x + s * 0.92, y, x, y + s);
+      g.fillStyle(0xffffff, 0.7);
+      g.fillCircle(x + s * 0.5, y - s * 0.4, s * 0.16);
+      break;
+    case 'star': {
+      g.fillStyle(0x2f9c96, 1);
+      // 用十片小三角形拼出五角星（不用 Phaser 的向量，測試才能在沒有瀏覽器的環境載入這個檔）
+      const at = (i: number): [number, number] => {
+        const a = -Math.PI / 2 + (i * Math.PI) / 5;
+        const rr = i % 2 === 0 ? s : s * 0.45;
+        return [x + Math.cos(a) * rr, y + Math.sin(a) * rr];
+      };
+      for (let i = 0; i < 10; i++) {
+        const [x1, y1] = at(i);
+        const [x2, y2] = at(i + 1);
+        g.fillTriangle(x, y, x1, y1, x2, y2);
+      }
+      break;
+    }
+    case 'fish':
+      // 小魚骨
+      g.lineStyle(Math.max(1.5, s * 0.22), 0x3f5f9a, 1);
+      g.lineBetween(x - s * 0.7, y, x + s * 0.6, y);
+      for (const dx of [-0.35, 0, 0.35])
+        g.lineBetween(x + dx * s, y - s * 0.5, x + dx * s, y + s * 0.5);
+      g.fillStyle(0x3f5f9a, 1);
+      g.fillTriangle(x - s * 0.7, y, x - s * 1.15, y - s * 0.5, x - s * 1.15, y + s * 0.5);
+      g.fillCircle(x + s * 0.85, y, s * 0.36);
+      break;
+    case 'anchor':
+      g.lineStyle(Math.max(1.5, s * 0.24), 0x3f5f9a, 1);
+      g.lineBetween(x, y - s * 0.6, x, y + s * 0.8);
+      g.lineBetween(x - s * 0.5, y - s * 0.2, x + s * 0.5, y - s * 0.2);
+      g.beginPath();
+      g.arc(x, y + s * 0.15, s * 0.75, 0.1 * Math.PI, 0.9 * Math.PI);
+      g.strokePath();
+      g.strokeCircle(x, y - s * 0.8, s * 0.22);
+      break;
+  }
+}
+
+interface RatSpec {
+  /** 身體胖瘦（1 是一般） */
+  bulk: number;
+  /** 身上與臉頰的刺青 */
+  flank: Tattoo;
+  cheek?: Tattoo;
+  /** 戴墨鏡（鼠老大） */
+  shades?: boolean;
+  /** 脖子上的金項鍊（鼠老大） */
+  chain?: boolean;
+  /** 頭上綁的頭巾顏色 */
+  bandana?: number;
+  /** 背著彈弓 */
+  sling?: boolean;
+}
+
+const RAT_PINK = 0xf2a7a0;
+
+function ratArt(spec: RatSpec): BreedArt {
+  const eye = { dx: 0.36, dy: -0.1, r: 0.115 };
+  return {
+    tailAt: { x: -50, y: -40 },
+    eye: { ...eye, lid: (p) => (spec.shades ? 0x2a2630 : p.main) },
+    head(g, x, y, r, pal, o) {
+      const lw = Math.max(2, r / 14);
+      const main = pal.main;
+      // 大大圓圓的耳朵
+      const ears = new Shapes();
+      for (const s of [-1, 1]) ears.circle(x + s * r * 0.8, y - r * 0.68, r * 0.54);
+      ears.draw(g, dark(main, 0.1), lw);
+      for (const s of [-1, 1]) {
+        g.fillStyle(RAT_PINK, 1);
+        g.fillCircle(x + s * r * 0.8, y - r * 0.66, r * 0.36);
+        g.fillStyle(dark(RAT_PINK, 0.25), 0.4);
+        g.fillEllipse(x + s * r * 0.8 - r * 0.1, y - r * 0.56, r * 0.4, r * 0.3);
+      }
+      // 頭：圓圓的，下半往前收成尖尖的嘴
+      new Shapes()
+        .circle(x, y - r * 0.05, r * 0.96)
+        .ellipse(x, y + r * 0.38, r * 1.5, r * 1.1)
+        .draw(g, main, lw);
+      g.fillStyle(dark(main, 0.3), 0.28);
+      g.fillEllipse(x - r * 0.62, y + r * 0.1, r * 0.56, r * 1.1);
+      g.fillStyle(lite(main, 0.5), 0.5);
+      g.fillEllipse(x + r * 0.26, y - r * 0.66, r * 0.8, r * 0.3);
+      // 淺色的嘴邊
+      g.fillStyle(pal.under, 1);
+      g.fillEllipse(x, y + r * 0.46, r * 1.1, r * 0.78);
+      // 頭巾
+      if (spec.bandana !== undefined) {
+        new Shapes()
+          .rrect(x - r * 0.86, y - r * 0.86, r * 1.72, r * 0.36, r * 0.16)
+          .draw(g, spec.bandana, lw * 0.8);
+        g.fillStyle(0xffffff, 0.75);
+        for (const dx of [-0.5, 0, 0.5]) g.fillCircle(x + dx * r, y - r * 0.68, r * 0.06);
+        new Shapes()
+          .tri(x - r * 0.84, y - r * 0.72, x - r * 1.2, y - r * 0.5, x - r * 1.02, y - r * 0.92)
+          .draw(g, spec.bandana, lw * 0.8);
+      }
+      if (!o.fierce || !spec.shades) blush(g, x, y, r, 0.62, 0.24);
+      if (spec.shades) {
+        // 墨鏡：兩片圓角鏡片加一條鼻樑
+        const sh = new Shapes();
+        for (const s of [-1, 1]) {
+          sh.rrect(x + s * r * 0.36 - r * 0.28, y - r * 0.3, r * 0.56, r * 0.38, r * 0.14);
+        }
+        sh.rrect(x - r * 0.12, y - r * 0.24, r * 0.24, r * 0.1, r * 0.04);
+        sh.draw(g, 0x2a2630, lw * 0.8);
+        g.fillStyle(0xffffff, 0.55);
+        for (const s of [-1, 1]) {
+          g.fillRoundedRect(
+            x + s * r * 0.36 - r * 0.04,
+            y - r * 0.26,
+            r * 0.22,
+            r * 0.07,
+            r * 0.03,
+          );
+        }
+      } else {
+        eyes(g, x, y, r, eye, !!o.eyesClosed);
+      }
+      // 鬍鬚
+      g.lineStyle(Math.max(1, r * 0.035), INK, 0.7);
+      for (const s of [-1, 1]) {
+        for (const dy of [-0.06, 0.08]) {
+          g.lineBetween(
+            x + s * r * 0.3,
+            y + r * (0.36 + dy * 0.4),
+            x + s * r * 0.95,
+            y + r * (0.3 + dy * 2.2),
+          );
+        }
+      }
+      // 粉紅鼻子與兩顆門牙
+      g.fillStyle(INK, 1);
+      g.fillCircle(x, y + r * 0.26, Math.max(3, r * 0.13) + lw * 0.5);
+      g.fillStyle(0xf08a94, 1);
+      g.fillCircle(x, y + r * 0.26, Math.max(3, r * 0.13));
+      g.fillStyle(0xffffff, 0.6);
+      g.fillCircle(x + r * 0.04, y + r * 0.22, r * 0.04);
+      g.lineStyle(Math.max(1.5, r * 0.05), INK, 1);
+      for (const s of [-1, 1]) {
+        g.beginPath();
+        g.arc(x + s * r * 0.1, y + r * 0.42, r * 0.1, 0, Math.PI);
+        g.strokePath();
+      }
+      g.fillStyle(INK, 1);
+      g.fillRoundedRect(x - r * 0.12, y + r * 0.48, r * 0.24, r * 0.2, r * 0.04);
+      g.fillStyle(spec.chain ? 0xf2c14e : 0xffffff, 1);
+      g.fillRoundedRect(x - r * 0.1, y + r * 0.49, r * 0.09, r * 0.17, r * 0.03);
+      g.fillStyle(0xffffff, 1);
+      g.fillRoundedRect(x + r * 0.01, y + r * 0.49, r * 0.09, r * 0.17, r * 0.03);
+      if (spec.cheek) tattoo(g, x + r * 0.62, y + r * 0.02, r * 0.13, spec.cheek);
+    },
+    body(g, pal) {
+      const main = pal.main;
+      const k = spec.bulk;
+      // 粉紅色的小手小腳
+      legs(g, [-36, -20, 20, 36], -30, 13, main, RAT_PINK, 10);
+      new Shapes()
+        .ellipse(0, -54, 116 * k, 58 * k)
+        .ellipse(36, -58, 50, 52)
+        .draw(g, dark(main, 0.26), 3);
+      g.fillStyle(main, 1);
+      g.fillEllipse(3, -58, 108 * k, 48 * k);
+      g.fillEllipse(37, -61, 44, 44);
+      g.fillStyle(lite(main, 0.4), 0.5);
+      g.fillEllipse(4, -54 - 20 * k, 80, 12);
+      g.fillStyle(pal.under, 1);
+      g.fillEllipse(42, -48, 28, 36);
+      g.fillEllipse(12, -34, 70, 18);
+      // 身上的刺青（像貼紙）
+      tattoo(g, -18, -60, 11, spec.flank);
+      if (spec.chain) {
+        // 金項鍊
+        g.lineStyle(4, 0xb07a10, 1);
+        g.beginPath();
+        g.arc(44, -74, 17, 0.15 * Math.PI, 0.95 * Math.PI);
+        g.strokePath();
+        g.lineStyle(2.4, 0xf2c14e, 1);
+        g.beginPath();
+        g.arc(44, -74, 17, 0.15 * Math.PI, 0.95 * Math.PI);
+        g.strokePath();
+        g.fillStyle(0xb07a10, 1);
+        g.fillCircle(42, -55, 6);
+        g.fillStyle(0xf2c14e, 1);
+        g.fillCircle(42, -55, 4.4);
+      }
+      if (spec.sling) {
+        // 背上的彈弓
+        g.lineStyle(6, INK, 1);
+        g.lineBetween(-6, -78, -6, -96);
+        g.lineBetween(-6, -96, -16, -108);
+        g.lineBetween(-6, -96, 4, -108);
+        g.lineStyle(3, 0x9a6a3a, 1);
+        g.lineBetween(-6, -78, -6, -96);
+        g.lineBetween(-6, -96, -16, -108);
+        g.lineBetween(-6, -96, 4, -108);
+        g.lineStyle(1.6, 0xc0392b, 1);
+        g.lineBetween(-16, -108, 4, -108);
+      }
+    },
+    tail(g) {
+      // 細細長長的粉紅尾巴，尾端捲起來
+      const pts: [number, number, number][] = [];
+      for (let i = 0; i <= 16; i++) {
+        const t = i / 16;
+        const a = -0.5 + t * 3.6;
+        pts.push([
+          -8 - t * 34 + Math.sin(a) * 10 * t,
+          -4 - t * 30 - Math.cos(a) * 12 * t,
+          5 - t * 2.4,
+        ]);
+      }
+      g.fillStyle(INK, 1);
+      for (const [px, py, pr] of pts) g.fillCircle(px, py, pr + 2);
+      g.fillStyle(RAT_PINK, 1);
+      for (const [px, py, pr] of pts) g.fillCircle(px, py, pr);
+    },
+  };
+}
+
+const RATS: Record<string, BreedArt> = {
+  刺青鼠: ratArt({ bulk: 0.94, flank: 'heart', cheek: 'star' }),
+  胖胖鼠: ratArt({ bulk: 1.16, flank: 'anchor', bandana: 0x3f7fa8 }),
+  彈弓鼠: ratArt({ bulk: 0.9, flank: 'fish', sling: true }),
+  大塊鼠: ratArt({ bulk: 1.1, flank: 'star', cheek: 'heart', bandana: 0xc0392b }),
+  鼠老大: ratArt({ bulk: 1.12, flank: 'heart', cheek: 'anchor', shades: true, chain: true }),
+};
+
 /** 已經照犬種畫好的（鍵是 src/data/dogs.ts 的 breed）；沒有的用通用畫法 */
 export const BREED_ART: Readonly<Record<string, BreedArt>> = {
   柴犬: shiba,
@@ -2635,6 +2877,7 @@ export const BREED_ART: Readonly<Record<string, BreedArt>> = {
   靈緹: sighthound(false),
   蘇俄牧羊犬: sighthound(true),
   ...Object.fromEntries(Object.entries(SPECS).map(([k, v]) => [k, specArt(v)])),
+  ...RATS,
 };
 
 export function breedArtOf(breed: string | undefined): BreedArt | undefined {

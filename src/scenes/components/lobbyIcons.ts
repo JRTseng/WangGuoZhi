@@ -14,7 +14,8 @@ export type LobbyIcon =
   | 'event'
   | 'train'
   | 'paw'
-  | 'pawCat';
+  | 'pawCat'
+  | 'rat';
 
 /** 主頁用的簡單幾何圖示（佔位美術），以 (x, y) 為中心、s 約為半徑 */
 export function drawLobbyIcon(
@@ -140,6 +141,13 @@ export function drawLobbyIcon(
       g.fillCircle(x - s * 0.3, y + s * 0.42, s * 0.36);
       g.fillCircle(x + s * 0.3, y + s * 0.42, s * 0.36);
       g.fillCircle(x, y + s * 0.2, s * 0.4);
+      break;
+    case 'rat':
+      // 老鼠頭：兩個大圓耳朵、尖尖的臉
+      g.fillCircle(x - s * 0.72, y - s * 0.62, s * 0.5);
+      g.fillCircle(x + s * 0.72, y - s * 0.62, s * 0.5);
+      g.fillCircle(x, y - s * 0.05, s * 0.78);
+      g.fillTriangle(x - s * 0.7, y + s * 0.2, x + s * 0.7, y + s * 0.2, x, y + s * 1.1);
       break;
     case 'train':
       // 骨頭（訓練用）
