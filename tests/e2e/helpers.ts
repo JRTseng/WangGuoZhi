@@ -51,6 +51,12 @@ export async function holdUntil(page: Page, r: R, until: () => boolean) {
   await page.mouse.move(box.x + (r.x + r.width / 2) * s, box.y + (r.y + r.height / 2) * s);
   await page.mouse.down();
   await page.waitForFunction(until);
+  // 長按開出來的視窗要等下一格畫面才點得到（Phaser 下一格才把新的可點區域排進去）。
+  // 機器很慢時長按是在畫面更新途中觸發的，馬上放開再點會點不到遮罩、視窗關不掉（2026-11-18 CI 因此卡住）
+  await page.evaluate(
+    () =>
+      new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(() => done(null)))),
+  );
   await page.mouse.up();
 }
 
