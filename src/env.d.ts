@@ -452,6 +452,18 @@ interface WgzDebugState {
     team: WgzBattleUnit[];
     enemies: WgzBattleUnit[];
   };
+  /** 存檔搬家視窗（T037），沒開為 undefined */
+  transfer?: {
+    /** 現在這份進度的存檔碼；還在算是空字串 */
+    code: string;
+    message: string;
+    /** 「讀取」已按過一次，等「確定讀取」 */
+    armed: boolean;
+    restoreArmed: boolean;
+    /** 有沒有讀取前的進度可以還原 */
+    canRestore: boolean;
+    summary: string;
+  };
   /** 帳號與設定面板，沒開為 undefined */
   settings?: {
     values: {
