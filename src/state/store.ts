@@ -2,6 +2,7 @@ import { advanceAuto } from '../logic/auto';
 import { settleBoarding } from '../logic/boarding';
 import { settlePending } from '../logic/expedition';
 import { SAVE_BACKUP_KEY, SAVE_KEY, deserialize, serialize, type LoadStatus } from '../logic/save';
+import { SAVE_IMPORT_BACKUP_KEY, inspectSave } from '../logic/saveTransfer';
 import { regenMsFromSearch, settle, type TimeOptions } from '../logic/stamina';
 import { applyWorld } from '../data/world';
 import { playerFaction } from '../logic/faction';
@@ -82,6 +83,45 @@ export function resetSave(): void {
   applyWorld(playerFaction(current));
   loadStatus = 'new';
   save();
+}
+
+/** 現在這份進度的存檔 JSON（存檔搬家 T037 用來做存檔碼） */
+export function exportSave(now: number = Date.now()): string {
+  return serialize(current, now);
+}
+
+/** 有沒有「讀取前的進度」可以還原 */
+export function hasImportBackup(): boolean {
+  return readStorage(SAVE_IMPORT_BACKUP_KEY) !== null;
+}
+
+/**
+ * 換成另一份進度（存檔搬家 T037）。現在這份先備份起來，之後可以用 restoreImportBackup 還原。
+ * json 要先用 inspectSave 檢查過；讀不懂或寫不進去回傳 false，進度不變。
+ * 換完畫面還是舊的，呼叫的人要重新整理頁面。
+ */
+export function importSave(json: string, now: number = Date.now()): boolean {
+  const r = inspectSave(json, now);
+  if (!r.ok) return false;
+  const before = serialize(current, now);
+  const prev = readStorage(SAVE_KEY);
+  if (!writeStorage(SAVE_KEY, serialize(r.state, now))) {
+    // 寫到一半失敗（空間滿了）：放回原本的
+    if (prev !== null) writeStorage(SAVE_KEY, prev);
+    return false;
+  }
+  writeStorage(SAVE_IMPORT_BACKUP_KEY, before);
+  current = r.state;
+  applyWorld(playerFaction(current));
+  loadStatus = 'ok';
+  lastSaveOk = true;
+  return true;
+}
+
+/** 還原讀取前的進度：和現在這份對調，所以還原之後還能再換回來 */
+export function restoreImportBackup(now: number = Date.now()): boolean {
+  const backup = readStorage(SAVE_IMPORT_BACKUP_KEY);
+  return backup !== null && importSave(backup, now);
 }
 
 /** 體力與每日重置用的時間設定（測試模式 ?fast=1 體力恢復比較快） */

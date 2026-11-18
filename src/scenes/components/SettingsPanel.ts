@@ -8,6 +8,7 @@ import { addText, openModal, patchDebug, viewOf } from '../ui';
 import { fullscreenAvailable, isFullscreen, toggleFullscreen } from './fullscreen';
 import { makeTapArea } from './hitArea';
 import { installMode, promptInstall } from './install';
+import { closeSaveTransfer, openSaveTransfer } from './SaveTransfer';
 import { INSTALL_CANCEL_TEXT, INSTALL_DONE_TEXT, IOS_INSTALL_HINT } from '../../logic/pwa';
 import { lordExpNeeded, lordTitle } from '../../logic/lord';
 
@@ -19,7 +20,16 @@ const QUALITY_LABEL: Record<Quality, string> = { low: '低', medium: '中', high
 
 type ToggleKey = 'voice' | 'music' | 'sfx' | 'push' | 'effects' | 'skipBattle';
 type Key =
-  ToggleKey | Quality | 'site' | 'forum' | 'redeem' | 'fullscreen' | 'install' | 'reset' | 'close';
+  | ToggleKey
+  | Quality
+  | 'site'
+  | 'forum'
+  | 'redeem'
+  | 'fullscreen'
+  | 'install'
+  | 'transfer'
+  | 'reset'
+  | 'close';
 
 /**
  * 左上角「帳號與設定」面板：語音、音樂、音效、推播、略過戰鬥畫面開關，畫質，官方連結、討論區、優惠碼。
@@ -45,6 +55,7 @@ export class SettingsPanel {
   }
 
   destroy(): void {
+    closeSaveTransfer();
     this.input?.destroy();
     this.input = null;
     this.layer.destroy();
@@ -240,19 +251,27 @@ export class SettingsPanel {
       }
       if (!landscape) ry += 54;
     }
-    // 最下面一列：左邊「重新開始」（要按兩次才會清除存檔），右邊「關閉」
+    // 最下面一列：「存檔搬家」（T037）、「重新開始」（要按兩次才會清除存檔）、「關閉」
     const lastY = Math.max(ry, closeY);
-    const resetW = Math.floor((colW - 10) * 0.46);
+    const third = Math.floor((colW - 16) / 3);
     this.pill(
-      { x: rightX, y: lastY, width: resetW, height: 46 },
-      this.resetArmed ? '再按一次清除' : '重新開始',
+      { x: rightX, y: lastY, width: third, height: 46 },
+      '存檔搬家',
+      0x4f6d8a,
+      true,
+      'transfer',
+      () => this.transfer(),
+    );
+    this.pill(
+      { x: rightX + third + 8, y: lastY, width: third, height: 46 },
+      this.resetArmed ? '確定清除' : '重新開始',
       this.resetArmed ? 0xc0392b : 0xe9dcc8,
       this.resetArmed,
       'reset',
       () => this.reset(),
     );
     this.pill(
-      { x: rightX + resetW + 10, y: lastY, width: colW - resetW - 10, height: 46 },
+      { x: rightX + (third + 8) * 2, y: lastY, width: colW - (third + 8) * 2, height: 46 },
       '關閉',
       COLORS.bar,
       true,
@@ -366,6 +385,13 @@ export class SettingsPanel {
     this.message = message;
     this.messageOk = ok;
     this.rerender();
+  }
+
+  /** 存檔搬家（T037）：開網頁視窗；讀取成功會整頁重新整理，沒讀取就回到這個面板 */
+  private transfer(): void {
+    this.disarmReset();
+    this.rerender();
+    openSaveTransfer(() => this.rerender());
   }
 
   /** 第一次按只是提醒，第二次才真的清除存檔並重開遊戲 */
