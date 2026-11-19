@@ -7,7 +7,8 @@ export type MenuKey = (typeof MENU_KEYS)[number];
 /** 右上一排圓形小圖示 */
 /** home 是「我的家」（T033）：腳印按鈕 */
 /** rats 是活動事件「刺青老鼠幫」（T034）：只有在活動時段才畫出來 */
-export const SHORTCUT_KEYS = ['rats', 'home', 'recruit', 'shop', 'reward'] as const;
+/** codex 是圖鑑（T038） */
+export const SHORTCUT_KEYS = ['rats', 'home', 'codex', 'recruit', 'shop', 'reward'] as const;
 export type ShortcutKey = (typeof SHORTCUT_KEYS)[number];
 
 /** 右側小卡片 */
@@ -77,7 +78,8 @@ function landscapeLayout(w: number, h: number): LobbyLayout {
     { x: mail.x - 8 - resW * 2 - 8, y: 10, width: resW, height: 34 },
     { x: mail.x - 8 - resW, y: 10, width: resW, height: 34 },
   ];
-  const sc = rowFromRight(w - m, 50, 58, 62, 8, SHORTCUT_KEYS.length);
+  // 六顆排一列：最左邊那顆不能蓋到狗狗頭上的「看結果」提示
+  const sc = rowFromRight(w - m, 50, 54, 62, 6, SHORTCUT_KEYS.length);
   const shortcuts = Object.fromEntries(SHORTCUT_KEYS.map((k, i) => [k, sc[i]])) as Record<
     ShortcutKey,
     Rect
@@ -135,7 +137,7 @@ function portraitLayout(w: number, h: number): LobbyLayout {
     { x: w - m - resW, y: 50, width: resW, height: 32 },
   ];
   // 第二列：召募／商城／獎勵／信箱 靠右
-  const row = rowFromRight(w - m, 94, 56, 60, 6, SHORTCUT_KEYS.length + 1);
+  const row = rowFromRight(w - m, 94, 48, 60, 5, SHORTCUT_KEYS.length + 1);
   const shortcuts = Object.fromEntries(SHORTCUT_KEYS.map((k, i) => [k, row[i]])) as Record<
     ShortcutKey,
     Rect

@@ -44,6 +44,8 @@ interface WgzDebugState {
     questReady?: number;
     /** 今天還能不能簽到（T026）；可以時「獎勵」亮紅點 */
     signinReady?: boolean;
+    /** 圖鑑有幾段收集獎勵可以領（T038）；大於 0 時「圖鑑」亮紅點 */
+    codexReady?: number;
     /** 城主等級、經驗與稱號 */
     lord?: { level: number; exp: number; title: string };
     buttons: Record<
@@ -52,6 +54,7 @@ interface WgzDebugState {
       | 'mail'
       | 'rats'
       | 'home'
+      | 'codex'
       | 'recruit'
       | 'shop'
       | 'reward'
@@ -163,6 +166,26 @@ interface WgzDebugState {
     fight: WgzRect | null;
     sweep: WgzRect | null;
     sweepTo: number;
+  };
+  /** 圖鑑畫面（T038） */
+  codex?: {
+    faction: 'dog' | 'cat';
+    owned: number;
+    total: number;
+    /** 陣營分頁；count 是那一邊有幾段獎勵可以領 */
+    tabs: Record<'dog' | 'cat', WgzRect & { count: number }>;
+    claim: WgzRect & { count: number };
+    milestones: Array<{
+      id: string;
+      target: number;
+      bones: number;
+      done: boolean;
+      claimed: boolean;
+    }>;
+    cells: Array<WgzRect & { id: string; rarity: string; owned: boolean }>;
+    /** 開著資料視窗的角色 id */
+    panel: string | null;
+    panelClose: WgzRect | null;
   };
   /** 七日簽到畫面（T026） */
   signin?: {
