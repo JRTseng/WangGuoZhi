@@ -1,4 +1,5 @@
 import type { HomeState } from '../logic/home';
+import type { CodexState } from '../logic/codex';
 import { DOGS, STARTER_DOG_IDS, type Faction } from '../data/dogs';
 import type { GearSlot } from '../data/equipment';
 import type { ThemeId } from '../data/regions';
@@ -343,6 +344,8 @@ export interface GameState {
   faction: Faction | '';
   /** 陣營積分戰（T030） */
   war: WarState;
+  /** 圖鑑（T038）：領過哪幾段收集獎勵（規則見 src/logic/codex.ts） */
+  codex: CodexState;
 }
 
 /** 體力上限；新遊戲從滿體力開始 */
@@ -402,5 +405,6 @@ export function createInitialState(now: number = Date.now()): GameState {
     faction: '',
     war: { week: '', faction: '', points: 0, claimed: [], result: null },
     home: { residents: null, placed: null, area: 'indoor', style: 'meadow' },
+    codex: { claimed: [] },
   };
 }

@@ -8,6 +8,7 @@ import { grantTryDog, tryDogFromSearch } from '../logic/tryDog';
 import { claimableCount } from '../logic/quests';
 import { markSigninShown, signinPopup, signinPopupFromSearch, signinReady } from '../logic/signin';
 import { towerOpen } from '../logic/tower';
+import { codexClaimable } from '../logic/codex';
 import { ratVisible, ratWavesLeft } from '../logic/ratRaid';
 import { bodyScale } from '../logic/dogSize';
 import { REGIONS, findStage } from '../data/regions';
@@ -87,6 +88,7 @@ export class LobbyScene extends Phaser.Scene {
   private storyCard!: LobbyCard;
   private questItem!: MenuItem;
   private rewardShortcut!: RoundShortcut;
+  private codexShortcut!: RoundShortcut;
   /** 陣營徽章上的紅點：積分戰有獎勵可以領 */
   private factionDot: Phaser.GameObjects.Arc | null = null;
   private expeditionCard!: LobbyCard;
@@ -401,6 +403,10 @@ export class LobbyScene extends Phaser.Scene {
       cat ? 'pawCat' : 'paw',
       cat ? 0xd9708f : 0xb5651d,
       () => this.scene.start('HomeScene'),
+    );
+    // 圖鑑（T038）：有收集獎勵可以領就亮紅點
+    this.codexShortcut = new RoundShortcut(this, S.codex, '圖鑑', 'codex', 0x8e6bb0, () =>
+      this.scene.start('CodexScene'),
     );
     new RoundShortcut(this, S.recruit, '召募', 'recruit', 0xa83a2b, () =>
       this.scene.start('RecruitScene'),
@@ -727,6 +733,12 @@ export class LobbyScene extends Phaser.Scene {
     this.factionDot?.setVisible(warReady(state, now, timeOptions()));
     if (window.__WGZ__?.lobby && window.__WGZ__.lobby.signinReady !== signin) {
       window.__WGZ__.lobby.signinReady = signin;
+    }
+    // 圖鑑有收集獎勵可以領就亮紅點（T038）
+    const codexReady = codexClaimable(state);
+    this.codexShortcut.setDot(codexReady > 0);
+    if (window.__WGZ__?.lobby && window.__WGZ__.lobby.codexReady !== codexReady) {
+      window.__WGZ__.lobby.codexReady = codexReady;
     }
     this.expeditionCard.setSubtitle(this.nextStageLabel());
 

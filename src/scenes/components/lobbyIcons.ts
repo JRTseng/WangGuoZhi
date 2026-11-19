@@ -15,7 +15,8 @@ export type LobbyIcon =
   | 'train'
   | 'paw'
   | 'pawCat'
-  | 'rat';
+  | 'rat'
+  | 'codex';
 
 /** 主頁用的簡單幾何圖示（佔位美術），以 (x, y) 為中心、s 約為半徑 */
 export function drawLobbyIcon(
@@ -51,6 +52,14 @@ export function drawLobbyIcon(
       // 打開的書
       g.fillRoundedRect(x - s * 1.05, y - s * 0.75, s, s * 1.5, 3);
       g.fillRoundedRect(x + s * 0.05, y - s * 0.75, s, s * 1.5, 3);
+      break;
+    case 'codex':
+      // 圖鑑：一本書，封面上有腳印
+      g.fillRoundedRect(x - s * 0.85, y - s, s * 1.7, s * 2, 3);
+      g.fillStyle(0x3b2a1a, 0.55);
+      g.fillRect(x - s * 0.85, y - s, s * 0.3, s * 2);
+      g.fillCircle(x + s * 0.2, y + s * 0.25, s * 0.3);
+      for (const dx of [-0.3, 0.2, 0.7]) g.fillCircle(x + s * dx, y - s * 0.25, s * 0.15);
       break;
     case 'background':
       // 山與太陽

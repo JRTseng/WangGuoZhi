@@ -34,6 +34,7 @@ import { sanitizeFrisbee } from './frisbee';
 import { sanitizeLord } from './lord';
 import { sanitizeQuests } from './quests';
 import { sanitizeSignin } from './signin';
+import { sanitizeCodex } from './codex';
 import { isRatLoot, sanitizeRats } from './ratRaid';
 import { sanitizeTower } from './tower';
 import { findSnack } from './snacks';
@@ -461,6 +462,8 @@ export function sanitizeState(raw: unknown, now: number): GameState {
     war: sanitizeWar(raw.war),
     // 我的家（T033）
     home: sanitizeHome(raw.home, isOwned),
+    // 圖鑑（T038）
+    codex: sanitizeCodex(raw.codex),
   };
 }
 
