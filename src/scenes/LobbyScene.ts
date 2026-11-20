@@ -9,6 +9,7 @@ import { claimableCount } from '../logic/quests';
 import { markSigninShown, signinPopup, signinPopupFromSearch, signinReady } from '../logic/signin';
 import { towerOpen } from '../logic/tower';
 import { codexClaimable } from '../logic/codex';
+import { mallGiftReady } from '../logic/mall';
 import { ratVisible, ratWavesLeft } from '../logic/ratRaid';
 import { bodyScale } from '../logic/dogSize';
 import { REGIONS, findStage } from '../data/regions';
@@ -89,6 +90,7 @@ export class LobbyScene extends Phaser.Scene {
   private questItem!: MenuItem;
   private rewardShortcut!: RoundShortcut;
   private codexShortcut!: RoundShortcut;
+  private mallShortcut!: RoundShortcut;
   /** 陣營徽章上的紅點：積分戰有獎勵可以領 */
   private factionDot: Phaser.GameObjects.Arc | null = null;
   private expeditionCard!: LobbyCard;
@@ -368,7 +370,7 @@ export class LobbyScene extends Phaser.Scene {
       this.resourceTexts[key] = addText(this, r.x + 30, iy, '', 14, LOBBY.text, true)
         .setOrigin(0, 0.5)
         .setName(`resource-${key}`);
-      // ＋：之後接商城
+      // ＋：去商城（T039）
       addText(this, r.x + r.width - 15, iy, '+', 16, '#5a3a1c', true).setOrigin(0.5);
       // 整條都可以點（T008：原本只有「＋」那個小字點得到）
       const hit = tapRect(r);
@@ -376,7 +378,7 @@ export class LobbyScene extends Phaser.Scene {
         .zone(hit.x, hit.y, hit.width, hit.height)
         .setOrigin(0, 0)
         .setInteractive({ cursor: 'pointer' })
-        .on('pointerup', () => this.showToast(`商城${COMING_SOON}`));
+        .on('pointerup', () => this.scene.start('MallScene'));
     });
 
     new RoundShortcut(this, this.layout.mail, '信箱', 'mail', 0x6b4a2e, () =>
@@ -411,8 +413,9 @@ export class LobbyScene extends Phaser.Scene {
     new RoundShortcut(this, S.recruit, '召募', 'recruit', 0xa83a2b, () =>
       this.scene.start('RecruitScene'),
     ).setDot(true);
-    new RoundShortcut(this, S.shop, '商城', 'shop', 0x3f7fa8, () =>
-      this.showToast(`商城${COMING_SOON}`),
+    // 商城（T039）：今天的每日禮物還沒領就亮紅點
+    this.mallShortcut = new RoundShortcut(this, S.shop, '商城', 'shop', 0x3f7fa8, () =>
+      this.scene.start('MallScene'),
     );
     // 獎勵：七日簽到（T026），今天還沒簽就亮紅點
     this.rewardShortcut = new RoundShortcut(this, S.reward, '獎勵', 'reward', 0x4f8a3c, () =>
@@ -739,6 +742,12 @@ export class LobbyScene extends Phaser.Scene {
     this.codexShortcut.setDot(codexReady > 0);
     if (window.__WGZ__?.lobby && window.__WGZ__.lobby.codexReady !== codexReady) {
       window.__WGZ__.lobby.codexReady = codexReady;
+    }
+    // 商城今天的每日禮物還沒領就亮紅點（T039）
+    const mallReady = mallGiftReady(state, now, timeOptions());
+    this.mallShortcut.setDot(mallReady);
+    if (window.__WGZ__?.lobby && window.__WGZ__.lobby.mallReady !== mallReady) {
+      window.__WGZ__.lobby.mallReady = mallReady;
     }
     this.expeditionCard.setSubtitle(this.nextStageLabel());
 

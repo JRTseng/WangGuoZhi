@@ -46,6 +46,8 @@ interface WgzDebugState {
     signinReady?: boolean;
     /** 圖鑑有幾段收集獎勵可以領（T038）；大於 0 時「圖鑑」亮紅點 */
     codexReady?: number;
+    /** 商城今天的每日禮物還沒領（T039）；true 時「商城」亮紅點 */
+    mallReady?: boolean;
     /** 城主等級、經驗與稱號 */
     lord?: { level: number; exp: number; title: string };
     buttons: Record<
@@ -166,6 +168,23 @@ interface WgzDebugState {
     fight: WgzRect | null;
     sweep: WgzRect | null;
     sweepTo: number;
+  };
+  /** 商城畫面（T039）：每一格是購買按鈕的位置與那樣商品 */
+  mall?: {
+    goods: Array<
+      WgzRect & {
+        slot: number;
+        kind: 'gift' | 'snack' | 'snackPack' | 'shards' | 'rareShards' | 'gear';
+        text: string;
+        currency: 'free' | 'food' | 'bones';
+        price: number;
+        limit: number;
+        left: number;
+        block: 'unknown' | 'sold-out' | 'food' | 'bones' | null;
+      }
+    >;
+    /** 最後一次跳出的提示 */
+    toast: string;
   };
   /** 圖鑑畫面（T038） */
   codex?: {
