@@ -16,6 +16,7 @@ import { QuestScene } from './scenes/QuestScene';
 import { SigninScene } from './scenes/SigninScene';
 import { CodexScene } from './scenes/CodexScene';
 import { MallScene } from './scenes/MallScene';
+import { MailScene } from './scenes/MailScene';
 import { FactionScene } from './scenes/FactionScene';
 import { TowerScene } from './scenes/TowerScene';
 import { RatScene } from './scenes/RatScene';
@@ -86,6 +87,7 @@ const game = new Phaser.Game({
     SigninScene,
     CodexScene,
     MallScene,
+    MailScene,
     TowerScene,
     RatScene,
     FactionScene,

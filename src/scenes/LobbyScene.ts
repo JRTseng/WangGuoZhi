@@ -10,6 +10,7 @@ import { markSigninShown, signinPopup, signinPopupFromSearch, signinReady } from
 import { towerOpen } from '../logic/tower';
 import { codexClaimable } from '../logic/codex';
 import { mallGiftReady } from '../logic/mall';
+import { mailPending } from '../logic/mail';
 import { ratVisible, ratWavesLeft } from '../logic/ratRaid';
 import { bodyScale } from '../logic/dogSize';
 import { REGIONS, findStage } from '../data/regions';
@@ -60,8 +61,6 @@ import {
 const ACTION_MS = 3000;
 /** 畫面刷新間隔（只刷新顯示，計時以時間戳為準） */
 const REFRESH_MS = 250;
-/** 還沒做的功能 */
-const COMING_SOON = '即將開放';
 
 /**
  * 主頁面（放置型遊戲大廳，版面參考常見放置手遊）：
@@ -91,6 +90,7 @@ export class LobbyScene extends Phaser.Scene {
   private rewardShortcut!: RoundShortcut;
   private codexShortcut!: RoundShortcut;
   private mallShortcut!: RoundShortcut;
+  private mailShortcut!: RoundShortcut;
   /** 陣營徽章上的紅點：積分戰有獎勵可以領 */
   private factionDot: Phaser.GameObjects.Arc | null = null;
   private expeditionCard!: LobbyCard;
@@ -381,8 +381,9 @@ export class LobbyScene extends Phaser.Scene {
         .on('pointerup', () => this.scene.start('MallScene'));
     });
 
-    new RoundShortcut(this, this.layout.mail, '信箱', 'mail', 0x6b4a2e, () =>
-      this.showToast(`信箱${COMING_SOON}`),
+    // 信箱（T040）：有信還沒看、或附件還沒領就亮紅點
+    this.mailShortcut = new RoundShortcut(this, this.layout.mail, '信箱', 'mail', 0x6b4a2e, () =>
+      this.scene.start('MailScene'),
     );
   }
 
@@ -748,6 +749,11 @@ export class LobbyScene extends Phaser.Scene {
     this.mallShortcut.setDot(mallReady);
     if (window.__WGZ__?.lobby && window.__WGZ__.lobby.mallReady !== mallReady) {
       window.__WGZ__.lobby.mallReady = mallReady;
+    }
+    const mailReady = mailPending(state, now, timeOptions());
+    this.mailShortcut.setDot(mailReady > 0);
+    if (window.__WGZ__?.lobby && window.__WGZ__.lobby.mailReady !== mailReady) {
+      window.__WGZ__.lobby.mailReady = mailReady;
     }
     this.expeditionCard.setSubtitle(this.nextStageLabel());
 

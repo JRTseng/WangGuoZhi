@@ -48,6 +48,8 @@ interface WgzDebugState {
     codexReady?: number;
     /** 商城今天的每日禮物還沒領（T039）；true 時「商城」亮紅點 */
     mallReady?: boolean;
+    /** 信箱有幾封信還沒看或附件還沒領（T040）；大於 0 時「信箱」亮紅點 */
+    mailReady?: number;
     /** 城主等級、經驗與稱號 */
     lord?: { level: number; exp: number; title: string };
     buttons: Record<
@@ -183,6 +185,34 @@ interface WgzDebugState {
         block: 'unknown' | 'sold-out' | 'food' | 'bones' | null;
       }
     >;
+    /** 最後一次跳出的提示 */
+    toast: string;
+  };
+  /** 信箱畫面（T040） */
+  mail?: {
+    /** 這一頁的信（位置是清單那一列） */
+    rows: Array<
+      WgzRect & { id: string; kind: string; title: string; read: boolean; claimed: boolean }
+    >;
+    /** 信箱裡全部的信的 id，照畫面上的順序 */
+    ids: string[];
+    page: number;
+    pages: number;
+    prev: WgzRect;
+    next: WgzRect;
+    /** 打開的那封信；信箱空了是 null */
+    open: {
+      id: string;
+      from: string;
+      title: string;
+      gifts: string[];
+      read: boolean;
+      claimed: boolean;
+    } | null;
+    claim: WgzRect & { enabled: boolean };
+    remove: WgzRect & { enabled: boolean };
+    claimAll: WgzRect & { count: number };
+    clean: WgzRect & { count: number };
     /** 最後一次跳出的提示 */
     toast: string;
   };
