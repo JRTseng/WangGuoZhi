@@ -1,6 +1,8 @@
 import Phaser from 'phaser';
 import { COLORS, rarityHex } from '../../config';
+import { bioOf } from '../../data/bios';
 import type { DogData } from '../../data/dogs';
+import { DEFAULT_SKILL_LINES } from '../../data/skillLines';
 import { battleRoleOf } from '../../logic/formation';
 import type { Rect } from '../../logic/layout';
 import { levelSkillsOf, perkText } from '../../logic/levelSkills';
@@ -28,17 +30,27 @@ export interface DogInfoOptions {
   /** 去倉庫幫這隻狗換裝備（T014）；沒給就不顯示按鈕 */
   onGear?: () => void;
   onClose: () => void;
+  /** 右半邊一開始顯示哪一頁（T041）：成長技能（預設）或小故事 */
+  tab?: DogInfoTab;
+  /** 換頁之後通知場景（更新測試用的除錯資訊） */
+  onTab?: (tab: DogInfoTab) => void;
 }
 
+/** 資料視窗右半邊的兩頁（T041） */
+export type DogInfoTab = 'skills' | 'story';
+
 /**
- * 角色資訊面板（素質與技能頁面）：頭像、數值、大絕招，右邊是每 10 級學一個的成長技能。
+ * 角色資訊面板（素質與技能頁面）：頭像、數值、大絕招，右邊是每 10 級學一個的成長技能，
+ * 按右上角可以換成「小故事」那一頁（T041，拿到這個角色才看得到內容）。
  * 組隊編排點卡片、或組隊與出征選隊伍時長按狗狗圖示打開。
  * 擁有的狗：下方有「加入／移出隊伍」「設為主頁角色」。
  * 沒擁有的狗：暗色頭像 + 「尚未擁有」。點遮罩關閉。
  */
 export class DogInfoPanel {
   readonly layer: Phaser.GameObjects.Container;
-  readonly buttons: { team?: Rect; lobby?: Rect; gear?: Rect; close?: Rect } = {};
+  readonly buttons: { team?: Rect; lobby?: Rect; gear?: Rect; close?: Rect; tab?: Rect } = {};
+  /** 右半邊現在是哪一頁（T041） */
+  tab: DogInfoTab = 'skills';
   readonly stats: { level: number; exp: number; expNeed: number; power: number; star: number };
   /** 成長技能：學會幾個、一共幾個 */
   readonly skills: { learned: number; total: number } = { learned: 0, total: 0 };
@@ -154,37 +166,107 @@ export class DogInfoPanel {
       this.skills.learned = learned;
       this.skills.total = list.length;
       const sx = box.x + 24 + leftW + 20;
+      const sw = box.x + box.width - 24 - sx;
       const g = scene.add.graphics();
       g.lineStyle(1, COLORS.cardBorder, 0.7);
       g.lineBetween(sx - 10, box.y + 22, sx - 10, box.y + box.height - 78);
       layer.add(g);
-      layer.add(
-        addText(
-          scene,
-          sx,
-          box.y + 20,
-          `成長技能 ${learned}/${list.length}（每 10 級學一個）`,
-          15,
-          COLORS.ink,
-          true,
-        ),
-      );
-      list.forEach((k, i) => {
-        const got = o.owned && k.level <= s.level;
-        // 超過目前等級上限的要先升星
-        const needStar = o.owned && !got && k.level > s.levelCap;
-        layer.add(
+      // 右半邊兩頁：成長技能／小故事（T041），右上角的按鈕換頁
+      const side = scene.add.container(0, 0);
+      layer.add(side);
+      const bio = bioOf(dog.id);
+      const drawSide = (): void => {
+        side.removeAll(true);
+        if (this.tab === 'story' && bio) {
+          side.add(addText(scene, sx, box.y + 20, '小故事', 15, COLORS.ink, true));
+          if (!o.owned) {
+            side.add([
+              addText(scene, sx, box.y + 56, '？？？', 20, COLORS.inkSoft, true),
+              addText(
+                scene,
+                sx,
+                box.y + 92,
+                '拿到這位夥伴以後，就能看牠的小故事',
+                14,
+                COLORS.inkSoft,
+              ).setWordWrapWidth(sw, true),
+            ]);
+            return;
+          }
+          const story = addText(scene, sx, box.y + 54, bio.story, 14, COLORS.ink)
+            .setWordWrapWidth(sw, true)
+            .setLineSpacing(6);
+          side.add(story);
+          let fy = Math.max(box.y + 150, story.y + story.height + 16);
+          const line = DEFAULT_SKILL_LINES[dog.id];
+          const rows: [string, string, string][] = [
+            ['喜歡', bio.likes, '#b5651d'],
+            ['害怕', bio.fears, '#5a6f94'],
+          ];
+          if (line) rows.push(['口頭禪', `「${line}」`, '#4f8a3c']);
+          for (const [label, text, color] of rows) {
+            side.add([
+              addText(scene, sx, fy, label, 14, color, true),
+              addText(scene, sx + 58, fy, text, 14, COLORS.ink).setWordWrapWidth(sw - 58, true),
+            ]);
+            fy += 30;
+          }
+          return;
+        }
+        side.add(
           addText(
             scene,
             sx,
-            box.y + 46 + i * 23.5,
-            `${got ? '✓' : '・'}Lv.${k.level} ${k.name}：${perkText(k.perks)}${needStar ? '（要升星）' : ''}`,
-            12,
-            got ? '#2f7d32' : needStar ? '#b9a48c' : COLORS.inkSoft,
-            got,
+            box.y + 20,
+            `成長技能 ${learned}/${list.length}（每 10 級學一個）`,
+            15,
+            COLORS.ink,
+            true,
           ),
         );
-      });
+        list.forEach((k, i) => {
+          const got = o.owned && k.level <= s.level;
+          // 超過目前等級上限的要先升星
+          const needStar = o.owned && !got && k.level > s.levelCap;
+          side.add(
+            addText(
+              scene,
+              sx,
+              box.y + 46 + i * 23.5,
+              `${got ? '✓' : '・'}Lv.${k.level} ${k.name}：${perkText(k.perks)}${needStar ? '（要升星）' : ''}`,
+              12,
+              got ? '#2f7d32' : needStar ? '#b9a48c' : COLORS.inkSoft,
+              got,
+            ),
+          );
+        });
+      };
+      if (bio) {
+        this.tab = o.tab ?? 'skills';
+        // 換頁按鈕：寫的是「按了會去哪一頁」
+        const tr: Rect = { x: box.x + box.width - 24 - 84, y: box.y + 12, width: 84, height: 30 };
+        const tc = scene.add.container(tr.x, tr.y);
+        const tg = scene.add.graphics();
+        tg.fillStyle(0x8a6f55, 1);
+        tg.fillRoundedRect(0, 0, tr.width, tr.height, 10);
+        const label = addText(scene, tr.width / 2, tr.height / 2, '', 14, '#ffffff', true);
+        label.setOrigin(0.5);
+        const relabel = (): void => {
+          label.setText(this.tab === 'story' ? '成長技能' : '小故事');
+        };
+        relabel();
+        tc.add([tg, label]);
+        makeTapArea(tc, tr.width, tr.height);
+        tc.on('pointerup', () => {
+          this.tab = this.tab === 'story' ? 'skills' : 'story';
+          relabel();
+          drawSide();
+          o.onTab?.(this.tab);
+        });
+        layer.add(tc);
+        this.buttons.tab = tr;
+      }
+      drawSide();
     }
 
     const by = box.y + box.height - 64;

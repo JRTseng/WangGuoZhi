@@ -139,15 +139,20 @@ test('勾「自動」：打贏後自己接著打下一關，取消勾選就停',
   // 第 2 關只能上 3 隻，第 3 關能上比較多：自動補滿，不會一直維持 3 隻
   expect(s.battle!.team.length).toBeGreaterThan(3);
   if (s.result!.win) {
-    // 取消勾選：倒數停掉，停在這一關的結算，不再往下打
-    await tap(page, s.nextAuto!);
+    // 取消勾選：倒數停掉，停在這一關的結算，不再往下打。
+    // 機器很慢時，上面那幾步還沒做完倒數就數完、已經自己打到下一關（2026-11-23 CI 因此停在第 4 關而失敗），
+    // 所以點之前重新抓一次現在這場結算的勾選框，並以「取消當下是哪一關」為準，不寫死第 3 關
+    await page.waitForFunction(() => !!window.__WGZ__?.result && window.__WGZ__?.nextAuto?.on);
+    await tap(page, (await wgz(page)).nextAuto!);
     await page.waitForFunction(
       () => JSON.parse(window.localStorage.getItem('wgz-save')!).state.settings.autoNext === false,
     );
-    expect((await wgz(page)).nextAuto).toMatchObject({ on: false, seconds: null });
+    s = await wgz(page);
+    expect(s.nextAuto).toMatchObject({ on: false, seconds: null });
+    const stoppedAt = s.battle!.stageId;
     await page.waitForTimeout(3700);
     s = await wgz(page);
-    expect(s.battle!.stageId).toBe('luoyepo-3');
+    expect(s.battle!.stageId).toBe(stoppedAt);
     expect(s.scene).toBe('BattleScene');
   } else {
     // 打輸就沒有下一關，也沒有自動
