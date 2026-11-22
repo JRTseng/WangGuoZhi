@@ -235,6 +235,10 @@ interface WgzDebugState {
     /** 開著資料視窗的角色 id */
     panel: string | null;
     panelClose: WgzRect | null;
+    /** 資料視窗右半邊是哪一頁（T041）；沒開視窗是 null */
+    panelTab: 'skills' | 'story' | null;
+    /** 換頁按鈕 */
+    panelTabButton: WgzRect | null;
   };
   /** 七日簽到畫面（T026） */
   signin?: {
@@ -579,7 +583,13 @@ interface WgzDebugState {
       power: number;
       star: number;
     } | null;
-    panelButtons: { team?: WgzRect; lobby?: WgzRect; gear?: WgzRect; close?: WgzRect } | null;
+    panelButtons: {
+      team?: WgzRect;
+      lobby?: WgzRect;
+      gear?: WgzRect;
+      close?: WgzRect;
+      tab?: WgzRect;
+    } | null;
     /** 資料面板上的成長技能：學會幾個、一共幾個 */
     panelSkills?: { learned: number; total: number } | null;
     lobbyDogId: string;

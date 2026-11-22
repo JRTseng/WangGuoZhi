@@ -45,7 +45,14 @@ test('圖鑑：主頁進來，列出全部角色，點一下看資料，兩個�
   const mine = c.cells.find((x) => x.id === 'daer')!;
   await tap(page, mine);
   await page.waitForFunction(() => window.__WGZ__?.codex?.panel === 'daer');
+  // 圖鑑的資料視窗先開「小故事」那一頁（T041），按右上角換成成長技能、再按換回來
+  expect((await codex(page)).panelTab).toBe('story');
   await page.screenshot({ path: `${SHOTS}/codex-info-owned.png` });
+  await tap(page, (await codex(page)).panelTabButton!);
+  await page.waitForFunction(() => window.__WGZ__?.codex?.panelTab === 'skills');
+  await page.screenshot({ path: `${SHOTS}/codex-info-skills.png` });
+  await tap(page, (await codex(page)).panelTabButton!);
+  await page.waitForFunction(() => window.__WGZ__?.codex?.panelTab === 'story');
   await tap(page, (await codex(page)).panelClose!);
   await page.waitForFunction(() => window.__WGZ__?.codex?.panel === null);
 
@@ -54,6 +61,8 @@ test('圖鑑：主頁進來，列出全部角色，點一下看資料，兩個�
   await tap(page, other);
   await page.waitForFunction((id) => window.__WGZ__?.codex?.panel === id, other.id);
   expect((await codex(page)).panelClose).toBeNull();
+  // 換過頁會記著：剛才換回小故事，這隻也先開小故事（還沒有的角色只看到「？？？」）
+  expect((await codex(page)).panelTab).toBe('story');
   await page.screenshot({ path: `${SHOTS}/codex-info-missing.png` });
   await tap(page, { x: 2, y: H - 6, width: 4, height: 4 });
   await page.waitForFunction(() => window.__WGZ__?.codex?.panel === null);

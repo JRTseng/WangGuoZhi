@@ -16,7 +16,7 @@ import { dogStats } from '../logic/leveling';
 import { rewardText } from '../logic/quests';
 import { getState, setState } from '../state/store';
 import { Button } from './components/Button';
-import { DogInfoPanel } from './components/DogInfoPanel';
+import { DogInfoPanel, type DogInfoTab } from './components/DogInfoPanel';
 import { playSfx } from './components/audio';
 import { drawDogHead } from './components/dogArt';
 import { headLook } from './components/headLook';
@@ -29,7 +29,7 @@ const DONE = 0x4f8a3c;
 /**
  * 圖鑑（T038）：主頁右上「圖鑑」進來。
  * 左邊是陣營分頁（汪國／喵國）、收集進度與收集獎勵，右邊把這個陣營的角色全部排出來：
- * 有的亮著、還沒有的暗著，點一下看資料。收集到 10／20／30／40／50 隻各領一次獎勵。
+ * 有的亮著、還沒有的暗著，點一下看資料與小故事（T041，有的角色才看得到故事）。收集到 10／20／30／40／50 隻各領一次獎勵。
  */
 export class CodexScene extends Phaser.Scene {
   private layout!: CodexLayout;
@@ -37,6 +37,8 @@ export class CodexScene extends Phaser.Scene {
   private body!: Phaser.GameObjects.Container;
   private panel: DogInfoPanel | null = null;
   private panelDogId: string | null = null;
+  /** 資料視窗右半邊開哪一頁（T041）：圖鑑先給看小故事，換過頁就記著 */
+  private panelTab: DogInfoTab = 'story';
   private toast: Phaser.GameObjects.Text | null = null;
 
   constructor() {
@@ -207,6 +209,8 @@ export class CodexScene extends Phaser.Scene {
         })),
         panel: this.panelDogId,
         panelClose: this.panel?.buttons.close ?? null,
+        panelTab: this.panel ? this.panel.tab : null,
+        panelTabButton: this.panel?.buttons.tab ?? null,
       },
     });
   }
@@ -239,6 +243,11 @@ export class CodexScene extends Phaser.Scene {
       isLobby: st.lobbyDogId === d.id,
       look: owned ? headLook(st, d.id) : undefined,
       onClose: () => this.closePanel(),
+      tab: this.panelTab,
+      onTab: (tab) => {
+        this.panelTab = tab;
+        patchDebug({ codex: { ...window.__WGZ__!.codex!, panelTab: tab } });
+      },
     });
     this.render();
   }

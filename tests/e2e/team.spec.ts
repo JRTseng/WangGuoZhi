@@ -87,7 +87,8 @@ test('組隊：全部角色、未擁有變暗、編隊與設定主頁角色', as
   expect((await cell('tieya')).visible).toBe(true);
   await tap(page, await cell('tieya'));
   await page.waitForFunction(() => window.__WGZ__?.team?.panel === 'tieya');
-  expect((await wgz(page)).team!.panelButtons).toEqual({});
+  // 還沒有的角色沒有隊伍、主頁、關閉這些按鈕，只有右上角換頁的那一顆（T041）
+  expect(Object.keys((await wgz(page)).team!.panelButtons!)).toEqual(['tab']);
   await page.screenshot({ path: 'artifacts/screenshots/landscape/team-locked.png' });
   await tap(page, { x: 0, y: 380, width: 844, height: 6 });
   await page.waitForFunction(() => window.__WGZ__?.team?.panel === null);
