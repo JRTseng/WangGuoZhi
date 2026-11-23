@@ -1,3 +1,4 @@
+import { battleBond, bondUpNote } from './bond';
 import { wt } from '../data/worldText';
 import { DOGS, findDog } from '../data/dogs';
 import { BACKGROUNDS } from '../data/backgrounds';
@@ -383,7 +384,11 @@ function settleBattle(
         ? 0
         : WAR_POINTS.lose;
   if (warPoints > 0) record.warPoints = warPoints;
-  const next = addWarPoints(climbed?.state ?? raided ?? base, warPoints, ticket.at);
+  const scored = addWarPoints(climbed?.state ?? raided ?? base, warPoints, ticket.at);
+  // 好感度（T042）：一起出征的每一隻都加一點，升級的禮物直接入袋
+  const bonded = battleBond(scored, exp.dogIds, win);
+  if (bonded.ups.length > 0) record.bondUps = bonded.ups;
+  const next = bonded.state;
   // 新夥伴有專屬裝備的話一起送（T014）
   return { record, state: newDog ? grantExclusives(next) : next };
 }
@@ -488,6 +493,7 @@ export function resultNotes(
     }
   }
   notes.push(...lordNotes(record.lord));
+  if (record.bondUps?.length) notes.push(bondUpNote(record.bondUps));
   const gift = record.newDogId ? findDog(record.newDogId) : undefined;
   if (gift) {
     notes.push(`新夥伴「${gift.name}」加入！（${gift.breed}・${battleRoleOf(gift.role) ?? ''}）`);

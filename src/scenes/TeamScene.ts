@@ -1,3 +1,4 @@
+import { bondView } from '../logic/bond';
 import Phaser from 'phaser';
 import { COLORS } from '../config';
 import { rosterOf, type DogData } from '../data/dogs';
@@ -111,6 +112,7 @@ export class TeamScene extends Phaser.Scene {
         boarding: st.boarding.some((b) => b.dogId === d.id),
         isLobby: st.lobbyDogId === d.id,
         look: headLook(st, d.id),
+        bond: bondView(st, d.id),
         onToggleTeam: () => {
           setState(toggleTeamMember(getState(), d.id));
           show();

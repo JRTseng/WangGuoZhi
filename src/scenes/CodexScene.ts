@@ -1,3 +1,4 @@
+import { bondView } from '../logic/bond';
 import Phaser from 'phaser';
 import { COLORS, RARITY_COLORS, rarityHex } from '../config';
 import { FACTIONS, FACTION_NAMES, type DogData, type Faction } from '../data/dogs';
@@ -242,6 +243,7 @@ export class CodexScene extends Phaser.Scene {
       teamFull: false,
       isLobby: st.lobbyDogId === d.id,
       look: owned ? headLook(st, d.id) : undefined,
+      bond: bondView(st, d.id),
       onClose: () => this.closePanel(),
       tab: this.panelTab,
       onTab: (tab) => {

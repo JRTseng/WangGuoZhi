@@ -3,6 +3,7 @@ import { COLORS, rarityHex } from '../../config';
 import { bioOf } from '../../data/bios';
 import type { DogData } from '../../data/dogs';
 import { DEFAULT_SKILL_LINES } from '../../data/skillLines';
+import { bondText, type BondView } from '../../logic/bond';
 import { battleRoleOf } from '../../logic/formation';
 import type { Rect } from '../../logic/layout';
 import { levelSkillsOf, perkText } from '../../logic/levelSkills';
@@ -30,6 +31,8 @@ export interface DogInfoOptions {
   /** 去倉庫幫這隻狗換裝備（T014）；沒給就不顯示按鈕 */
   onGear?: () => void;
   onClose: () => void;
+  /** 好感度（T042）；有給、而且擁有這個角色才顯示 */
+  bond?: BondView;
   /** 右半邊一開始顯示哪一頁（T041）：成長技能（預設）或小故事 */
   tab?: DogInfoTab;
   /** 換頁之後通知場景（更新測試用的除錯資訊） */
@@ -117,7 +120,7 @@ export class DogInfoPanel {
         scene,
         tx,
         box.y + 66,
-        `${dog.breed}・${dog.role}`,
+        `${dog.breed}・${dog.role}` + (o.owned && o.bond ? `\u3000♥${o.bond.level}` : ''),
         15,
         COLORS.inkSoft,
       ).setWordWrapWidth(textW),
@@ -204,6 +207,7 @@ export class DogInfoPanel {
             ['害怕', bio.fears, '#5a6f94'],
           ];
           if (line) rows.push(['口頭禪', `「${line}」`, '#4f8a3c']);
+          if (o.bond) rows.push(['好感度', bondText(o.bond), '#e0452b']);
           for (const [label, text, color] of rows) {
             side.add([
               addText(scene, sx, fy, label, 14, color, true),
