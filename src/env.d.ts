@@ -52,6 +52,8 @@ interface WgzDebugState {
     mailReady?: number;
     /** 城主等級、經驗與稱號 */
     lord?: { level: number; exp: number; title: string };
+    /** 主頁角色的好感度（T042）：等級、累積點數、今天還能不能摸、剛剛說的話、可以摸的範圍 */
+    bond?: { level: number; points: number; canPet: boolean; line: string; hit: WgzRect };
     buttons: Record<
       | 'account'
       | 'faction'

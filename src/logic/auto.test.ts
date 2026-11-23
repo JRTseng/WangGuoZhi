@@ -84,7 +84,8 @@ describe('advanceAuto', () => {
     });
     // 打贏 5 場剛好讓城主升到 Lv.2，另外送糧草 400
     expect(s.lord).toEqual({ level: 2, exp: 0 });
-    expect(s.resources.food).toBe(1200 + 260 * 3 + 120 * 2 + 400);
+    // 上陣的三隻一起打了 5 場，好感度各升到 1 級，每隻再送糧草 100（T042）
+    expect(s.resources.food).toBe(1200 + 260 * 3 + 120 * 2 + 400 + 100 * 3);
     expect(s.history).toHaveLength(5);
     expect(s.history.every((r) => r.auto)).toBe(true);
     // 每隻狗的經驗：第 2 關 120 × 3 + 第 1 關 90 × 2

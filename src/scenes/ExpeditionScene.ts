@@ -1,3 +1,4 @@
+import { bondView } from '../logic/bond';
 import Phaser from 'phaser';
 import { COLORS, FONT_FAMILY } from '../config';
 import { DOGS, type DogData } from '../data/dogs';
@@ -204,6 +205,7 @@ export class ExpeditionScene extends Phaser.Scene {
       teamFull: this.selected.length >= this.max,
       isLobby: st.lobbyDogId === d.id,
       look: headLook(st, d.id),
+      bond: bondView(st, d.id),
       onClose: close,
     });
     this.info = { panel, dogId: d.id };

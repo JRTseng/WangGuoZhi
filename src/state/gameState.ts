@@ -1,6 +1,7 @@
 import type { HomeState } from '../logic/home';
 import type { CodexState } from '../logic/codex';
 import type { MallState } from '../logic/mall';
+import type { BondState, BondUp } from '../logic/bond';
 import type { MailState } from '../logic/mail';
 import { DOGS, STARTER_DOG_IDS, type Faction } from '../data/dogs';
 import type { GearSlot } from '../data/equipment';
@@ -57,6 +58,8 @@ export interface RatState {
 }
 
 export interface ExpeditionRecord {
+  /** 這一仗讓誰的好感度升級了（T042），沒有就不記 */
+  bondUps?: BondUp[];
   /** 打贏老鼠幫拿到的寶物（T034） */
   loot?: RatLoot[];
   /** 這一仗送的爬塔限定裝備 id（登天塔） */
@@ -352,6 +355,8 @@ export interface GameState {
   mall: MallState;
   /** 信箱（T040）：哪幾封信看過、領過、刪掉（規則見 src/logic/mail.ts） */
   mail: MailState;
+  /** 好感度（T042）：每個角色累積多少、今天摸過誰（規則見 src/logic/bond.ts） */
+  bond: BondState;
 }
 
 /** 體力上限；新遊戲從滿體力開始 */
@@ -414,5 +419,6 @@ export function createInitialState(now: number = Date.now()): GameState {
     codex: { claimed: [] },
     mall: { day: '', bought: [] },
     mail: { read: [], claimed: [], deleted: [] },
+    bond: { points: {}, day: '', petted: [] },
   };
 }

@@ -9,6 +9,8 @@ import { claimableCount } from '../logic/quests';
 import { markSigninShown, signinPopup, signinPopupFromSearch, signinReady } from '../logic/signin';
 import { towerOpen } from '../logic/tower';
 import { codexClaimable } from '../logic/codex';
+import { bioOf } from '../data/bios';
+import { bondUpText, bondView, canPet, petDog, petLine } from '../logic/bond';
 import { mallGiftReady } from '../logic/mall';
 import { mailPending } from '../logic/mail';
 import { ratVisible, ratWavesLeft } from '../logic/ratRaid';
@@ -95,6 +97,11 @@ export class LobbyScene extends Phaser.Scene {
   private factionDot: Phaser.GameObjects.Arc | null = null;
   private expeditionCard!: LobbyCard;
   private toast: Phaser.GameObjects.Text | null = null;
+  private nameplate!: Phaser.GameObjects.Text;
+  private bubble: Phaser.GameObjects.Text | null = null;
+  private petHit: Rect = { x: 0, y: 0, width: 0, height: 0 };
+  private petLineText = '';
+  private petCount = 0;
 
   constructor() {
     super('LobbyScene');
@@ -108,6 +115,7 @@ export class LobbyScene extends Phaser.Scene {
     this.summary = null;
     this.autoDrawn = null;
     this.toast = null;
+    this.bubble = null;
     this.resourceTexts = {};
     resetDebug(this);
 
@@ -146,6 +154,7 @@ export class LobbyScene extends Phaser.Scene {
         backgroundMoving: this.scenery?.moving ?? 0,
         dayTime: this.scenery?.time ?? 'day',
         lord: { ...getState().lord, title: lordTitle(getState().lord.level) },
+        bond: this.bondDebug(),
         buttons: buttons as NonNullable<WgzDebugState['lobby']>['buttons'],
       },
       result: null,
@@ -221,7 +230,6 @@ export class LobbyScene extends Phaser.Scene {
 
   private drawDog(): void {
     const d = findDog(getState().lobbyDogId) ?? DOGS[0];
-    const level = dogStats(getState(), d).level;
     const { x, y } = this.layout.dog;
     // 體型（T025）：小型狗小一點、大型狗大一點
     const scale = this.layout.dog.scale * bodyScale(d.size);
@@ -241,34 +249,103 @@ export class LobbyScene extends Phaser.Scene {
     // 剛出征回來或掛彩：多半在舔傷口、休息（T014，純外觀）
     this.dog.startCycle(ACTION_MS, this.dogHurt > 0 ? HURT_ACTIONS : undefined);
 
-    // 名牌
-    addText(this, x, y + 8, `${d.name}\u3000Lv.${level}`, 16, '#ffffff', true)
+    // 名牌：名字、等級與好感度（T042）
+    this.nameplate = addText(this, x, y + 8, '', 16, '#ffffff', true)
       .setOrigin(0.5, 0)
       .setStroke(COLORS.ink, 4);
+    this.petLineText = '';
+    this.drawNameplate();
 
-    // 點狗狗：開心跳一下
-    const hit = this.add
-      .zone(x - 90 * scale, y - 150 * scale, 180 * scale, 150 * scale)
-      .setOrigin(0, 0);
-    hit.setInteractive({ cursor: 'pointer' }).on('pointerup', () => {
-      this.dog.play('hop');
-      const heart = addText(
-        this,
-        x + 40 * scale,
-        y - 150 * scale,
-        '♥',
-        30,
-        '#e0452b',
-        true,
-      ).setOrigin(0.5);
-      this.tweens.add({
-        targets: heart,
-        y: heart.y - 40,
-        alpha: 0,
-        duration: 900,
-        onComplete: () => heart.destroy(),
-      });
+    // 點狗狗：摸摸牠。開心跳一下、說一句話；每個角色一天第一次摸會加好感度
+    const hit: Rect = {
+      x: x - 90 * scale,
+      y: y - 150 * scale,
+      width: 180 * scale,
+      height: 150 * scale,
+    };
+    this.petHit = hit;
+    this.add
+      .zone(hit.x, hit.y, hit.width, hit.height)
+      .setOrigin(0, 0)
+      .setInteractive({ cursor: 'pointer' })
+      .on('pointerup', () => this.pet(d.id, x, y, scale));
+  }
+
+  private drawNameplate(): void {
+    const d = findDog(getState().lobbyDogId) ?? DOGS[0];
+    const level = dogStats(getState(), d).level;
+    const bond = bondView(getState(), d.id);
+    this.nameplate.setText(`${d.name}\u3000Lv.${level}\u3000♥${bond.level}`);
+  }
+
+  private bondDebug(): NonNullable<NonNullable<WgzDebugState['lobby']>['bond']> {
+    const st = getState();
+    const id = (findDog(st.lobbyDogId) ?? DOGS[0]).id;
+    const v = bondView(st, id);
+    return {
+      level: v.level,
+      points: v.points,
+      canPet: canPet(st, id, Date.now(), timeOptions()),
+      line: this.petLineText,
+      hit: this.petHit,
+    };
+  }
+
+  /** 摸摸主頁角色（T042） */
+  private pet(dogId: string, x: number, y: number, scale: number): void {
+    if (this.busyWithPanel) return;
+    this.dog.play('hop');
+    const r = petDog(getState(), dogId, Date.now(), timeOptions());
+    if (r.gained > 0) {
+      setState(r.state);
+      this.drawNameplate();
+    }
+    // 愛心從泡泡上面往上飄；有加好感度的那一次順便寫出加了多少
+    const heart = addText(
+      this,
+      x,
+      y - 150 * scale - 52,
+      r.gained > 0 ? `♥ 好感 +${r.gained}` : '♥',
+      r.gained > 0 ? 20 : 30,
+      '#e0452b',
+      true,
+    )
+      .setOrigin(0.5)
+      .setStroke('#ffffff', 4)
+      .setDepth(90);
+    this.tweens.add({
+      targets: heart,
+      y: heart.y - 40,
+      alpha: 0,
+      duration: r.gained > 0 ? 1400 : 900,
+      onComplete: () => heart.destroy(),
     });
+    // 說一句話：好感度越高越黏人
+    this.petCount += 1;
+    this.petLineText = petLine(
+      bondView(getState(), dogId).level,
+      this.petCount + dogId.length,
+      bioOf(dogId)?.likes,
+    );
+    this.bubble?.destroy();
+    const bubble = addText(this, x, y - 150 * scale - 4, this.petLineText, 15, COLORS.ink, true)
+      .setOrigin(0.5, 1)
+      .setBackgroundColor('#fffaf0')
+      .setPadding(10, 6, 10, 6)
+      .setDepth(90);
+    this.bubble = bubble;
+    this.tweens.add({
+      targets: bubble,
+      alpha: 0,
+      delay: 1800,
+      duration: 300,
+      onComplete: () => {
+        bubble.destroy();
+        if (this.bubble === bubble) this.bubble = null;
+      },
+    });
+    if (r.ups.length > 0) this.showToast(bondUpText(r.ups), 2600);
+    patchDebug({ lobby: { ...window.__WGZ__!.lobby!, bond: this.bondDebug() } });
   }
 
   /** 左上：大頭像（金框）+ 城主等級 + 總戰力 */

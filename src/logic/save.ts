@@ -36,6 +36,7 @@ import { sanitizeQuests } from './quests';
 import { sanitizeSignin } from './signin';
 import { sanitizeCodex } from './codex';
 import { sanitizeMall } from './mall';
+import { sanitizeBond } from './bond';
 import { sanitizeMail } from './mail';
 import { isRatLoot, sanitizeRats } from './ratRaid';
 import { sanitizeTower } from './tower';
@@ -470,6 +471,8 @@ export function sanitizeState(raw: unknown, now: number): GameState {
     mall: sanitizeMall(raw.mall),
     // 信箱（T040）
     mail: sanitizeMail(raw.mail),
+    // 好感度（T042）
+    bond: sanitizeBond(raw.bond),
   };
 }
 
