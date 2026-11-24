@@ -2,7 +2,8 @@ import type { Rect } from './layout';
 
 /**
  * 圖鑑畫面（T038）的排版，只做橫式（遊戲固定橫向）：
- * 左邊一欄是陣營分頁、收集進度、收集獎勵與「領取獎勵」，右邊是角色格子，一頁放得下 50 隻、不用捲。
+ * 左邊一欄是分頁、收集進度、收集獎勵與「領取獎勵」，右邊是格子，一頁放得下 50 隻角色、不用捲。
+ * T043 起分頁變四顆（汪國／喵國／裝備／背景）排成兩列；裝備 66 種排十一欄，背景 12 張排四欄。
  */
 export interface CodexLayout {
   tabs: Rect[];
@@ -18,11 +19,31 @@ export interface CodexLayout {
 }
 
 export const CODEX_COLUMNS = 10;
+/** 背景頁（T043）一列放幾張 */
+export const CODEX_BACKGROUND_COLUMNS = 4;
+/** 分頁一列放幾顆（T043：分頁變四顆，排成兩列） */
+export const CODEX_TABS_PER_ROW = 2;
+/** 格子至少要這麼大，手指才點得到 */
+const MIN_CELL = 44;
 
 const MARGIN = 12;
 const SIDE_WIDTH = 136;
 const TAB_HEIGHT = 44;
 const GAP = 6;
+
+/**
+ * 一頁要放 cellCount 格、不捲動，至少要幾欄：從十欄開始，列數多到格子太矮就再加一欄。
+ * 50 個角色是十欄五列，66 種裝備是十一欄六列。
+ */
+export function codexColumnsFor(cellCount: number, h: number, top = 56): number {
+  const space = h - (top + 8) - MARGIN;
+  let columns = CODEX_COLUMNS;
+  for (;;) {
+    const rows = Math.max(1, Math.ceil(cellCount / columns));
+    if (Math.floor((space - GAP * (rows - 1)) / rows) >= MIN_CELL || columns >= 16) return columns;
+    columns += 1;
+  }
+}
 
 export function codexLayout(
   w: number,
@@ -31,12 +52,15 @@ export function codexLayout(
   cellCount = 50,
   tabCount = 2,
   milestoneCount = 5,
+  columns = CODEX_COLUMNS,
 ): CodexLayout {
   const y0 = top + 8;
-  const tabW = Math.floor((SIDE_WIDTH - GAP * (tabCount - 1)) / tabCount);
+  const perRow = Math.min(tabCount, CODEX_TABS_PER_ROW);
+  const tabRows = Math.ceil(tabCount / perRow);
+  const tabW = Math.floor((SIDE_WIDTH - GAP * (perRow - 1)) / perRow);
   const tabs: Rect[] = Array.from({ length: tabCount }, (_, i) => ({
-    x: MARGIN + i * (tabW + GAP),
-    y: y0,
+    x: MARGIN + (i % perRow) * (tabW + GAP),
+    y: y0 + Math.floor(i / perRow) * (TAB_HEIGHT + GAP),
     width: tabW,
     height: TAB_HEIGHT,
   }));
@@ -46,7 +70,7 @@ export function codexLayout(
     width: SIDE_WIDTH,
     height: TAB_HEIGHT,
   };
-  const countY = y0 + TAB_HEIGHT + 10;
+  const countY = y0 + tabRows * TAB_HEIGHT + (tabRows - 1) * GAP + 10;
   const rarityY = countY + 24;
   // 稀有度那段有兩行
   const listTop = rarityY + 36;
@@ -57,12 +81,12 @@ export function codexLayout(
   }));
 
   const left = MARGIN + SIDE_WIDTH + MARGIN;
-  const rows = Math.max(1, Math.ceil(cellCount / CODEX_COLUMNS));
-  const cellW = Math.floor((w - left - MARGIN - GAP * (CODEX_COLUMNS - 1)) / CODEX_COLUMNS);
+  const rows = Math.max(1, Math.ceil(cellCount / columns));
+  const cellW = Math.floor((w - left - MARGIN - GAP * (columns - 1)) / columns);
   const cellH = Math.floor((h - y0 - MARGIN - GAP * (rows - 1)) / rows);
   const cells: Rect[] = Array.from({ length: cellCount }, (_, i) => ({
-    x: left + (i % CODEX_COLUMNS) * (cellW + GAP),
-    y: y0 + Math.floor(i / CODEX_COLUMNS) * (cellH + GAP),
+    x: left + (i % columns) * (cellW + GAP),
+    y: y0 + Math.floor(i / columns) * (cellH + GAP),
     width: cellW,
     height: cellH,
   }));
