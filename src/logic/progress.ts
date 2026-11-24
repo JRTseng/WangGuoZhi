@@ -93,3 +93,9 @@ export function nextBackground(state: GameState): GameState {
   const next = list[(i + 1) % list.length];
   return next === state.backgroundId ? state : { ...state, backgroundId: next };
 }
+
+/** 直接換成指定的背景（圖鑑的背景頁用，T043）；還沒取得的換不了 */
+export function setBackground(state: GameState, id: ThemeId): GameState {
+  if (id === state.backgroundId || !unlockedBackgrounds(state).includes(id)) return state;
+  return { ...state, backgroundId: id };
+}

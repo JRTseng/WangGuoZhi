@@ -220,11 +220,12 @@ interface WgzDebugState {
   };
   /** 圖鑑畫面（T038） */
   codex?: {
-    faction: 'dog' | 'cat';
+    /** 開著哪一頁（T043 起多了裝備與背景兩頁；欄位名字沿用 T038 的） */
+    faction: 'dog' | 'cat' | 'gear' | 'background';
     owned: number;
     total: number;
-    /** 陣營分頁；count 是那一邊有幾段獎勵可以領 */
-    tabs: Record<'dog' | 'cat', WgzRect & { count: number }>;
+    /** 分頁；count 是那一頁有幾段獎勵可以領 */
+    tabs: Record<'dog' | 'cat' | 'gear' | 'background', WgzRect & { count: number }>;
     claim: WgzRect & { count: number };
     milestones: Array<{
       id: string;
@@ -233,7 +234,13 @@ interface WgzDebugState {
       done: boolean;
       claimed: boolean;
     }>;
-    cells: Array<WgzRect & { id: string; rarity: string; owned: boolean }>;
+    /** current：背景頁才有，主頁現在用的是不是這一張 */
+    cells: Array<WgzRect & { id: string; rarity: string; owned: boolean; current?: boolean }>;
+    /** 開著說明視窗的裝備 id（T043） */
+    gearInfo: string | null;
+    gearInfoClose?: WgzRect | null;
+    /** 主頁現在用的背景（T043） */
+    background: string;
     /** 開著資料視窗的角色 id */
     panel: string | null;
     panelClose: WgzRect | null;

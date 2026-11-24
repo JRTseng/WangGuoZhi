@@ -11,6 +11,7 @@ import {
   markStorySeen,
   newStoriesAfter,
   nextBackground,
+  setBackground,
   stageNodeState,
   unlockedBackgrounds,
 } from './progress';
@@ -124,5 +125,17 @@ describe('主頁背景擴充到每一章（T016）', () => {
     }
     expect(seen.size).toBe(12);
     expect(s.backgroundId).toBe('slope');
+  });
+});
+
+describe('直接指定主頁背景（T043）', () => {
+  it('有的背景可以直接換，還沒有的、或本來就是這張，狀態不變', () => {
+    const st = withCleared('luoyepo-5');
+    const next = setBackground(st, 'bamboo');
+    expect(next.backgroundId).toBe('bamboo');
+    expect(st.backgroundId).toBe('slope');
+    expect(setBackground(st, 'snow')).toBe(st);
+    expect(setBackground(st, 'slope')).toBe(st);
+    expect(setBackground(next, 'slope').backgroundId).toBe('slope');
   });
 });
