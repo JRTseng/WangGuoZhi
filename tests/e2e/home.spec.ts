@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { drag, openLobby, tap, waitScene, wgz } from './helpers';
+import { drag, openLobby, patchSave, tap, waitScene, wgz } from './helpers';
 
 const SHOTS = 'artifacts/screenshots/home';
 const home = async (page: Parameters<typeof wgz>[0]) => (await wgz(page)).home!;
@@ -116,4 +116,93 @@ test('我的家：喵國是貓腳印，屋內一開始就有貓跳台', async ({
   expect(h.pieces.map((p) => p.id)).toContain('cattree');
   await page.waitForTimeout(1500);
   await page.screenshot({ path: `${SHOTS}/indoor-cat.png` });
+});
+
+/** 點一隻住在家裡的角色，直到下面的互動卡打開（牠們會走動，沒點到就再點一次） */
+async function petSomeone(page: Parameters<typeof wgz>[0]) {
+  for (let i = 0; i < 40; i += 1) {
+    const pets = (await home(page)).pets;
+    const p = pets.find((x) => !x.moving) ?? pets[0];
+    await tap(page, p, 0.5, 0.45);
+    const opened = await page
+      .waitForFunction(() => !!window.__WGZ__?.home?.card, null, { timeout: 700 })
+      .then(() => true)
+      .catch(() => false);
+    if (opened) return (await home(page)).card!;
+  }
+  throw new Error('點不到家裡的角色');
+}
+
+test('我的家：點角色摸摸牠、送零食加好感度，一天最多送三次（T044）', async ({ page }) => {
+  await openLobby(page, '?fast=1');
+  await patchSave(page, { snacks: { small: 5, mid: 1 } });
+  const saved = () =>
+    page.evaluate(() => JSON.parse(window.localStorage.getItem('wgz-save')!).state);
+  await tap(page, (await wgz(page)).lobby!.buttons.home);
+  await waitScene(page, 'HomeScene');
+  const h = await home(page);
+  expect(h.card).toBeNull();
+  expect(h.pets.length).toBe(h.residents.length);
+  for (const p of h.pets) {
+    expect(p.width).toBeGreaterThanOrEqual(44);
+    expect(p.height).toBeGreaterThanOrEqual(44);
+    expect(p).toMatchObject({ level: 0, canPet: true });
+  }
+
+  // 點一下：摸摸 +10，升到 1 級，下面跳出互動卡
+  let card = await petSomeone(page);
+  const id = card.dogId;
+  expect(card).toMatchObject({ level: 1, points: 10, left: 3 });
+  expect(card.line.length).toBeGreaterThan(0);
+  expect(card.gifts.map((g) => [g.id, g.count, g.ok])).toEqual([
+    ['small', 5, true],
+    ['mid', 1, true],
+    ['big', 0, false],
+  ]);
+  for (const r of [...card.gifts, card.close]) {
+    expect(r.width).toBeGreaterThanOrEqual(44);
+    expect(r.height).toBeGreaterThanOrEqual(44);
+  }
+  expect((await home(page)).pets.find((p) => p.id === id)).toMatchObject({
+    level: 1,
+    canPet: false,
+  });
+  await page.screenshot({ path: `${SHOTS}/pet-card.png` });
+
+  // 送小肉乾：+5，零食少一個，今天剩兩次
+  await tap(page, card.gifts[0]);
+  await page.waitForFunction(() => window.__WGZ__?.home?.card?.points === 15);
+  card = (await home(page)).card!;
+  expect(card).toMatchObject({ left: 2 });
+  expect(card.gifts[0].count).toBe(4);
+  await page.screenshot({ path: `${SHOTS}/pet-gift.png` });
+
+  // 沒有的零食送不出去，會說為什麼
+  await tap(page, card.gifts[2]);
+  await page.waitForFunction(() => window.__WGZ__?.home?.note.includes('沒有了'));
+  expect((await home(page)).card!.points).toBe(15);
+
+  // 香烤肉排 +12、再一個小肉乾 +5：今天三次用完
+  await tap(page, card.gifts[1]);
+  await page.waitForFunction(() => window.__WGZ__?.home?.card?.points === 27);
+  await tap(page, card.gifts[0]);
+  await page.waitForFunction(() => window.__WGZ__?.home?.card?.points === 32);
+  card = (await home(page)).card!;
+  expect(card).toMatchObject({ level: 2, left: 0 });
+  expect(card.gifts.every((g) => !g.ok)).toBe(true);
+  await tap(page, card.gifts[0]);
+  await page.waitForFunction(() => window.__WGZ__?.home?.note.includes('明天再送'));
+  expect((await home(page)).card!.gifts[0].count).toBe(3);
+  await page.screenshot({ path: `${SHOTS}/pet-full.png` });
+
+  // 存檔記得好感度、今天摸過誰、送過幾次
+  await expect.poll(async () => (await saved()).bond.points[id], { timeout: 10_000 }).toBe(32);
+  const st = await saved();
+  expect(st.bond.petted).toEqual([id]);
+  expect(st.bond.gifted).toEqual({ [id]: 3 });
+  expect(st.snacks).toMatchObject({ small: 3, mid: 0 });
+
+  // 關掉互動卡
+  await tap(page, card.close);
+  await page.waitForFunction(() => window.__WGZ__?.home?.card === null);
 });

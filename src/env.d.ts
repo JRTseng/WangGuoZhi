@@ -394,6 +394,19 @@ interface WgzDebugState {
       prev: WgzRect | null;
       next: WgzRect | null;
     } | null;
+    /** 住在家裡的角色現在可以點的範圍（T044）；牠們會走動，每一格更新 */
+    pets: ({ id: string; level: number; canPet: boolean; moving: boolean } & WgzRect)[];
+    /** 點了角色以後下面的互動卡（T044）：好感度、今天還能送幾次、三種零食 */
+    card: {
+      dogId: string;
+      level: number;
+      points: number;
+      left: number;
+      /** 牠剛說的話 */
+      line: string;
+      gifts: ({ id: string; count: number; ok: boolean } & WgzRect)[];
+      close: WgzRect;
+    } | null;
   };
   /** 倉庫（GearScene，T014） */
   gear?: {
