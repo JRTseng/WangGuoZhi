@@ -1,6 +1,7 @@
 import { findDog } from '../data/dogs';
 import type { GameState, RatLoot } from '../state/gameState';
 import { applyRatLoot, ratLootText } from './ratRaid';
+import { findSnack, snackCount, type SnackId } from './snacks';
 import { dayKey, type TimeOptions } from './stamina';
 
 /**
@@ -9,6 +10,8 @@ import { dayKey, type TimeOptions } from './stamina';
  * 怎麼漲：
  * - 在主頁摸摸主頁角色：每個角色一天一次 +10（再摸只是撒嬌，不會再加）
  * - 一起出征：打贏每隻上陣的 +3、打輸 +1（爬塔、老鼠幫、自動出征都算）
+ * - 在「我的家」摸住在家裡的角色（和主頁算同一次）、送牠零食（T044）：
+ *   小肉乾 +5、香烤肉排 +12、大骨頭 +30，每個角色一天最多收 3 次
  *
  * 升級的禮物當場自動入袋，不用另外按領取。好感度不影響攻防，純收集與獎勵。
  */
@@ -20,9 +23,11 @@ export interface BondState {
   day: string;
   /** 今天摸過的角色 */
   petted: string[];
+  /** 今天每個角色收了幾次零食（T044），和 petted 一起換日 */
+  gifted: Record<string, number>;
 }
 
-export const EMPTY_BOND: BondState = { points: {}, day: '', petted: [] };
+export const EMPTY_BOND: BondState = { points: {}, day: '', petted: [], gifted: {} };
 
 export const BOND = {
   /** 摸摸：每個角色一天一次 */
@@ -169,11 +174,102 @@ export function petDog<S extends GainFields>(
   o?: TimeOptions,
 ): { state: S; gained: number; ups: BondUp[] } {
   if (!canPet(state, dogId, now, o)) return { state, gained: 0, ups: [] };
-  const day = dayKey(now, o);
-  const petted = state.bond.day === day ? state.bond.petted : [];
-  const marked = { ...state, bond: { ...state.bond, day, petted: [...petted, dogId] } };
+  const today = bondToday(state.bond, now, o);
+  const marked = { ...state, bond: { ...today, petted: [...today.petted, dogId] } };
   const r = gainBond(marked, [dogId], BOND.pet);
   return { ...r, gained: BOND.pet };
+}
+
+/** 換日了就把「今天摸過誰、送過幾次」清掉（累積的好感度不動） */
+function bondToday(bond: BondState, now: number, o?: TimeOptions): BondState {
+  const day = dayKey(now, o);
+  if (bond.day === day) return { ...bond, gifted: bond.gifted ?? {} };
+  return { ...bond, day, petted: [], gifted: {} };
+}
+
+// ---------------- 送零食（T044，在「我的家」） ----------------
+
+/** 送一個零食加多少好感度 */
+export const BOND_GIFT: Readonly<Record<SnackId, number>> = { small: 5, mid: 12, big: 30 };
+
+/** 每個角色一天最多收幾次零食 */
+export const GIFT_PER_DAY = 3;
+
+/** 這個角色今天還能收幾次零食 */
+export function giftsLeft(
+  state: Pick<GameState, 'bond'>,
+  dogId: string,
+  now: number,
+  o?: TimeOptions,
+): number {
+  const today = bondToday(state.bond, now, o);
+  return Math.max(0, GIFT_PER_DAY - (today.gifted[dogId] ?? 0));
+}
+
+export type GiftBlock = 'unknown' | 'not-owned' | 'none-left' | 'maxed' | 'daily';
+
+/** 能不能送：通過回傳 null */
+export function giftBlock(
+  state: GainFields,
+  dogId: string,
+  snackId: string,
+  now: number,
+  o?: TimeOptions,
+): GiftBlock | null {
+  if (!findDog(dogId) || !findSnack(snackId)) return 'unknown';
+  if (!state.owned.includes(dogId)) return 'not-owned';
+  if (bondLevel(state.bond.points[dogId] ?? 0) >= BOND_MAX_LEVEL) return 'maxed';
+  if (giftsLeft(state, dogId, now, o) <= 0) return 'daily';
+  if (snackCount(state, snackId) <= 0) return 'none-left';
+  return null;
+}
+
+/** 不能送的原因，給畫面上的提示用 */
+export function giftBlockText(block: GiftBlock): string {
+  switch (block) {
+    case 'maxed':
+      return '好感度已經滿了，零食留給別人吧';
+    case 'daily':
+      return `今天已經吃 ${GIFT_PER_DAY} 次了，明天再送`;
+    case 'none-left':
+      return '這種零食沒有了，打贏關卡或去商城可以拿到';
+    default:
+      return '現在不能送';
+  }
+}
+
+/** 送一個零食：扣一個零食、加好感度，升級的禮物照樣直接入袋 */
+export function giftSnack<S extends GainFields>(
+  state: S,
+  dogId: string,
+  snackId: string,
+  now: number,
+  o?: TimeOptions,
+): { state: S; gained: number; ups: BondUp[]; block: GiftBlock | null } {
+  const block = giftBlock(state, dogId, snackId, now, o);
+  if (block) return { state, gained: 0, ups: [], block };
+  const today = bondToday(state.bond, now, o);
+  const before = state.bond.points[dogId] ?? 0;
+  const marked = {
+    ...state,
+    snacks: { ...state.snacks, [snackId]: snackCount(state, snackId) - 1 },
+    bond: { ...today, gifted: { ...today.gifted, [dogId]: (today.gifted[dogId] ?? 0) + 1 } },
+  };
+  const r = gainBond(marked, [dogId], BOND_GIFT[snackId as SnackId]);
+  return { ...r, gained: (r.state.bond.points[dogId] ?? 0) - before, block: null };
+}
+
+/** 收到零食說的話 */
+const GIFT_LINES: readonly (readonly string[])[] = [
+  ['……給我的？謝謝', '（聞了聞，小口小口吃）', '還不錯'],
+  ['是{snack}！我開動了', '（尾巴搖個不停）', '好吃，還有嗎'],
+  ['最喜歡{snack}，也最喜歡你', '（吃完整個撲過來）', '一人一半，你也吃'],
+];
+
+export function giftLine(level: number, pick: number, snackName: string): string {
+  const pool = GIFT_LINES[level >= 7 ? 2 : level >= 3 ? 1 : 0];
+  const i = ((Math.floor(pick) % pool.length) + pool.length) % pool.length;
+  return pool[i].replace('{snack}', snackName);
 }
 
 /** 升級的提示：「阿柴 好感度 ♥3！送 碎片 ×2」；一次升好幾級只講最後一級、禮物全部列出來 */
@@ -211,8 +307,9 @@ export function petLine(level: number, pick: number, likes?: string): string {
 
 /** 讀檔時整理好感度欄位；舊存檔沒有這個欄位就是全部從 0 開始 */
 export function sanitizeBond(raw: unknown): BondState {
-  if (typeof raw !== 'object' || raw === null) return { points: {}, day: '', petted: [] };
-  const r = raw as { points?: unknown; day?: unknown; petted?: unknown };
+  if (typeof raw !== 'object' || raw === null)
+    return { points: {}, day: '', petted: [], gifted: {} };
+  const r = raw as { points?: unknown; day?: unknown; petted?: unknown; gifted?: unknown };
   const points: Record<string, number> = {};
   if (typeof r.points === 'object' && r.points !== null) {
     for (const [id, v] of Object.entries(r.points as Record<string, unknown>)) {
@@ -226,5 +323,12 @@ export function sanitizeBond(raw: unknown): BondState {
       if (typeof id === 'string' && findDog(id) && !petted.includes(id)) petted.push(id);
     }
   }
-  return { points, day: typeof r.day === 'string' ? r.day : '', petted };
+  const gifted: Record<string, number> = {};
+  if (typeof r.gifted === 'object' && r.gifted !== null) {
+    for (const [id, v] of Object.entries(r.gifted as Record<string, unknown>)) {
+      if (!findDog(id) || typeof v !== 'number' || !Number.isFinite(v) || v <= 0) continue;
+      gifted[id] = Math.min(GIFT_PER_DAY, Math.floor(v));
+    }
+  }
+  return { points, day: typeof r.day === 'string' ? r.day : '', petted, gifted };
 }

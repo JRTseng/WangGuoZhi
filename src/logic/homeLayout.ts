@@ -1,5 +1,5 @@
 import type { HomeSpot } from './home';
-import type { Rect } from './layout';
+import { MIN_TAP, type Rect } from './layout';
 
 /** 我的家（T033）的版面，純計算。固定橫式 844 x 390。 */
 export const HOME_BAR = 56;
@@ -63,4 +63,54 @@ export function homeModalGrid(box: Rect, cols: number, rows: number): Rect[] {
     width: cw,
     height: ch,
   }));
+}
+
+/** 家裡的角色可以點的範圍（T044）：腳踩在 (x, y)，往上一隻角色那麼高，最小 44 */
+export function petBox(x: number, y: number, scale: number): Rect {
+  const width = Math.max(MIN_TAP, 120 * scale);
+  const height = Math.max(MIN_TAP, 150 * scale);
+  return { x: x - width / 2, y: y - height, width, height };
+}
+
+/** 重疊時點到誰：點擊範圍包含這一點的角色裡，最靠近鏡頭（y 最大）的那一隻；沒有就是 -1 */
+export function petAt(boxes: readonly Rect[], px: number, py: number): number {
+  let best = -1;
+  boxes.forEach((b, i) => {
+    const hit = px >= b.x && px <= b.x + b.width && py >= b.y && py <= b.y + b.height;
+    if (hit && (best < 0 || b.y + b.height > boxes[best].y + boxes[best].height)) best = i;
+  });
+  return best;
+}
+
+/** 點了角色以後畫面下面那一條互動卡（T044）：左邊名字與好感度，中間三種零食，右邊關掉 */
+export interface HomeCardLayout {
+  box: Rect;
+  /** 名字與好感度那兩行字的左上角 */
+  info: { x: number; y: number };
+  /** 三種零食的按鈕，由小到大 */
+  gifts: Rect[];
+  close: Rect;
+}
+
+export function homeCardLayout(w: number, h: number): HomeCardLayout {
+  const pad = 8;
+  const bh = MIN_TAP;
+  const height = bh + pad * 2;
+  const infoW = 196;
+  const gw = 116;
+  const gap = 6;
+  const width = pad + infoW + (gw + gap) * 3 + bh + pad;
+  const box: Rect = { x: Math.round((w - width) / 2), y: h - height - 4, width, height };
+  const gx = box.x + pad + infoW;
+  return {
+    box,
+    info: { x: box.x + pad + 4, y: box.y + pad + 2 },
+    gifts: [0, 1, 2].map((i) => ({
+      x: gx + i * (gw + gap),
+      y: box.y + pad,
+      width: gw,
+      height: bh,
+    })),
+    close: { x: gx + 3 * (gw + gap), y: box.y + pad, width: bh, height: bh },
+  };
 }

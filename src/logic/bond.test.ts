@@ -4,6 +4,7 @@ import { REGIONS } from '../data/regions';
 import { createInitialState } from '../state/gameState';
 import {
   BOND,
+  BOND_GIFT,
   BOND_MAX_LEVEL,
   BOND_NEED,
   battleBond,
@@ -15,6 +16,12 @@ import {
   bondView,
   canPet,
   gainBond,
+  GIFT_PER_DAY,
+  giftBlock,
+  giftBlockText,
+  giftLine,
+  giftSnack,
+  giftsLeft,
   petDog,
   petLine,
   sanitizeBond,
@@ -155,20 +162,111 @@ describe('好感度（T042）', () => {
   });
 
   it('讀檔：舊存檔沒有好感度就從 0 開始；壞掉的值會被整理掉', () => {
-    expect(sanitizeBond(undefined)).toEqual({ points: {}, day: '', petted: [] });
+    expect(sanitizeBond(undefined)).toEqual({ points: {}, day: '', petted: [], gifted: {} });
     expect(
       sanitizeBond({
         points: { daer: 45.7, nobody: 10, abai: -3, heixuan: 'x', changxu: 99999 },
         day: 20261124,
         petted: ['daer', 'daer', 'nobody', 5],
       }),
-    ).toEqual({ points: { daer: 45, changxu: 660 }, day: '', petted: ['daer'] });
+    ).toEqual({ points: { daer: 45, changxu: 660 }, day: '', petted: ['daer'], gifted: {} });
 
     const s = petDog(fresh(), 'daer', NOW).state;
     const loaded = sanitizeState(JSON.parse(JSON.stringify(s)), NOW);
     expect(loaded.bond).toEqual(s.bond);
     const old = JSON.parse(JSON.stringify(s)) as Record<string, unknown>;
     delete old.bond;
-    expect(sanitizeState(old, NOW).bond).toEqual({ points: {}, day: '', petted: [] });
+    expect(sanitizeState(old, NOW).bond).toEqual({ points: {}, day: '', petted: [], gifted: {} });
+  });
+
+  describe('送零食（T044）', () => {
+    const withSnacks = () => ({ ...fresh(), snacks: { small: 5, mid: 1, big: 0 } });
+
+    it('送一個扣一個零食，照零食種類加好感度，升級的禮物直接入袋', () => {
+      const s0 = withSnacks();
+      const id = s0.owned[0];
+      expect(giftsLeft(s0, id, NOW)).toBe(GIFT_PER_DAY);
+      const r1 = giftSnack(s0, id, 'small', NOW);
+      expect(r1.block).toBeNull();
+      expect(r1.gained).toBe(BOND_GIFT.small);
+      expect(r1.state.snacks.small).toBe(4);
+      expect(r1.state.bond.points[id]).toBe(5);
+      expect(r1.ups).toEqual([]);
+      expect(giftsLeft(r1.state, id, NOW)).toBe(GIFT_PER_DAY - 1);
+      // 香烤肉排 +12：5 → 17，升到 1 級送糧草 100
+      const r2 = giftSnack(r1.state, id, 'mid', NOW);
+      expect(r2.gained).toBe(BOND_GIFT.mid);
+      expect(r2.state.snacks.mid).toBe(0);
+      expect(r2.ups).toHaveLength(1);
+      expect(r2.state.resources.food).toBe(s0.resources.food + 100);
+    });
+
+    it('每個角色一天最多收三次，換日以後又可以送；不影響今天有沒有摸過', () => {
+      let st = withSnacks();
+      const [a, b] = st.owned;
+      st = petDog(st, a, NOW).state;
+      for (let i = 0; i < GIFT_PER_DAY; i += 1) st = giftSnack(st, a, 'small', NOW).state;
+      expect(giftBlock(st, a, 'small', NOW)).toBe('daily');
+      const blocked = giftSnack(st, a, 'small', NOW);
+      expect(blocked.gained).toBe(0);
+      expect(blocked.state).toBe(st);
+      // 別的角色不受影響
+      expect(giftBlock(st, b, 'small', NOW)).toBeNull();
+      // 今天摸過的紀錄還在
+      expect(canPet(st, a, NOW)).toBe(false);
+      // 隔天：送的次數與摸摸都重新算
+      expect(giftsLeft(st, a, NOW + DAY)).toBe(GIFT_PER_DAY);
+      const next = giftSnack(st, a, 'small', NOW + DAY);
+      expect(next.block).toBeNull();
+      expect(next.state.bond.gifted).toEqual({ [a]: 1 });
+      expect(next.state.bond.petted).toEqual([]);
+      expect(canPet(next.state, a, NOW + DAY)).toBe(true);
+    });
+
+    it('沒有零食、沒擁有、滿級、認不得的都不能送，而且什麼都不扣', () => {
+      const s0 = withSnacks();
+      const id = s0.owned[0];
+      const other = DOGS.find((d) => !s0.owned.includes(d.id))!.id;
+      expect(giftBlock(s0, id, 'big', NOW)).toBe('none-left');
+      expect(giftBlock(s0, other, 'small', NOW)).toBe('not-owned');
+      expect(giftBlock(s0, id, 'cake', NOW)).toBe('unknown');
+      expect(giftBlock(s0, 'nobody', 'small', NOW)).toBe('unknown');
+      const full = { ...s0, bond: { ...s0.bond, points: { [id]: BOND_NEED[BOND_MAX_LEVEL] } } };
+      expect(giftBlock(full, id, 'small', NOW)).toBe('maxed');
+      expect(giftSnack(full, id, 'small', NOW).state).toBe(full);
+      for (const b of ['maxed', 'daily', 'none-left', 'unknown'] as const) {
+        expect(giftBlockText(b).length).toBeGreaterThan(0);
+      }
+    });
+
+    it('快滿級時多的好感度不會超過上限，gained 是實際加到的', () => {
+      const s0 = { ...withSnacks(), snacks: { big: 1 } };
+      const id = s0.owned[0];
+      const near = {
+        ...s0,
+        bond: { ...s0.bond, points: { [id]: BOND_NEED[BOND_MAX_LEVEL] - 4 } },
+      };
+      const r = giftSnack(near, id, 'big', NOW);
+      expect(r.gained).toBe(4);
+      expect(r.state.bond.points[id]).toBe(BOND_NEED[BOND_MAX_LEVEL]);
+      expect(r.ups.at(-1)?.level).toBe(BOND_MAX_LEVEL);
+    });
+
+    it('舊存檔沒有 gifted 也能送；壞掉的 gifted 會被整理掉', () => {
+      const s0 = withSnacks();
+      const id = s0.owned[0];
+      const old = { ...s0, bond: { points: {}, day: '', petted: [] } } as unknown as typeof s0;
+      expect(giftSnack(old, id, 'small', NOW).state.bond.gifted).toEqual({ [id]: 1 });
+      expect(
+        sanitizeBond({ points: {}, day: 'x', petted: [], gifted: { [id]: 99, nobody: 2, a: -1 } })
+          .gifted,
+      ).toEqual({ [id]: GIFT_PER_DAY });
+    });
+
+    it('收到零食會說話，好感度越高越熱情', () => {
+      expect(giftLine(0, 0, '小肉乾').length).toBeGreaterThan(0);
+      expect(giftLine(5, 0, '小肉乾')).toContain('小肉乾');
+      expect(giftLine(9, -1, '大骨頭').length).toBeGreaterThan(0);
+    });
   });
 });

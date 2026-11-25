@@ -1,8 +1,22 @@
 import Phaser from 'phaser';
 import { COLORS, RARITY_COLORS } from '../config';
+import { bioOf } from '../data/bios';
 import { DOGS, findDog, type DogData } from '../data/dogs';
 import { wt } from '../data/worldText';
 import { PIXEL_SIZE } from '../logic/atmosphere';
+import {
+  BOND_GIFT,
+  bondUpText,
+  bondView,
+  canPet,
+  giftBlock,
+  giftBlockText,
+  giftLine,
+  giftSnack,
+  giftsLeft,
+  petDog,
+  petLine,
+} from '../logic/bond';
 import { bodyScale } from '../logic/dogSize';
 import { gearOf } from '../logic/equipment';
 import { playerFaction } from '../logic/faction';
@@ -26,14 +40,19 @@ import {
 } from '../logic/home';
 import {
   HOME_BAR,
+  homeCardLayout,
   homeLayout,
   homeModalGrid,
+  petAt,
+  petBox,
   spotOf,
   xyOf,
+  type HomeCardLayout,
   type HomeLayout,
 } from '../logic/homeLayout';
 import type { Rect } from '../logic/layout';
-import { getState, setState, tick } from '../state/store';
+import { SNACKS, snackCount } from '../logic/snacks';
+import { getState, setState, tick, timeOptions } from '../state/store';
 import { playSfx } from './components/audio';
 import { Button } from './components/Button';
 import { drawDogHead } from './components/dogArt';
@@ -97,6 +116,7 @@ const ON_TOP = new Set(['rug', 'picnic', 'cushion']);
 /**
  * 我的家（T033）：主頁的腳印按鈕進來。屋內與庭院兩個場景，最多住五隻角色，
  * 牠們會自己走來走去、去玩擺出來的家具。家具可以用手指拖到喜歡的位置。
+ * 點一下角色可以摸摸牠（和主頁算同一次）、送牠零食加好感度（T044，規則在 src/logic/bond.ts）。
  * 規則與資料在 src/logic/home.ts，版面在 src/logic/homeLayout.ts。
  */
 export class HomeScene extends Phaser.Scene {
@@ -110,6 +130,15 @@ export class HomeScene extends Phaser.Scene {
   private modalDirty = false;
   private toast: Phaser.GameObjects.Text | null = null;
   private rnd: () => number = Math.random;
+  /** 正在互動的角色與牠的互動卡（T044） */
+  private sel: Pet | null = null;
+  private card: Phaser.GameObjects.Container | null = null;
+  private cardLayout!: HomeCardLayout;
+  private bubble: Phaser.GameObjects.Text | null = null;
+  private line = '';
+  private talkCount = 0;
+  private cardDebug: NonNullable<WgzDebugState['home']>['card'] = null;
+  private ring: Phaser.GameObjects.Ellipse | null = null;
 
   constructor() {
     super('HomeScene');
@@ -120,6 +149,12 @@ export class HomeScene extends Phaser.Scene {
     const { w, h } = viewOf(this);
     const st = tick();
     this.layout = homeLayout(w, h);
+    this.cardLayout = homeCardLayout(w, h);
+    this.sel = null;
+    this.card = null;
+    this.bubble = null;
+    this.line = '';
+    this.cardDebug = null;
     this.area = st.home.area;
     this.pieces = [];
     this.pets = [];
@@ -157,9 +192,14 @@ export class HomeScene extends Phaser.Scene {
     for (const p of homePlaced(st, playerFaction(st), this.area)) this.addPiece(p.item, p.spot);
     for (const id of homeResidents(st)) this.addPet(id);
     this.setupDrag();
+    this.ring = this.add.ellipse(0, 0, 64, 18, 0xfff3a0, 0.55).setVisible(false);
+    this.ring.setStrokeStyle(2, 0xe0452b, 0.8);
 
     if (this.pets.length === 0) this.say(wt('還沒有住戶，按右上的「住戶」請狗狗住進來'));
     else if (this.pieces.length === 0) this.say('這裡空空的，按右上的「家具」擺點東西');
+    else if (this.pets.some((p) => canPet(st, p.dog.id, Date.now(), timeOptions()))) {
+      this.say('點一下角色可以摸摸牠、送牠零食');
+    }
 
     patchDebug({ backButton: back });
     this.publish();
@@ -202,10 +242,15 @@ export class HomeScene extends Phaser.Scene {
     let moved = false;
     let ox = 0;
     let oy = 0;
+    // 按下去的位置：在場地上（不是標題列、互動卡、彈出視窗）才算，放開時沒移動就是「點一下」
+    let press: { x: number; y: number } | null = null;
     this.input.on(
       'pointerdown',
       (ptr: Phaser.Input.Pointer, over: Phaser.GameObjects.GameObject[]) => {
+        press = null;
         if (this.modal) return;
+        if (ptr.worldY < HOME_BAR || this.onCard(ptr.worldX, ptr.worldY)) return;
+        press = { x: ptr.worldX, y: ptr.worldY };
         // 重疊時拿最前面那一件
         const hit = over
           .map((o) => o.getData('piece') as Piece | undefined)
@@ -234,9 +279,27 @@ export class HomeScene extends Phaser.Scene {
       held.y = at.y;
       this.layer(held);
     });
-    const drop = (): void => {
+    const drop = (ptr: Phaser.Input.Pointer): void => {
       const p = held;
+      const at = press;
       held = null;
+      press = null;
+      if (!moved && at && !this.modal) {
+        // 點一下：先看有沒有點到角色（角色站在家具前面或上面時，摸的是角色）
+        const still = Math.hypot(ptr.worldX - at.x, ptr.worldY - at.y) < DRAG_MIN;
+        const i = still
+          ? petAt(
+              this.pets.map((x) => this.boxOf(x)),
+              at.x,
+              at.y,
+            )
+          : -1;
+        if (i >= 0) {
+          this.tapPet(this.pets[i]);
+          return;
+        }
+        if (!p && still && this.sel) this.closeCard();
+      }
       if (!p) return;
       if (!moved) {
         this.say(`${p.item.name}：${p.item.note}`);
@@ -256,6 +319,216 @@ export class HomeScene extends Phaser.Scene {
     const pet = this.pets.find((x) => x.dog.id === p.user || x.goal === p);
     if (pet) this.rest(pet, this.time.now);
     p.user = null;
+  }
+
+  // ---------------- 摸摸與送零食（T044） ----------------
+
+  /** 角色可以點的範圍（跟著牠現在的位置） */
+  private boxOf(pet: Pet): Rect {
+    return petBox(pet.x, pet.y - pet.lift, pet.scale);
+  }
+
+  private onCard(x: number, y: number): boolean {
+    if (!this.card) return false;
+    const b = this.cardLayout.box;
+    return x >= b.x && x <= b.x + b.width && y >= b.y && y <= b.y + b.height;
+  }
+
+  /** 點一下角色：摸摸牠（今天第一次會加好感度），並打開下面的互動卡 */
+  private tapPet(pet: Pet): void {
+    playSfx('tap');
+    if (this.sel && this.sel !== pet) this.letGo(this.sel);
+    this.sel = pet;
+    // 牠會停下來看你，卡片關掉才繼續去玩
+    if (pet.mode === 'walk') {
+      if (pet.goal?.user === pet.dog.id) pet.goal.user = null;
+      pet.goal = null;
+      pet.mode = 'idle';
+      pet.lift = 0;
+    }
+    pet.until = Infinity;
+    pet.sprite.play('wag');
+    const id = pet.dog.id;
+    const r = petDog(getState(), id, Date.now(), timeOptions());
+    if (r.gained > 0) setState(r.state);
+    this.heart(pet, r.gained > 0 ? `♥ 好感 +${r.gained}` : '♥', r.gained > 0);
+    this.talkCount += 1;
+    this.talk(
+      pet,
+      petLine(bondView(getState(), id).level, this.talkCount + id.length, bioOf(id)?.likes),
+    );
+    if (r.ups.length > 0) {
+      playSfx('levelup');
+      this.say(bondUpText(r.ups));
+    }
+    this.renderCard();
+  }
+
+  /** 送一個零食給正在互動的角色 */
+  private gift(snackId: string): void {
+    const pet = this.sel;
+    if (!pet) return;
+    const id = pet.dog.id;
+    const r = giftSnack(getState(), id, snackId, Date.now(), timeOptions());
+    if (r.block) {
+      this.say(giftBlockText(r.block));
+      return;
+    }
+    setState(r.state);
+    playSfx(r.ups.length > 0 ? 'levelup' : 'heal');
+    pet.sprite.play('lick');
+    this.heart(pet, `♥ 好感 +${r.gained}`, true);
+    this.talkCount += 1;
+    const snack = SNACKS.find((x) => x.id === snackId);
+    this.talk(pet, giftLine(bondView(r.state, id).level, this.talkCount, snack?.name ?? ''));
+    if (r.ups.length > 0) this.say(bondUpText(r.ups));
+    this.renderCard();
+  }
+
+  /** 角色頭上往上飄的愛心 */
+  private heart(pet: Pet, text: string, gained: boolean): void {
+    const b = this.boxOf(pet);
+    const heart = addText(this, pet.x, b.y - 46, text, gained ? 18 : 26, '#e0452b', true)
+      .setOrigin(0.5)
+      .setStroke('#ffffff', 4)
+      .setDepth(945);
+    this.tweens.add({
+      targets: heart,
+      y: heart.y - 34,
+      alpha: 0,
+      duration: gained ? 1400 : 900,
+      onComplete: () => heart.destroy(),
+    });
+  }
+
+  /** 角色頭上的對話泡泡 */
+  private talk(pet: Pet, text: string): void {
+    this.line = text;
+    this.bubble?.destroy();
+    const { w } = viewOf(this);
+    const b = this.boxOf(pet);
+    const bubble = addText(
+      this,
+      pet.x,
+      Math.max(HOME_BAR + 34, b.y - 2),
+      text,
+      14,
+      COLORS.ink,
+      true,
+    )
+      .setOrigin(0.5, 1)
+      .setBackgroundColor('#fffaf0')
+      .setPadding(9, 5, 9, 5)
+      .setDepth(940);
+    // 站在畫面邊邊時泡泡不要跑出去
+    const half = bubble.width / 2 + 6;
+    bubble.x = Math.min(w - half, Math.max(half, bubble.x));
+    this.bubble = bubble;
+    this.tweens.add({
+      targets: bubble,
+      alpha: 0,
+      delay: 2000,
+      duration: 300,
+      onComplete: () => {
+        bubble.destroy();
+        if (this.bubble === bubble) this.bubble = null;
+      },
+    });
+  }
+
+  /** 互動完了，過一下下就繼續去玩 */
+  private letGo(pet: Pet): void {
+    pet.until = this.time.now + 700;
+  }
+
+  private closeCard(): void {
+    if (this.sel) this.letGo(this.sel);
+    this.sel = null;
+    this.card?.destroy();
+    this.card = null;
+    this.cardDebug = null;
+    this.publish();
+  }
+
+  /** 畫面下面的互動卡：名字、好感度、三種零食 */
+  private renderCard(): void {
+    this.card?.destroy();
+    this.card = null;
+    this.cardDebug = null;
+    const pet = this.sel;
+    if (!pet) return;
+    const st = getState();
+    const id = pet.dog.id;
+    const now = Date.now();
+    const c = this.cardLayout;
+    const v = bondView(st, id);
+    const left = giftsLeft(st, id, now, timeOptions());
+    const layer = (this.card = this.add.container(0, 0).setDepth(960));
+    const g = this.add.graphics();
+    g.fillStyle(COLORS.card, 0.96);
+    g.lineStyle(3, COLORS.cardBorder, 1);
+    g.fillRoundedRect(c.box.x, c.box.y, c.box.width, c.box.height, 14);
+    g.strokeRoundedRect(c.box.x, c.box.y, c.box.width, c.box.height, 14);
+    const progress = v.max ? '（滿了）' : `（${v.into}／${v.need}）`;
+    const second = v.max
+      ? '好感度滿了，謝謝你一直陪牠'
+      : left > 0
+        ? `今天還能送零食 ${left} 次`
+        : '今天吃飽了，明天再送';
+    layer.add([
+      g,
+      addText(
+        this,
+        c.info.x,
+        c.info.y,
+        `${pet.dog.name}\u3000♥${v.level}${progress}`,
+        16,
+        COLORS.ink,
+        true,
+      ),
+      addText(this, c.info.x, c.info.y + 24, second, 12, COLORS.inkSoft),
+    ]);
+    const gifts = SNACKS.map((snack, i) => {
+      const r = c.gifts[i];
+      const count = snackCount(st, snack.id);
+      const ok = giftBlock(st, id, snack.id, now, timeOptions()) === null;
+      const b = new Button(this, r, '', () => this.gift(snack.id), 13);
+      b.setColor(ok ? snack.color : COLORS.buttonDisabled);
+      layer.add([
+        b,
+        addText(
+          this,
+          r.x + r.width / 2,
+          r.y + 14,
+          `${snack.name} ×${count}`,
+          13,
+          '#ffffff',
+          true,
+        ).setOrigin(0.5),
+        addText(
+          this,
+          r.x + r.width / 2,
+          r.y + 31,
+          `好感 +${BOND_GIFT[snack.id]}`,
+          11,
+          '#ffffff',
+        ).setOrigin(0.5),
+      ]);
+      return { id: snack.id, count, ok, ...r };
+    });
+    layer.add(
+      new Button(this, c.close, '✕', () => this.closeCard(), 18).setColor(COLORS.buttonDisabled),
+    );
+    this.cardDebug = {
+      dogId: id,
+      level: v.level,
+      points: v.points,
+      left,
+      line: this.line,
+      gifts,
+      close: c.close,
+    };
+    this.publish();
   }
 
   // ---------------- 角色 ----------------
@@ -303,6 +576,28 @@ export class HomeScene extends Phaser.Scene {
       pet.sprite.setScale(pet.scale * pet.facing, pet.scale);
       pet.sprite.setDepth(pet.y + (pet.mode === 'use' ? 0.3 : 0));
     }
+    // 正在互動的角色腳下有一圈亮亮的，看得出互動卡是誰的
+    this.ring?.setVisible(!!this.sel);
+    if (this.sel && this.ring) {
+      const p = this.sel;
+      this.ring.setPosition(p.x, p.y - p.lift + 2).setDepth(p.y - 0.2);
+      this.ring.setScale(p.scale / PET_SCALE);
+    }
+    // 角色會走動，可以點的範圍每一格都更新給畫面測試
+    const dbg = window.__WGZ__?.home;
+    if (dbg) dbg.pets = this.petsDebug();
+  }
+
+  private petsDebug(): NonNullable<WgzDebugState['home']>['pets'] {
+    const st = getState();
+    const now = Date.now();
+    return this.pets.map((p) => ({
+      id: p.dog.id,
+      level: bondView(st, p.dog.id).level,
+      canPet: canPet(st, p.dog.id, now, timeOptions()),
+      moving: p.mode === 'walk',
+      ...this.boxOf(p),
+    }));
   }
 
   private walk(pet: Pet, time: number, dt: number): void {
@@ -328,7 +623,8 @@ export class HomeScene extends Phaser.Scene {
     pet.goal = null;
     pet.mode = 'idle';
     pet.lift = 0;
-    pet.until = time + 1500 + this.rnd() * 3000;
+    // 正在互動的角色留在原地，等互動卡關掉
+    pet.until = pet === this.sel ? Infinity : time + 1500 + this.rnd() * 3000;
     const acts: DogAction[] = ['idle', 'wag', 'look', 'sit', 'idle'];
     pet.sprite.play(acts[Math.floor(this.rnd() * acts.length)]);
   }
@@ -521,6 +817,7 @@ export class HomeScene extends Phaser.Scene {
 
   private openModalOf(kind: ModalKind): void {
     if (this.modal) return;
+    if (this.sel) this.closeCard();
     this.modalKind = kind;
     this.modalPage = 0;
     this.modalDirty = false;
@@ -716,6 +1013,8 @@ export class HomeScene extends Phaser.Scene {
         field: this.layout.field,
         note: window.__WGZ__?.home?.note ?? '',
         modal,
+        pets: this.petsDebug(),
+        card: this.cardDebug,
       },
     });
   }
