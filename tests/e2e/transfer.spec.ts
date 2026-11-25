@@ -75,6 +75,9 @@ test('存檔搬家：複製存檔碼、存成檔案；亂貼或少一截會講�
 });
 
 test('存檔搬家：到全新的瀏覽器貼上讀取，進度一樣；還能還原', async ({ page, browser }) => {
+  // 這個測試最長：打一場、開兩個瀏覽器、重新整理兩次，本機約 80 秒。
+  // CI 的機器慢的時候會超過 120 秒，卡在最後一步逾時（2026-11-26 合併 #73 後 main 因此沒部署），所以放寬三倍
+  test.slow();
   await playABit(page);
   const played = (await wgz(page)).resources!;
   await openTransfer(page);
