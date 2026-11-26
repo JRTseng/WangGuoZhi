@@ -17,6 +17,7 @@ import { questLayout, type QuestLayout } from '../logic/questLayout';
 import { formatCountdown } from '../logic/format';
 import type { Rect } from '../logic/layout';
 import { nextResetAt } from '../logic/stamina';
+import { daysToReset } from '../logic/tower';
 import type { GameState } from '../state/gameState';
 import { getState, setState, tick, timeOptions } from '../state/store';
 import { Button } from './components/Button';
@@ -33,7 +34,7 @@ let lastTab: QuestTab | null = null;
 
 /**
  * 任務（T011）：主頁左側「任務」進來。
- * 左邊分頁（主線／每日／成就，有獎勵可領就亮紅點）與「全部領取」，右邊是任務卡：
+ * 左邊分頁（主線／每日／每週／成就，有獎勵可領就亮紅點）與「全部領取」，右邊是任務卡：
  * 完成的按「領取」，還沒完成的主線與每日任務按「前往」直接去做。
  */
 export class QuestScene extends Phaser.Scene {
@@ -84,6 +85,9 @@ export class QuestScene extends Phaser.Scene {
     } else if (this.tab === 'daily') {
       const now = Date.now();
       text = `每天 05:00 重新開始・還有 ${formatCountdown(nextResetAt(now, timeOptions()) - now)}`;
+    } else if (this.tab === 'weekly') {
+      const days = daysToReset(Date.now(), timeOptions());
+      text = `每週一 05:00 重新開始・還有 ${days} 天`;
     } else {
       text = '慢慢累積，領完一段會換下一段';
     }

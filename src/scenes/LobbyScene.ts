@@ -5,7 +5,7 @@ import { DOGS, FACTION_NAMES, findDog } from '../data/dogs';
 import { warReady } from '../logic/war';
 import { chooseFaction, factionFromSearch, needFactionPick, playerFaction } from '../logic/faction';
 import { grantTryDog, tryDogFromSearch } from '../logic/tryDog';
-import { claimableCount } from '../logic/quests';
+import { claimableCount, countQuest } from '../logic/quests';
 import { markSigninShown, signinPopup, signinPopupFromSearch, signinReady } from '../logic/signin';
 import { towerOpen } from '../logic/tower';
 import { codexClaimable } from '../logic/codex';
@@ -297,7 +297,8 @@ export class LobbyScene extends Phaser.Scene {
     this.dog.play('hop');
     const r = petDog(getState(), dogId, Date.now(), timeOptions());
     if (r.gained > 0) {
-      setState(r.state);
+      // 每週任務（T045）「摸摸角色」算一次
+      setState(countQuest(r.state, 'pet'));
       this.drawNameplate();
     }
     // 愛心從泡泡上面往上飄；有加好感度的那一次順便寫出加了多少

@@ -178,6 +178,16 @@ export interface GachaState {
 /** 每日任務會數的事情（T011）：出征、打贏、特訓、召募 */
 export type DailyCounter = 'battle' | 'win' | 'drill' | 'pull';
 
+/** 每週任務（T045）會數的事情：每日那四種，加上摸摸角色、每日任務做完的天數 */
+export type WeeklyCounter = DailyCounter | 'pet' | 'days';
+
+/** 這一週的每週任務（T045）：week 是那一週星期一的遊戲日，換週時清空 */
+export interface WeeklyQuestState {
+  week: string;
+  counts: Partial<Record<WeeklyCounter, number>>;
+  claimed: string[];
+}
+
 /**
  * 任務（T011）。主線與成就的進度都從別的欄位算出來（通關紀錄、擁有的狗……），
  * 這裡只記「領過哪些獎勵」、累計打贏幾場，還有今天的每日任務。
@@ -189,6 +199,8 @@ export interface QuestState {
   wins: number;
   /** 今天的每日任務：各種事情做了幾次、領過哪些；換日時（05:00）清空 */
   daily: { counts: Partial<Record<DailyCounter, number>>; claimed: string[] };
+  /** 這一週的每週任務（T045）；每週一 05:00 清空 */
+  weekly: WeeklyQuestState;
 }
 
 /** 城主等級與經驗（規則見 src/logic/lord.ts） */
@@ -407,7 +419,12 @@ export function createInitialState(now: number = Date.now()): GameState {
     gearStars: {},
     wounds: {},
     snacks: {},
-    quests: { claimed: [], wins: 0, daily: { counts: {}, claimed: [] } },
+    quests: {
+      claimed: [],
+      wins: 0,
+      daily: { counts: {}, claimed: [] },
+      weekly: { week: '', counts: {}, claimed: [] },
+    },
     lord: { level: 1, exp: 0 },
     frisbee: { day: '', best: 0 },
     signin: { day: '', count: 0, streak: 0, pick: '', shown: '' },
