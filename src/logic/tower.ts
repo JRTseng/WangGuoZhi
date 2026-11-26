@@ -3,7 +3,9 @@ import { REGIONS } from '../data/regions';
 import type { Resources } from '../data/resources';
 import { TOWER_FLOORS, towerFloorOf, towerReward } from '../data/tower';
 import type { GameState, TowerState } from '../state/gameState';
-import { dayKey, type TimeOptions } from './stamina';
+import { dayKey, weekKey, type TimeOptions } from './stamina';
+
+export { weekKey };
 
 /**
  * 登天塔的規則（Jimmy 2026-11-17）。全部是純函式。
@@ -21,13 +23,6 @@ export const TOWER_UNLOCK_STAGE = REGIONS[2].stages[REGIONS[2].stages.length - 1
 export const EMPTY_TOWER: TowerState = { week: '', floor: 0, last: 0, best: 0, gear: [] };
 
 type HasTower = Pick<GameState, 'tower'>;
-
-/** 這個時間屬於哪一週：那一週星期一的遊戲日（當地 05:00 換日），例：'2026-11-16' */
-export function weekKey(now: number, o?: TimeOptions): string {
-  const day = new Date(`${dayKey(now, o)}T00:00:00Z`);
-  const sinceMonday = (day.getUTCDay() + 6) % 7;
-  return new Date(day.getTime() - sinceMonday * 86_400_000).toISOString().slice(0, 10);
-}
 
 /** 下一次重置還有幾天（1～7） */
 export function daysToReset(now: number, o?: TimeOptions): number {

@@ -2,6 +2,14 @@ import { describe, expect, it } from 'vitest';
 import { QUEST_COLUMNS, QUEST_ROWS, questLayout } from './questLayout';
 
 describe('任務畫面排版', () => {
+  it('四個分頁（T045 多了每週）也排得下，不會蓋到「全部領取」', () => {
+    const four = questLayout(844, 390, 56, 4);
+    expect(four.tabs).toHaveLength(4);
+    for (const t of four.tabs) expect(t.height).toBeGreaterThanOrEqual(44);
+    expect(four.tabs[3].y + four.tabs[3].height).toBeLessThanOrEqual(four.claimAll.y);
+    expect(four.tabs[3].y).toBeGreaterThanOrEqual(four.tabs[2].y + four.tabs[2].height);
+  });
+
   const W = 844;
   const H = 390;
   const l = questLayout(W, H);

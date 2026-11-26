@@ -20,6 +20,7 @@ import {
 import { bodyScale } from '../logic/dogSize';
 import { gearOf } from '../logic/equipment';
 import { playerFaction } from '../logic/faction';
+import { countQuest } from '../logic/quests';
 import {
   HOME_AREA_LABEL,
   HOME_MAX,
@@ -350,7 +351,8 @@ export class HomeScene extends Phaser.Scene {
     pet.sprite.play('wag');
     const id = pet.dog.id;
     const r = petDog(getState(), id, Date.now(), timeOptions());
-    if (r.gained > 0) setState(r.state);
+    // 每週任務（T045）「摸摸角色」算一次
+    if (r.gained > 0) setState(countQuest(r.state, 'pet'));
     this.heart(pet, r.gained > 0 ? `♥ 好感 +${r.gained}` : '♥', r.gained > 0);
     this.talkCount += 1;
     this.talk(

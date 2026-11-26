@@ -111,9 +111,9 @@ interface WgzDebugState {
   };
   /** 任務畫面（T011） */
   quest?: {
-    tab: 'main' | 'daily' | 'feat';
+    tab: 'main' | 'daily' | 'weekly' | 'feat';
     /** 分頁按鈕與各自有幾個獎勵可領 */
-    tabs: Record<'main' | 'daily' | 'feat', WgzRect & { count: number }>;
+    tabs: Record<'main' | 'daily' | 'weekly' | 'feat', WgzRect & { count: number }>;
     claimAll: WgzRect & { count: number };
     rows: Array<
       WgzRect & {

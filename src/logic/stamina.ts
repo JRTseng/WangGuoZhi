@@ -97,6 +97,13 @@ export function nextResetAt(now: number, o?: TimeOptions): number {
   return now + (Math.floor(s / DAY_MS) + 1) * DAY_MS - s;
 }
 
+/** 這個時間屬於哪一週：那一週星期一的遊戲日（當地 05:00 換日），例：'2026-11-16' */
+export function weekKey(now: number, o?: TimeOptions): string {
+  const day = new Date(`${dayKey(now, o)}T00:00:00Z`);
+  const sinceMonday = (day.getUTCDay() + 6) % 7;
+  return new Date(day.getTime() - sinceMonday * DAY_MS).toISOString().slice(0, 10);
+}
+
 const emptyDaily = (day: string): DailyState => ({
   day,
   runs: {},
@@ -127,13 +134,25 @@ export function settle(state: GameState, now: number, o?: TimeOptions): GameStat
   }
   const day = dayKey(now, o);
   const daily = state.daily.day === day ? state.daily : emptyDaily(day);
-  if (stamina === state.stamina && daily === state.daily) return state;
+  // 換週：每週任務（T045）清空。手機時間被調回過去不重置
+  const week = weekKey(now, o);
+  const weekly =
+    state.quests.weekly.week >= week ? state.quests.weekly : { week, counts: {}, claimed: [] };
+  if (stamina === state.stamina && daily === state.daily && weekly === state.quests.weekly) {
+    return state;
+  }
   // 換日：每日任務（T011）也跟著清空
-  const quests =
+  const keepDaily =
     daily === state.daily ||
-    (!Object.keys(state.quests.daily.counts).length && !state.quests.daily.claimed.length)
+    (!Object.keys(state.quests.daily.counts).length && !state.quests.daily.claimed.length);
+  const quests =
+    keepDaily && weekly === state.quests.weekly
       ? state.quests
-      : { ...state.quests, daily: { counts: {}, claimed: [] } };
+      : {
+          ...state.quests,
+          daily: keepDaily ? state.quests.daily : { counts: {}, claimed: [] },
+          weekly,
+        };
   return { ...state, stamina, daily, quests };
 }
 

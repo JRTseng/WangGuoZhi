@@ -10,7 +10,7 @@ async function openQuests(page: Page) {
   await waitScene(page, 'QuestScene');
 }
 
-async function switchTab(page: Page, tab: 'main' | 'daily' | 'feat') {
+async function switchTab(page: Page, tab: 'main' | 'daily' | 'weekly' | 'feat') {
   await tap(page, (await quest(page)).tabs[tab]);
   await page.waitForFunction((t) => window.__WGZ__?.quest?.tab === t, tab);
 }
@@ -160,4 +160,98 @@ test('任務：特訓一次，每日任務的次數會跟著加', async ({ page 
   const q = await quest(page);
   expect(q.rows.find((r) => r.id === 'daily-drill')).toMatchObject({ progress: 1, target: 3 });
   expect(q.rows.find((r) => r.id === 'daily-battle')).toMatchObject({ progress: 0, target: 3 });
+});
+
+test('每週任務：次數累積一整週，摸摸角色也算，完成 5 個有加碼獎勵', async ({ page }) => {
+  await openLobby(page, '?fast=1');
+  await openQuests(page);
+  await switchTab(page, 'weekly');
+  let q = await quest(page);
+  // 登天塔還沒開放（第三章後），不列那一個
+  expect(q.rows.map((r) => r.id)).toEqual([
+    'weekly-battle',
+    'weekly-win',
+    'weekly-drill',
+    'weekly-pull',
+    'weekly-pet',
+    'weekly-days',
+    'weekly-all',
+  ]);
+  expect(q.rows.every((r) => !r.done)).toBe(true);
+  for (const t of Object.values(q.tabs)) {
+    expect(t.height).toBeGreaterThanOrEqual(44);
+    expect(t.y + t.height).toBeLessThanOrEqual(q.claimAll.y);
+  }
+  await page.screenshot({ path: 'artifacts/screenshots/landscape/quest-weekly.png' });
+  await tap(page, (await wgz(page)).backButton!);
+  await waitScene(page, 'LobbyScene');
+
+  // 把存檔改成「這週出征 30、打贏 20、特訓 15、召募 10、摸了 9 次」，登天塔也開了、這週爬到第 4 層
+  const week = await page.evaluate(() => {
+    const d = new Date(Date.now() - 5 * 3600_000);
+    d.setDate(d.getDate() - ((d.getDay() + 6) % 7));
+    const two = (n: number) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${two(d.getMonth() + 1)}-${two(d.getDate())}`;
+  });
+  const cleared = ['luoyepo', 'zhulindu', 'xuelingguan'].flatMap((r) =>
+    [1, 2, 3, 4, 5].map((n) => `${r}-${n}`),
+  );
+  const ids = await page.evaluate(
+    () => JSON.parse(window.localStorage.getItem('wgz-save')!).state.cleared as string[],
+  );
+  expect(ids).toEqual([]);
+  await patchSave(page, {
+    cleared,
+    tower: { week, floor: 4, last: 0, best: 4, gear: [] },
+    quests: {
+      claimed: [],
+      wins: 0,
+      daily: { counts: {}, claimed: [] },
+      weekly: {
+        week,
+        counts: { battle: 30, win: 20, drill: 15, pull: 10, pet: 9 },
+        claimed: [],
+      },
+    },
+  });
+  const ready = (await wgz(page)).lobby!.questReady;
+  await openQuests(page);
+  await switchTab(page, 'weekly');
+  q = await quest(page);
+  expect(q.rows).toHaveLength(8);
+  expect(q.tabs.weekly.count).toBe(4);
+  expect(q.rows.find((r) => r.id === 'weekly-tower')).toMatchObject({
+    progress: 4,
+    target: 10,
+    go: 'TowerScene',
+  });
+  expect(q.rows.find((r) => r.id === 'weekly-pet')).toMatchObject({ progress: 9, go: 'HomeScene' });
+  expect(q.rows.find((r) => r.id === 'weekly-all')).toMatchObject({ progress: 4, done: false });
+  await tap(page, (await wgz(page)).backButton!);
+  await waitScene(page, 'LobbyScene');
+
+  // 在主頁摸一下主頁角色：第 10 次，「摸摸角色」完成，加碼任務也跟著達成
+  await tap(page, (await wgz(page)).lobby!.bond!.hit);
+  await page.waitForFunction((n) => window.__WGZ__?.lobby?.questReady === n + 2, ready ?? 0);
+  await openQuests(page);
+  await switchTab(page, 'weekly');
+  q = await quest(page);
+  expect(q.tabs.weekly.count).toBe(6);
+  expect(q.rows.find((r) => r.id === 'weekly-all')).toMatchObject({ progress: 5, done: true });
+  await page.screenshot({ path: 'artifacts/screenshots/landscape/quest-weekly-ready.png' });
+
+  // 領加碼任務：骨頭幣 +100
+  const before = (await wgz(page)).resources!;
+  await tap(page, q.rows.find((r) => r.id === 'weekly-all')!.button);
+  await page.waitForFunction(() => window.__WGZ__?.quest?.tabs.weekly.count === 5);
+  expect((await wgz(page)).resources).toEqual({ food: before.food, bones: before.bones + 100 });
+
+  // 重開還在
+  await page.reload();
+  await waitScene(page, 'LobbyScene');
+  const saved = await page.evaluate(
+    () => JSON.parse(window.localStorage.getItem('wgz-save')!).state.quests.weekly,
+  );
+  expect(saved).toMatchObject({ week, claimed: ['weekly-all'] });
+  expect(saved.counts.pet).toBe(10);
 });

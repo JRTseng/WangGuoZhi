@@ -7,6 +7,9 @@ import {
   FEATS,
   MAIN_QUESTS,
   MAIN_VISIBLE,
+  QUEST_TABS,
+  WEEKLY_BONUS,
+  WEEKLY_QUESTS,
   claimAll,
   claimQuest,
   claimableCount,
@@ -25,7 +28,7 @@ const NOW = Date.UTC(2026, 10, 15, 4, 0, 0);
 const O = { tzOffsetMin: -480 };
 const fresh = (): GameState => settle(createInitialState(NOW), NOW, O);
 const find = (st: GameState, id: string) =>
-  (['main', 'daily', 'feat'] as const).flatMap((t) => questList(st, t)).find((q) => q.id === id)!;
+  QUEST_TABS.flatMap((t) => questList(st, t)).find((q) => q.id === id)!;
 
 describe('主線任務', () => {
   it('每章兩個：打到第 3 關、打倒頭目，照章節順序排', () => {
@@ -106,7 +109,7 @@ describe('每日任務', () => {
     const r = claimAll(st, 'daily');
     expect(r.count).toBe(4);
     expect(r.reward).toEqual({ food: 600, bones: 40 });
-    expect(claimableCount(r.state)).toBe(0);
+    expect(claimableCount(r.state, 'daily')).toBe(0);
   });
 
   it('換日（05:00）清空次數與領取紀錄，主線與累計勝場留著', () => {
@@ -183,6 +186,96 @@ describe('成就', () => {
   });
 });
 
+describe('每週任務（T045）', () => {
+  // NOW 是台北 2026-11-15（星期日）中午，這一週的星期一是 11-09
+  const DAY = 24 * 3600_000;
+  const TOWER_DONE = REGIONS.slice(0, 3).flatMap((r) => r.stages.map((x) => x.id));
+
+  it('結算後記著這一週是哪一週', () => {
+    expect(fresh().quests.weekly).toEqual({ week: '2026-11-09', counts: {}, claimed: [] });
+  });
+
+  it('出征、打贏、特訓、召募同時記在每日與每週；摸摸只記在每週', () => {
+    let st = countQuest(countQuest(fresh(), 'battle', 3), 'win', 2);
+    st = countQuest(countQuest(st, 'drill'), 'pull', 10);
+    st = countQuest(st, 'pet', 4);
+    expect(st.quests.weekly.counts).toEqual({ battle: 3, win: 2, drill: 1, pull: 10, pet: 4 });
+    expect(st.quests.daily.counts).toEqual({ battle: 3, win: 2, drill: 1, pull: 10 });
+    expect(find(st, 'weekly-battle')).toMatchObject({ progress: 3, target: 30, done: false });
+    expect(find(st, 'weekly-pull')).toMatchObject({ progress: 10, done: true });
+    expect(find(st, 'weekly-pet')).toMatchObject({ progress: 4, target: 10, go: 'HomeScene' });
+  });
+
+  it('換日不清每週的次數，換週（星期一 05:00）才清', () => {
+    let st = countQuest(fresh(), 'battle', 30);
+    st = claimQuest(st, 'weekly-battle').state;
+    expect(st.quests.weekly.claimed).toEqual(['weekly-battle']);
+    // 星期日 → 星期一 04:00 還是同一週（NOW 是台北中午，往後 16 小時）
+    const sameWeek = settle(st, NOW + 16 * 3600_000, O);
+    expect(sameWeek.quests.weekly).toBe(st.quests.weekly);
+    const nextWeek = settle(st, NOW + 18 * 3600_000, O);
+    expect(nextWeek.quests.weekly).toEqual({ week: '2026-11-16', counts: {}, claimed: [] });
+    // 手機時間調回上一週：不重置
+    expect(settle(nextWeek, NOW - 7 * DAY, O).quests.weekly).toBe(nextWeek.quests.weekly);
+  });
+
+  it('領每日的加碼任務算「完成每日任務」一天', () => {
+    // 從星期五開始，隔天星期六還在同一週
+    const FRI = NOW - 2 * DAY;
+    let st = settle(createInitialState(FRI), FRI, O);
+    st = countQuest(countQuest(countQuest(st, 'battle', 3), 'win', 2), 'pull');
+    expect(find(st, 'weekly-days')).toMatchObject({ progress: 0, target: 5 });
+    expect(find(st, 'weekly-days').go).toBeUndefined();
+    st = claimQuest(st, 'daily-battle').state;
+    expect(st.quests.weekly.counts.days).toBeUndefined();
+    st = claimQuest(st, DAILY_BONUS.id).state;
+    expect(st.quests.weekly.counts.days).toBe(1);
+    // 隔天再做完一次
+    st = settle(st, FRI + DAY, O);
+    st = countQuest(countQuest(countQuest(st, 'battle', 3), 'win', 2), 'pull');
+    st = claimAll(st, 'daily').state;
+    expect(find(st, 'weekly-days')).toMatchObject({ progress: 2 });
+  });
+
+  it('登天塔還沒開放不列那一個；開放後看這週爬到第幾層', () => {
+    const base = fresh();
+    expect(questList(base, 'weekly').map((q) => q.id)).not.toContain('weekly-tower');
+    expect(questList(base, 'weekly')).toHaveLength(WEEKLY_QUESTS.length);
+    const open = { ...base, cleared: TOWER_DONE };
+    expect(questList(open, 'weekly')).toHaveLength(WEEKLY_QUESTS.length + 1);
+    expect(find(open, 'weekly-tower')).toMatchObject({ progress: 0, target: 10, go: 'TowerScene' });
+    const climbed = { ...open, tower: { ...open.tower, week: '2026-11-09', floor: 12 } };
+    expect(find(climbed, 'weekly-tower')).toMatchObject({ progress: 10, done: true });
+    // 塔的進度是上週的：這週還沒爬，不算
+    const stale = { ...open, tower: { ...open.tower, week: '2026-11-02', floor: 40 } };
+    expect(find(stale, 'weekly-tower')).toMatchObject({ progress: 0, done: false });
+  });
+
+  it('糧草獎勵跟著章節變多；完成 5 個有加碼獎勵', () => {
+    let st: GameState = { ...fresh(), cleared: REGIONS[0].stages.map((x) => x.id) };
+    expect(find(st, 'weekly-battle').reward).toEqual({ food: 2000, bones: 20 });
+    for (const c of ['battle', 'win', 'drill', 'pull'] as const) st = countQuest(st, c, 30);
+    expect(find(st, WEEKLY_BONUS.id)).toMatchObject({ progress: 4, target: 5, done: false });
+    st = countQuest(st, 'pet', 10);
+    expect(find(st, WEEKLY_BONUS.id)).toMatchObject({ progress: 5, done: true });
+    const before = st.resources;
+    const r = claimAll(st, 'weekly');
+    expect(r.count).toBe(6);
+    expect(r.reward.bones).toBe(20 + 20 + 10 + 30 + 20 + WEEKLY_BONUS.bones);
+    expect(r.state.resources.bones).toBe(before.bones + r.reward.bones);
+    expect(claimableCount(r.state, 'weekly')).toBe(0);
+    // 領過的不能再領
+    expect(claimQuest(r.state, 'weekly-battle').reward).toBeNull();
+  });
+
+  it('每週任務存得進去、讀得回來', () => {
+    let st = countQuest(countQuest(fresh(), 'pet', 10), 'battle', 5);
+    st = claimQuest(st, 'weekly-pet').state;
+    const back = deserialize(serialize(st, NOW), NOW).state;
+    expect(back.quests.weekly).toEqual(st.quests.weekly);
+  });
+});
+
 describe('存檔', () => {
   it('任務欄位存得進去、讀得回來', () => {
     let st = countQuest(countQuest(fresh(), 'battle', 3), 'win', 2);
@@ -198,7 +291,12 @@ describe('存檔', () => {
     delete file.state.quests;
     const back = deserialize(JSON.stringify(file), NOW);
     expect(back.status).toBe('ok');
-    expect(back.state.quests).toEqual({ claimed: [], wins: 2, daily: { counts: {}, claimed: [] } });
+    expect(back.state.quests).toEqual({
+      claimed: [],
+      wins: 2,
+      daily: { counts: {}, claimed: [] },
+      weekly: { week: '', counts: {}, claimed: [] },
+    });
   });
 
   it('怪怪的內容整理掉：認不得的 id、負數、重複', () => {
@@ -211,6 +309,11 @@ describe('存檔', () => {
             counts: { battle: 2.7, win: -1, fly: 9 },
             claimed: ['daily-win', 'feat-runs-1'],
           },
+          weekly: {
+            week: 'last week',
+            counts: { battle: 12.9, pet: 4, days: -2, tower: 9, fly: 1 },
+            claimed: ['weekly-pet', 'weekly-pet', 'daily-win', 7],
+          },
         },
         4,
       ),
@@ -218,11 +321,17 @@ describe('存檔', () => {
       claimed: ['main-luoyepo-mid'],
       wins: 4,
       daily: { counts: { battle: 2 }, claimed: ['daily-win'] },
+      weekly: { week: '', counts: { battle: 12, pet: 4 }, claimed: ['weekly-pet'] },
     });
+    expect(
+      sanitizeQuests({ weekly: { week: '2026-11-09', counts: { days: 3 }, claimed: [] } }, 0)
+        .weekly,
+    ).toEqual({ week: '2026-11-09', counts: { days: 3 }, claimed: [] });
     expect(sanitizeQuests('x', 0)).toEqual({
       claimed: [],
       wins: 0,
       daily: { counts: {}, claimed: [] },
+      weekly: { week: '', counts: {}, claimed: [] },
     });
   });
 });

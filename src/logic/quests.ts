@@ -2,34 +2,44 @@ import { wt } from '../data/worldText';
 import { ALL_GEARS } from '../data/equipment';
 import { REGIONS } from '../data/regions';
 import type { Resources } from '../data/resources';
-import type { DailyCounter, GameState, QuestState } from '../state/gameState';
+import type {
+  DailyCounter,
+  GameState,
+  QuestState,
+  WeeklyCounter,
+  WeeklyQuestState,
+} from '../state/gameState';
 import { formatAmount } from './format';
 import { starOf } from './leveling';
 import { currentChapterIndex } from './progress';
+import { towerOpen } from './tower';
 
 /**
  * 任務（T011）。全部是純函式。
  *
- * 三種任務：
+ * 四種任務：
  * - 主線：跟著章節走，每章兩個（打到第 3 關、打倒頭目），進度直接看通關紀錄。
  * - 每日：出征、打贏、特訓、召募，加一個「完成 3 個每日任務」；每天 05:00 清空（跟著體力的換日）。
+ * - 每週（T045）：目標比較大、獎勵比較多，每週一 05:00 清空（跟著登天塔的換週）。
  * - 成就：累計出征、勝場、狗狗數量、召募、升星、特訓、裝備、等級，各有好幾段，領完一段換下一段。
  *
  * 主線與成就的進度都是從別的欄位算出來的，所以舊存檔一打開就會照已有的進度顯示、可以直接領。
  */
 
-export type QuestTab = 'main' | 'daily' | 'feat';
+export type QuestTab = 'main' | 'daily' | 'weekly' | 'feat';
 
-export const QUEST_TABS: readonly QuestTab[] = ['main', 'daily', 'feat'];
+export const QUEST_TABS: readonly QuestTab[] = ['main', 'daily', 'weekly', 'feat'];
 
 export const QUEST_TAB_LABEL: Readonly<Record<QuestTab, string>> = {
   main: '主線',
   daily: '每日',
+  weekly: '每週',
   feat: '成就',
 };
 
 /** 還沒完成的任務可以按「前往」去的畫面 */
-export type QuestGo = 'CampaignScene' | 'TrainingScene' | 'RecruitScene';
+export type QuestGo =
+  'CampaignScene' | 'TrainingScene' | 'RecruitScene' | 'TowerScene' | 'HomeScene';
 
 /** 畫面上的一列任務 */
 export interface QuestView {
@@ -48,7 +58,9 @@ export interface QuestView {
 type QuestFields = Pick<
   GameState,
   'cleared' | 'owned' | 'dogs' | 'gear' | 'gacha' | 'nextExpeditionNo' | 'quests'
->;
+> &
+  // 每週的「登天塔爬到第幾層」直接看塔的進度；沒給（舊的呼叫端、測試）就當這週還沒爬
+  Partial<Pick<GameState, 'tower'>>;
 
 // ---- 主線 ----
 
@@ -145,6 +157,92 @@ export const DAILY_QUESTS: readonly DailyDef[] = [
 /** 「完成幾個每日任務」的加碼任務：不用全部做完，特訓練滿的人也拿得到 */
 export const DAILY_BONUS = { id: 'daily-all', target: 3, bones: 30 } as const;
 
+// ---- 每週（T045） ----
+
+interface WeeklyDef {
+  id: string;
+  title: string;
+  /** 數哪一種事；'tower' 不用數，直接看這週登天塔爬到第幾層 */
+  counter: WeeklyCounter | 'tower';
+  target: number;
+  /** 糧草獎勵是「每章」的量，和每日任務一樣打到第幾章就乘幾倍 */
+  foodPerChapter: number;
+  bones: number;
+  go?: QuestGo;
+}
+
+export const WEEKLY_QUESTS: readonly WeeklyDef[] = [
+  {
+    id: 'weekly-battle',
+    title: '這週出征 30 次',
+    counter: 'battle',
+    target: 30,
+    foodPerChapter: 1000,
+    bones: 20,
+    go: 'CampaignScene',
+  },
+  {
+    id: 'weekly-win',
+    title: '這週打贏 20 場',
+    counter: 'win',
+    target: 20,
+    foodPerChapter: 1000,
+    bones: 20,
+    go: 'CampaignScene',
+  },
+  {
+    id: 'weekly-drill',
+    title: '這週專項特訓 15 次',
+    counter: 'drill',
+    target: 15,
+    foodPerChapter: 800,
+    bones: 10,
+    go: 'TrainingScene',
+  },
+  {
+    id: 'weekly-pull',
+    title: '這週召募 10 次',
+    counter: 'pull',
+    target: 10,
+    foodPerChapter: 0,
+    bones: 30,
+    go: 'RecruitScene',
+  },
+  {
+    id: 'weekly-pet',
+    title: '這週摸摸角色 10 次',
+    counter: 'pet',
+    target: 10,
+    foodPerChapter: 0,
+    bones: 20,
+    go: 'HomeScene',
+  },
+  {
+    id: 'weekly-days',
+    title: '這週有 5 天完成每日任務',
+    counter: 'days',
+    target: 5,
+    foodPerChapter: 0,
+    bones: 50,
+  },
+  {
+    id: 'weekly-tower',
+    title: '這週登天塔爬到第 10 層',
+    counter: 'tower',
+    target: 10,
+    foodPerChapter: 0,
+    bones: 40,
+    go: 'TowerScene',
+  },
+];
+
+/** 「完成幾個每週任務」的加碼任務：不用全部做完 */
+export const WEEKLY_BONUS = { id: 'weekly-all', target: 5, bones: 100 } as const;
+
+/** 這一週的每週任務紀錄；存檔還沒有這個欄位（舊的測試資料）就當空的 */
+const weeklyOf = (s: Pick<GameState, 'quests'>): WeeklyQuestState =>
+  s.quests.weekly ?? { week: '', counts: {}, claimed: [] };
+
 // ---- 成就 ----
 
 interface FeatDef {
@@ -228,6 +326,12 @@ export const DAILY_QUEST_IDS: ReadonlySet<string> = new Set([
   DAILY_BONUS.id,
 ]);
 
+/** 會記在 quests.weekly.claimed 裡的 id */
+export const WEEKLY_QUEST_IDS: ReadonlySet<string> = new Set([
+  ...WEEKLY_QUESTS.map((q) => q.id),
+  WEEKLY_BONUS.id,
+]);
+
 // ---- 列表 ----
 
 function mainViews(s: QuestFields): QuestView[] {
@@ -282,6 +386,46 @@ function dailyViews(s: QuestFields): QuestView[] {
   return rows;
 }
 
+function weeklyViews(s: QuestFields): QuestView[] {
+  const chapter = REGIONS[currentChapterIndex(s)]?.chapter ?? 1;
+  const w = weeklyOf(s);
+  // 登天塔還沒開放（第三章頭目之後）就先不列那一個
+  const defs = WEEKLY_QUESTS.filter((q) => q.counter !== 'tower' || towerOpen(s));
+  const rows: QuestView[] = defs.map((q) => {
+    const value =
+      q.counter === 'tower'
+        ? s.tower && s.tower.week === w.week
+          ? s.tower.floor
+          : 0
+        : (w.counts[q.counter] ?? 0);
+    const progress = Math.min(q.target, value);
+    const done = progress >= q.target;
+    return {
+      id: q.id,
+      tab: 'weekly',
+      title: wt(q.title),
+      progress,
+      target: q.target,
+      done,
+      claimed: w.claimed.includes(q.id),
+      reward: { food: q.foodPerChapter * chapter, bones: q.bones },
+      ...(done || !q.go ? {} : { go: q.go }),
+    };
+  });
+  const finished = Math.min(WEEKLY_BONUS.target, rows.filter((r) => r.done).length);
+  rows.push({
+    id: WEEKLY_BONUS.id,
+    tab: 'weekly',
+    title: `完成 ${WEEKLY_BONUS.target} 個每週任務`,
+    progress: finished,
+    target: WEEKLY_BONUS.target,
+    done: finished >= WEEKLY_BONUS.target,
+    claimed: w.claimed.includes(WEEKLY_BONUS.id),
+    reward: { food: 0, bones: WEEKLY_BONUS.bones },
+  });
+  return rows;
+}
+
 function featViews(s: QuestFields): QuestView[] {
   return FEATS.map((f) => {
     const value = f.value(s);
@@ -306,7 +450,8 @@ function featViews(s: QuestFields): QuestView[] {
 /** 某個分頁現在要列出來的任務 */
 export function questList(state: QuestFields, tab: QuestTab): QuestView[] {
   if (tab === 'main') return mainViews(state);
-  return tab === 'daily' ? dailyViews(state) : featViews(state);
+  if (tab === 'daily') return dailyViews(state);
+  return tab === 'weekly' ? weeklyViews(state) : featViews(state);
 }
 
 const canClaim = (q: QuestView): boolean => q.done && !q.claimed;
@@ -338,13 +483,21 @@ export function claimQuest<S extends ClaimFields>(
 ): { state: S; reward: Resources | null } {
   const q = QUEST_TABS.flatMap((t) => questList(state, t)).find((x) => x.id === id);
   if (!q || !canClaim(q)) return { state, reward: null };
-  const quests: QuestState =
-    q.tab === 'daily'
-      ? {
-          ...state.quests,
-          daily: { ...state.quests.daily, claimed: [...state.quests.daily.claimed, id] },
-        }
-      : { ...state.quests, claimed: [...state.quests.claimed, id] };
+  let quests: QuestState;
+  if (q.tab === 'daily') {
+    quests = {
+      ...state.quests,
+      daily: { ...state.quests.daily, claimed: [...state.quests.daily.claimed, id] },
+    };
+  } else if (q.tab === 'weekly') {
+    const w = weeklyOf(state);
+    quests = { ...state.quests, weekly: { ...w, claimed: [...w.claimed, id] } };
+  } else {
+    quests = { ...state.quests, claimed: [...state.quests.claimed, id] };
+  }
+  // 領了每日的加碼任務＝今天的每日任務做完了，每週的「幾天做完每日任務」加一天
+  const counted = id === DAILY_BONUS.id ? countQuest({ ...state, quests }, 'days') : null;
+  if (counted) quests = counted.quests;
   return {
     state: {
       ...state,
@@ -382,23 +535,37 @@ export function claimAll<S extends ClaimFields>(
   return { state: cur, reward, count };
 }
 
-/** 記一次每日任務會數的事（出征、打贏、特訓、召募）；打贏同時加累計勝場。n 是 0 就不動 */
+const DAILY_COUNTERS: readonly DailyCounter[] = ['battle', 'win', 'drill', 'pull'];
+const WEEKLY_COUNTERS: readonly WeeklyCounter[] = [...DAILY_COUNTERS, 'pet', 'days'];
+
+/**
+ * 記一次任務會數的事：出征、打贏、特訓、召募同時記在每日與每週，
+ * 摸摸角色（pet）與「每日任務做完的天數」（days）只記在每週。打贏同時加累計勝場。n 是 0 就不動
+ */
 export function countQuest<S extends Pick<GameState, 'quests'>>(
   state: S,
-  counter: DailyCounter,
+  counter: WeeklyCounter,
   n = 1,
 ): S {
   if (!(n > 0)) return state;
   const q = state.quests;
+  const w = weeklyOf(state);
+  const isDaily = (DAILY_COUNTERS as readonly string[]).includes(counter);
   return {
     ...state,
     quests: {
       ...q,
       wins: q.wins + (counter === 'win' ? n : 0),
-      daily: {
-        ...q.daily,
-        counts: { ...q.daily.counts, [counter]: (q.daily.counts[counter] ?? 0) + n },
-      },
+      daily: isDaily
+        ? {
+            ...q.daily,
+            counts: {
+              ...q.daily.counts,
+              [counter]: (q.daily.counts[counter as DailyCounter] ?? 0) + n,
+            },
+          }
+        : q.daily,
+      weekly: { ...w, counts: { ...w.counts, [counter]: (w.counts[counter] ?? 0) + n } },
     },
   };
 }
@@ -412,8 +579,6 @@ export function rewardText(r: Resources): string {
 }
 
 // ---- 存檔 ----
-
-const COUNTERS: readonly DailyCounter[] = ['battle', 'win', 'drill', 'pull'];
 
 /**
  * 讀檔時整理任務欄位：認不得的 id 丟掉。
@@ -432,13 +597,23 @@ export function sanitizeQuests(raw: unknown, clearedCount: number): QuestState {
   const d = obj(r.daily);
   const rawCounts = obj(d.counts);
   const counts: QuestState['daily']['counts'] = {};
-  for (const c of COUNTERS) {
+  for (const c of DAILY_COUNTERS) {
     const n = num(rawCounts[c]);
     if (n) counts[c] = n;
   }
+  // 每週任務（T045）：舊存檔沒有這個欄位，從空的開始
+  const w = obj(r.weekly);
+  const rawWeekly = obj(w.counts);
+  const weeklyCounts: WeeklyQuestState['counts'] = {};
+  for (const c of WEEKLY_COUNTERS) {
+    const n = num(rawWeekly[c]);
+    if (n) weeklyCounts[c] = n;
+  }
+  const week = typeof w.week === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(w.week) ? w.week : '';
   return {
     claimed: ids(r.claimed, LASTING_QUEST_IDS),
     wins: num(r.wins) ?? clearedCount,
     daily: { counts, claimed: ids(d.claimed, DAILY_QUEST_IDS) },
+    weekly: { week, counts: weeklyCounts, claimed: ids(w.claimed, WEEKLY_QUEST_IDS) },
   };
 }
