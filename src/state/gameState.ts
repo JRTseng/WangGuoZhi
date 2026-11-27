@@ -436,6 +436,6 @@ export function createInitialState(now: number = Date.now()): GameState {
     codex: { claimed: [] },
     mall: { day: '', bought: [] },
     mail: { read: [], claimed: [], deleted: [] },
-    bond: { points: {}, day: '', petted: [], gifted: {} },
+    bond: { points: {}, day: '', petted: [], gifted: {}, faves: [] },
   };
 }

@@ -12,6 +12,8 @@ import { dayKey, type TimeOptions } from './stamina';
  * - 一起出征：打贏每隻上陣的 +3、打輸 +1（爬塔、老鼠幫、自動出征都算）
  * - 在「我的家」摸住在家裡的角色（和主頁算同一次）、送牠零食（T044）：
  *   小肉乾 +5、香烤肉排 +12、大骨頭 +30，每個角色一天最多收 3 次
+ * - 每個角色有一種愛吃的零食（T046）：送對了好感度加倍；一開始不知道是哪一種，
+ *   送對一次就記下來
  *
  * 升級的禮物當場自動入袋，不用另外按領取。好感度不影響攻防，純收集與獎勵。
  */
@@ -25,9 +27,11 @@ export interface BondState {
   petted: string[];
   /** 今天每個角色收了幾次零食（T044），和 petted 一起換日 */
   gifted: Record<string, number>;
+  /** 已經知道愛吃什麼的角色（T046）：送對過一次就記下來，不會換日清掉 */
+  faves: string[];
 }
 
-export const EMPTY_BOND: BondState = { points: {}, day: '', petted: [], gifted: {} };
+export const EMPTY_BOND: BondState = { points: {}, day: '', petted: [], gifted: {}, faves: [] };
 
 export const BOND = {
   /** 摸摸：每個角色一天一次 */
@@ -85,6 +89,8 @@ export interface BondView {
   max: boolean;
   /** 下一級的禮物（滿級是空的） */
   next: RatLoot[];
+  /** 愛吃的零食（T046）；還沒送對過是 null */
+  fave: SnackId | null;
 }
 
 type BondFields = Pick<GameState, 'bond'>;
@@ -100,6 +106,7 @@ export function bondView(state: BondFields, dogId: string): BondView {
     need: max ? 0 : BOND_NEED[level + 1] - BOND_NEED[level],
     max,
     next: max ? [] : bondReward(dogId, level + 1),
+    fave: knowsFavorite(state, dogId) ? favoriteSnack(dogId) : null,
   };
 }
 
@@ -183,14 +190,51 @@ export function petDog<S extends GainFields>(
 /** 換日了就把「今天摸過誰、送過幾次」清掉（累積的好感度不動） */
 function bondToday(bond: BondState, now: number, o?: TimeOptions): BondState {
   const day = dayKey(now, o);
-  if (bond.day === day) return { ...bond, gifted: bond.gifted ?? {} };
-  return { ...bond, day, petted: [], gifted: {} };
+  const faves = bond.faves ?? [];
+  if (bond.day === day) return { ...bond, gifted: bond.gifted ?? {}, faves };
+  return { ...bond, day, petted: [], gifted: {}, faves };
 }
 
 // ---------------- 送零食（T044，在「我的家」） ----------------
 
 /** 送一個零食加多少好感度 */
 export const BOND_GIFT: Readonly<Record<SnackId, number>> = { small: 5, mid: 12, big: 30 };
+
+// ---------------- 愛吃的零食（T046） ----------------
+
+/** 送到愛吃的零食，好感度乘上這個倍數 */
+export const FAVE_MULT = 2;
+
+const SNACK_IDS: readonly SnackId[] = ['small', 'mid', 'big'];
+
+/**
+ * 這個角色愛吃哪一種零食：照角色 id 算出來的，同一個角色永遠一樣，
+ * 三種零食大致各佔三分之一，和稀有度、體型無關（要靠送送看才知道）。
+ */
+export function favoriteSnack(dogId: string): SnackId {
+  let h = 2166136261;
+  for (let i = 0; i < dogId.length; i += 1) {
+    h ^= dogId.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return SNACK_IDS[(h >>> 0) % SNACK_IDS.length];
+}
+
+/** 玩家知不知道這個角色愛吃什麼（送對過一次就知道） */
+export function knowsFavorite(state: Pick<GameState, 'bond'>, dogId: string): boolean {
+  return (state.bond.faves ?? []).includes(dogId);
+}
+
+/** 送這個角色這種零食會加多少好感度（愛吃的加倍；不看玩家知不知道） */
+export function giftGain(dogId: string, snackId: SnackId): number {
+  return BOND_GIFT[snackId] * (favoriteSnack(dogId) === snackId ? FAVE_MULT : 1);
+}
+
+/** 資料視窗「愛吃」那一行 */
+export function faveText(fave: SnackId | null): string {
+  if (!fave) return '？？？（到「我的家」送零食試試）';
+  return `${findSnack(fave)?.name ?? fave}（送牠好感度 ×${FAVE_MULT}）`;
+}
 
 /** 每個角色一天最多收幾次零食 */
 export const GIFT_PER_DAY = 3;
@@ -238,25 +282,47 @@ export function giftBlockText(block: GiftBlock): string {
   }
 }
 
-/** 送一個零食：扣一個零食、加好感度，升級的禮物照樣直接入袋 */
+/**
+ * 送一個零食：扣一個零食、加好感度（愛吃的加倍），升級的禮物照樣直接入袋。
+ * fave：這次送的是不是牠愛吃的；found：是不是第一次送對（剛發現）
+ */
 export function giftSnack<S extends GainFields>(
   state: S,
   dogId: string,
   snackId: string,
   now: number,
   o?: TimeOptions,
-): { state: S; gained: number; ups: BondUp[]; block: GiftBlock | null } {
+): {
+  state: S;
+  gained: number;
+  ups: BondUp[];
+  block: GiftBlock | null;
+  fave: boolean;
+  found: boolean;
+} {
   const block = giftBlock(state, dogId, snackId, now, o);
-  if (block) return { state, gained: 0, ups: [], block };
+  if (block) return { state, gained: 0, ups: [], block, fave: false, found: false };
   const today = bondToday(state.bond, now, o);
   const before = state.bond.points[dogId] ?? 0;
+  const fave = favoriteSnack(dogId) === snackId;
+  const found = fave && !today.faves.includes(dogId);
   const marked = {
     ...state,
     snacks: { ...state.snacks, [snackId]: snackCount(state, snackId) - 1 },
-    bond: { ...today, gifted: { ...today.gifted, [dogId]: (today.gifted[dogId] ?? 0) + 1 } },
+    bond: {
+      ...today,
+      gifted: { ...today.gifted, [dogId]: (today.gifted[dogId] ?? 0) + 1 },
+      faves: found ? [...today.faves, dogId] : today.faves,
+    },
   };
-  const r = gainBond(marked, [dogId], BOND_GIFT[snackId as SnackId]);
-  return { ...r, gained: (r.state.bond.points[dogId] ?? 0) - before, block: null };
+  const r = gainBond(marked, [dogId], giftGain(dogId, snackId as SnackId));
+  return {
+    ...r,
+    gained: (r.state.bond.points[dogId] ?? 0) - before,
+    block: null,
+    fave,
+    found,
+  };
 }
 
 /** 收到零食說的話 */
@@ -266,8 +332,16 @@ const GIFT_LINES: readonly (readonly string[])[] = [
   ['最喜歡{snack}，也最喜歡你', '（吃完整個撲過來）', '一人一半，你也吃'],
 ];
 
-export function giftLine(level: number, pick: number, snackName: string): string {
-  const pool = GIFT_LINES[level >= 7 ? 2 : level >= 3 ? 1 : 0];
+/** 收到愛吃的零食說的話（T046） */
+const FAVE_LINES: readonly string[] = [
+  '是{snack}！！你怎麼知道我最愛這個',
+  '（眼睛亮起來）{snack}！',
+  '{snack}耶！今天是什麼好日子',
+  '（抱著{snack}轉了三圈才捨得吃）',
+];
+
+export function giftLine(level: number, pick: number, snackName: string, fave = false): string {
+  const pool = fave ? FAVE_LINES : GIFT_LINES[level >= 7 ? 2 : level >= 3 ? 1 : 0];
   const i = ((Math.floor(pick) % pool.length) + pool.length) % pool.length;
   return pool[i].replace('{snack}', snackName);
 }
@@ -308,8 +382,14 @@ export function petLine(level: number, pick: number, likes?: string): string {
 /** 讀檔時整理好感度欄位；舊存檔沒有這個欄位就是全部從 0 開始 */
 export function sanitizeBond(raw: unknown): BondState {
   if (typeof raw !== 'object' || raw === null)
-    return { points: {}, day: '', petted: [], gifted: {} };
-  const r = raw as { points?: unknown; day?: unknown; petted?: unknown; gifted?: unknown };
+    return { points: {}, day: '', petted: [], gifted: {}, faves: [] };
+  const r = raw as {
+    points?: unknown;
+    day?: unknown;
+    petted?: unknown;
+    gifted?: unknown;
+    faves?: unknown;
+  };
   const points: Record<string, number> = {};
   if (typeof r.points === 'object' && r.points !== null) {
     for (const [id, v] of Object.entries(r.points as Record<string, unknown>)) {
@@ -330,5 +410,11 @@ export function sanitizeBond(raw: unknown): BondState {
       gifted[id] = Math.min(GIFT_PER_DAY, Math.floor(v));
     }
   }
-  return { points, day: typeof r.day === 'string' ? r.day : '', petted, gifted };
+  const faves: string[] = [];
+  if (Array.isArray(r.faves)) {
+    for (const id of r.faves) {
+      if (typeof id === 'string' && findDog(id) && !faves.includes(id)) faves.push(id);
+    }
+  }
+  return { points, day: typeof r.day === 'string' ? r.day : '', petted, gifted, faves };
 }
