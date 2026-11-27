@@ -169,9 +169,14 @@ test('我的家：點角色摸摸牠、送零食加好感度，一天最多送�
   });
   await page.screenshot({ path: `${SHOTS}/pet-card.png` });
 
-  // 送小肉乾：+5，零食少一個，今天剩兩次
+  // 送小肉乾：+5（剛好是牠愛吃的就加倍，T046），零食少一個，今天剩兩次
+  const [small, mid] = card.gifts.map((g) => g.gain);
+  expect([5, 10]).toContain(small);
+  expect([12, 24]).toContain(mid);
+  const pts = (n: number) =>
+    page.waitForFunction((want) => window.__WGZ__?.home?.card?.points === want, n);
   await tap(page, card.gifts[0]);
-  await page.waitForFunction(() => window.__WGZ__?.home?.card?.points === 15);
+  await pts(10 + small);
   card = (await home(page)).card!;
   expect(card).toMatchObject({ left: 2 });
   expect(card.gifts[0].count).toBe(4);
@@ -180,13 +185,14 @@ test('我的家：點角色摸摸牠、送零食加好感度，一天最多送�
   // 沒有的零食送不出去，會說為什麼
   await tap(page, card.gifts[2]);
   await page.waitForFunction(() => window.__WGZ__?.home?.note.includes('沒有了'));
-  expect((await home(page)).card!.points).toBe(15);
+  expect((await home(page)).card!.points).toBe(10 + small);
 
   // 香烤肉排 +12、再一個小肉乾 +5：今天三次用完
+  const total = 10 + small + mid + small;
   await tap(page, card.gifts[1]);
-  await page.waitForFunction(() => window.__WGZ__?.home?.card?.points === 27);
+  await pts(10 + small + mid);
   await tap(page, card.gifts[0]);
-  await page.waitForFunction(() => window.__WGZ__?.home?.card?.points === 32);
+  await pts(total);
   card = (await home(page)).card!;
   expect(card).toMatchObject({ level: 2, left: 0 });
   expect(card.gifts.every((g) => !g.ok)).toBe(true);
@@ -196,7 +202,7 @@ test('我的家：點角色摸摸牠、送零食加好感度，一天最多送�
   await page.screenshot({ path: `${SHOTS}/pet-full.png` });
 
   // 存檔記得好感度、今天摸過誰、送過幾次
-  await expect.poll(async () => (await saved()).bond.points[id], { timeout: 10_000 }).toBe(32);
+  await expect.poll(async () => (await saved()).bond.points[id], { timeout: 10_000 }).toBe(total);
   const st = await saved();
   expect(st.bond.petted).toEqual([id]);
   expect(st.bond.gifted).toEqual({ [id]: 3 });
@@ -205,4 +211,60 @@ test('我的家：點角色摸摸牠、送零食加好感度，一天最多送�
   // 關掉互動卡
   await tap(page, card.close);
   await page.waitForFunction(() => window.__WGZ__?.home?.card === null);
+});
+
+test('我的家：送到愛吃的零食好感度加倍，送對一次就記下來（T046）', async ({ page }) => {
+  await openLobby(page, '?fast=1');
+  await patchSave(page, { snacks: { small: 3, mid: 3, big: 3 } });
+  const saved = () =>
+    page.evaluate(() => JSON.parse(window.localStorage.getItem('wgz-save')!).state);
+  await tap(page, (await wgz(page)).lobby!.buttons.home);
+  await waitScene(page, 'HomeScene');
+
+  // 一開始不知道牠愛吃什麼：三顆按鈕都只寫原本的好感度
+  let card = await petSomeone(page);
+  const id = card.dogId;
+  expect(card.fave).toBeNull();
+  expect(card.gifts.every((g) => !g.known && g.ok)).toBe(true);
+  const base: Record<string, number> = { small: 5, mid: 12, big: 30 };
+  const faves = card.gifts.filter((g) => g.gain === base[g.id] * 2);
+  expect(faves).toHaveLength(1);
+  const fave = faves[0];
+  const other = card.gifts.find((g) => g.id !== fave.id)!;
+  expect(other.gain).toBe(base[other.id]);
+  const pts = (n: number) =>
+    page.waitForFunction((want) => window.__WGZ__?.home?.card?.points === want, n);
+
+  // 送別的：照原本的加，還是不知道
+  await tap(page, other);
+  await pts(10 + other.gain);
+  card = (await home(page)).card!;
+  expect(card.fave).toBeNull();
+  expect((await home(page)).note).not.toContain('發現了');
+  await page.screenshot({ path: `${SHOTS}/fave-unknown.png` });
+
+  // 送對了：加倍，跳出「發現了」，按鈕上從此寫著愛吃
+  await tap(page, fave);
+  await pts(10 + other.gain + fave.gain);
+  await page.waitForFunction(() => window.__WGZ__?.home?.note.includes('發現了'));
+  card = (await home(page)).card!;
+  expect(card.fave).toBe(fave.id);
+  expect(card.gifts.filter((g) => g.known).map((g) => g.id)).toEqual([fave.id]);
+  await page.screenshot({ path: `${SHOTS}/fave-found.png` });
+  await expect.poll(async () => (await saved()).bond.faves, { timeout: 10_000 }).toEqual([id]);
+
+  // 關掉再點同一隻或別隻：記著的不會不見
+  await tap(page, card.close);
+  await page.waitForFunction(() => window.__WGZ__?.home?.card === null);
+
+  // 圖鑑的小故事那一頁也看得到牠愛吃什麼
+  await tap(page, (await wgz(page)).backButton!);
+  await waitScene(page, 'LobbyScene');
+  await tap(page, (await wgz(page)).lobby!.buttons.codex);
+  await waitScene(page, 'CodexScene');
+  const cell = (await wgz(page)).codex!.cells.find((x) => x.id === id)!;
+  await tap(page, cell);
+  await page.waitForFunction((want) => window.__WGZ__?.codex?.panel === want, id);
+  expect((await wgz(page)).codex!.panelTab).toBe('story');
+  await page.screenshot({ path: `${SHOTS}/fave-info.png` });
 });

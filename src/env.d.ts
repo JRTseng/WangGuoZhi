@@ -402,9 +402,12 @@ interface WgzDebugState {
       level: number;
       points: number;
       left: number;
+      /** 玩家已經知道牠愛吃哪一種零食（T046）；還不知道是 null */
+      fave: string | null;
       /** 牠剛說的話 */
       line: string;
-      gifts: ({ id: string; count: number; ok: boolean } & WgzRect)[];
+      /** 這次送會加多少好感度（愛吃的加倍）；known：玩家已經知道這是牠愛吃的（T046） */
+      gifts: ({ id: string; count: number; ok: boolean; gain: number; known: boolean } & WgzRect)[];
       close: WgzRect;
     } | null;
   };

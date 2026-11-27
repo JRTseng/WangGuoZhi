@@ -15,6 +15,11 @@ import {
   bondUpText,
   bondView,
   canPet,
+  FAVE_MULT,
+  favoriteSnack,
+  faveText,
+  giftGain,
+  knowsFavorite,
   gainBond,
   GIFT_PER_DAY,
   giftBlock,
@@ -162,21 +167,39 @@ describe('好感度（T042）', () => {
   });
 
   it('讀檔：舊存檔沒有好感度就從 0 開始；壞掉的值會被整理掉', () => {
-    expect(sanitizeBond(undefined)).toEqual({ points: {}, day: '', petted: [], gifted: {} });
+    expect(sanitizeBond(undefined)).toEqual({
+      points: {},
+      day: '',
+      petted: [],
+      gifted: {},
+      faves: [],
+    });
     expect(
       sanitizeBond({
         points: { daer: 45.7, nobody: 10, abai: -3, heixuan: 'x', changxu: 99999 },
         day: 20261124,
         petted: ['daer', 'daer', 'nobody', 5],
       }),
-    ).toEqual({ points: { daer: 45, changxu: 660 }, day: '', petted: ['daer'], gifted: {} });
+    ).toEqual({
+      points: { daer: 45, changxu: 660 },
+      day: '',
+      petted: ['daer'],
+      gifted: {},
+      faves: [],
+    });
 
     const s = petDog(fresh(), 'daer', NOW).state;
     const loaded = sanitizeState(JSON.parse(JSON.stringify(s)), NOW);
     expect(loaded.bond).toEqual(s.bond);
     const old = JSON.parse(JSON.stringify(s)) as Record<string, unknown>;
     delete old.bond;
-    expect(sanitizeState(old, NOW).bond).toEqual({ points: {}, day: '', petted: [], gifted: {} });
+    expect(sanitizeState(old, NOW).bond).toEqual({
+      points: {},
+      day: '',
+      petted: [],
+      gifted: {},
+      faves: [],
+    });
   });
 
   describe('送零食（T044）', () => {
@@ -250,6 +273,85 @@ describe('好感度（T042）', () => {
       expect(r.gained).toBe(4);
       expect(r.state.bond.points[id]).toBe(BOND_NEED[BOND_MAX_LEVEL]);
       expect(r.ups.at(-1)?.level).toBe(BOND_MAX_LEVEL);
+    });
+
+    describe('愛吃的零食（T046）', () => {
+      const SNACK_IDS = ['small', 'mid', 'big'] as const;
+      const stocked = () => ({ ...fresh(), snacks: { small: 9, mid: 9, big: 9 } });
+
+      it('每個角色愛吃的固定不變，三種零食都有不少角色愛吃', () => {
+        const count: Record<string, number> = { small: 0, mid: 0, big: 0 };
+        for (const d of DOGS) {
+          const f = favoriteSnack(d.id);
+          expect(SNACK_IDS).toContain(f);
+          expect(favoriteSnack(d.id)).toBe(f);
+          count[f] += 1;
+        }
+        for (const id of SNACK_IDS) expect(count[id]).toBeGreaterThanOrEqual(DOGS.length / 5);
+      });
+
+      it('送對了好感度加倍，並且記下來；送別的照原本的加', () => {
+        const s0 = stocked();
+        const id = s0.owned[0];
+        const fave = favoriteSnack(id);
+        const other = SNACK_IDS.find((x) => x !== fave)!;
+        expect(giftGain(id, fave)).toBe(BOND_GIFT[fave] * FAVE_MULT);
+        expect(giftGain(id, other)).toBe(BOND_GIFT[other]);
+        expect(knowsFavorite(s0, id)).toBe(false);
+        expect(bondView(s0, id).fave).toBeNull();
+
+        const r1 = giftSnack(s0, id, other, NOW);
+        expect(r1).toMatchObject({ gained: BOND_GIFT[other], fave: false, found: false });
+        expect(knowsFavorite(r1.state, id)).toBe(false);
+
+        const r2 = giftSnack(r1.state, id, fave, NOW);
+        expect(r2).toMatchObject({ gained: BOND_GIFT[fave] * FAVE_MULT, fave: true, found: true });
+        expect(r2.state.snacks[fave]).toBe(8);
+        expect(r2.state.bond.faves).toEqual([id]);
+        expect(bondView(r2.state, id).fave).toBe(fave);
+
+        // 再送一次：還是加倍，但不是新發現，也不會重複記
+        const r3 = giftSnack(r2.state, id, fave, NOW);
+        expect(r3).toMatchObject({ fave: true, found: false });
+        expect(r3.state.bond.faves).toEqual([id]);
+      });
+
+      it('知道愛吃什麼不會換日就忘記；送不出去的時候不會偷偷記下來', () => {
+        const s0 = stocked();
+        const id = s0.owned[0];
+        const fave = favoriteSnack(id);
+        const known = giftSnack(s0, id, fave, NOW).state;
+        const next = petDog(known, id, NOW + DAY).state;
+        expect(next.bond.gifted).toEqual({});
+        expect(knowsFavorite(next, id)).toBe(true);
+        const none = { ...s0, snacks: {} };
+        const blocked = giftSnack(none, id, fave, NOW);
+        expect(blocked).toMatchObject({ block: 'none-left', fave: false, found: false });
+        expect(knowsFavorite(blocked.state, id)).toBe(false);
+      });
+
+      it('台詞與資料視窗的文字', () => {
+        for (let i = 0; i < 6; i += 1) {
+          const line = giftLine(0, i, '香烤肉排', true);
+          expect(line).toContain('香烤肉排');
+          expect(line.length).toBeLessThanOrEqual(30);
+          expect(giftLine(0, i, '香烤肉排')).not.toBe(line);
+        }
+        expect(faveText(null)).toContain('？？？');
+        expect(faveText('big')).toContain('大骨頭');
+      });
+
+      it('讀檔：舊存檔沒有 faves 是空的；認不得、重複的會被整理掉', () => {
+        const s0 = stocked();
+        const id = s0.owned[0];
+        const old = { ...s0, bond: { points: {}, day: '', petted: [] } } as unknown as typeof s0;
+        expect(knowsFavorite(old, id)).toBe(false);
+        expect(giftSnack(old, id, favoriteSnack(id), NOW).state.bond.faves).toEqual([id]);
+        expect(sanitizeBond({ faves: [id, id, 'nobody', 3] }).faves).toEqual([id]);
+        expect(sanitizeBond({ faves: 'x' }).faves).toEqual([]);
+        const saved = giftSnack(s0, id, favoriteSnack(id), NOW).state;
+        expect(sanitizeState(JSON.parse(JSON.stringify(saved)), NOW).bond).toEqual(saved.bond);
+      });
     });
 
     it('舊存檔沒有 gifted 也能送；壞掉的 gifted 會被整理掉', () => {

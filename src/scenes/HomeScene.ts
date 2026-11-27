@@ -11,6 +11,7 @@ import {
   canPet,
   giftBlock,
   giftBlockText,
+  giftGain,
   giftLine,
   giftSnack,
   giftsLeft,
@@ -377,13 +378,21 @@ export class HomeScene extends Phaser.Scene {
       return;
     }
     setState(r.state);
-    playSfx(r.ups.length > 0 ? 'levelup' : 'heal');
+    playSfx(r.ups.length > 0 || r.found ? 'levelup' : 'heal');
     pet.sprite.play('lick');
-    this.heart(pet, `♥ 好感 +${r.gained}`, true);
+    this.heart(pet, `${r.fave ? '♥♥ 愛吃！' : '♥ '}好感 +${r.gained}`, true);
     this.talkCount += 1;
     const snack = SNACKS.find((x) => x.id === snackId);
-    this.talk(pet, giftLine(bondView(r.state, id).level, this.talkCount, snack?.name ?? ''));
-    if (r.ups.length > 0) this.say(bondUpText(r.ups));
+    this.talk(
+      pet,
+      giftLine(bondView(r.state, id).level, this.talkCount, snack?.name ?? '', r.fave),
+    );
+    // 第一次送對：告訴玩家以後送這個加倍（同時升級的話兩句接在一起）
+    const notes = [
+      r.found ? `發現了！${pet.dog.name}愛吃${snack?.name ?? ''}，以後送這個好感度加倍` : '',
+      bondUpText(r.ups),
+    ].filter(Boolean);
+    if (notes.length > 0) this.say(notes.join('\u3000'));
     this.renderCard();
   }
 
@@ -472,11 +481,12 @@ export class HomeScene extends Phaser.Scene {
     g.fillRoundedRect(c.box.x, c.box.y, c.box.width, c.box.height, 14);
     g.strokeRoundedRect(c.box.x, c.box.y, c.box.width, c.box.height, 14);
     const progress = v.max ? '（滿了）' : `（${v.into}／${v.need}）`;
+    const faveName = v.fave ? (SNACKS.find((x) => x.id === v.fave)?.name ?? '') : '';
     const second = v.max
       ? '好感度滿了，謝謝你一直陪牠'
       : left > 0
-        ? `今天還能送零食 ${left} 次`
-        : '今天吃飽了，明天再送';
+        ? `今天還能送 ${left} 次・${v.fave ? `愛吃${faveName}` : '愛吃的是？'}`
+        : `今天吃飽了，明天再送${v.fave ? `・愛吃${faveName}` : ''}`;
     layer.add([
       g,
       addText(
@@ -494,6 +504,9 @@ export class HomeScene extends Phaser.Scene {
       const r = c.gifts[i];
       const count = snackCount(st, snack.id);
       const ok = giftBlock(st, id, snack.id, now, timeOptions()) === null;
+      // 實際會加多少（愛吃的加倍）；known：玩家已經知道這是牠愛吃的，按鈕上才寫出來
+      const gain = giftGain(id, snack.id);
+      const known = v.fave === snack.id;
       const b = new Button(this, r, '', () => this.gift(snack.id), 13);
       b.setColor(ok ? snack.color : COLORS.buttonDisabled);
       layer.add([
@@ -511,12 +524,13 @@ export class HomeScene extends Phaser.Scene {
           this,
           r.x + r.width / 2,
           r.y + 31,
-          `好感 +${BOND_GIFT[snack.id]}`,
+          known ? `♥ 愛吃 好感 +${gain}` : `好感 +${BOND_GIFT[snack.id]}`,
           11,
-          '#ffffff',
+          known ? '#fff3a6' : '#ffffff',
+          known,
         ).setOrigin(0.5),
       ]);
-      return { id: snack.id, count, ok, ...r };
+      return { id: snack.id, count, ok, gain, known, ...r };
     });
     layer.add(
       new Button(this, c.close, '✕', () => this.closeCard(), 18).setColor(COLORS.buttonDisabled),
@@ -526,6 +540,7 @@ export class HomeScene extends Phaser.Scene {
       level: v.level,
       points: v.points,
       left,
+      fave: v.fave,
       line: this.line,
       gifts,
       close: c.close,

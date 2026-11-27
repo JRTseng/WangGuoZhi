@@ -3,7 +3,7 @@ import { COLORS, rarityHex } from '../../config';
 import { bioOf } from '../../data/bios';
 import type { DogData } from '../../data/dogs';
 import { DEFAULT_SKILL_LINES } from '../../data/skillLines';
-import { bondText, type BondView } from '../../logic/bond';
+import { bondText, faveText, type BondView } from '../../logic/bond';
 import { battleRoleOf } from '../../logic/formation';
 import type { Rect } from '../../logic/layout';
 import { levelSkillsOf, perkText } from '../../logic/levelSkills';
@@ -207,13 +207,18 @@ export class DogInfoPanel {
             ['害怕', bio.fears, '#5a6f94'],
           ];
           if (line) rows.push(['口頭禪', `「${line}」`, '#4f8a3c']);
-          if (o.bond) rows.push(['好感度', bondText(o.bond), '#e0452b']);
+          if (o.bond) {
+            rows.push(['愛吃', faveText(o.bond.fave), '#c0522b']);
+            rows.push(['好感度', bondText(o.bond), '#e0452b']);
+          }
+          // 行數多的時候排緊一點，好感度那行換行也不會碰到下面的按鈕
+          const pitch = rows.length > 4 ? 25 : 30;
           for (const [label, text, color] of rows) {
             side.add([
               addText(scene, sx, fy, label, 14, color, true),
               addText(scene, sx + 58, fy, text, 14, COLORS.ink).setWordWrapWidth(sw - 58, true),
             ]);
-            fy += 30;
+            fy += pitch;
           }
           return;
         }
